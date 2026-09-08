@@ -228,3 +228,54 @@ test("a missing clips folder is normal, not an error", async () => {
   assert.deepEqual(await clipKeys("/nowhere/at/all"), []);
   assert.equal(await clipCount("/nowhere/at/all"), 0);
 });
+
+test("every prompt fits every provider's hard limit once shortened", async () => {
+  const { fitPrompt } = await import("../src/cinema/world.js");
+  const { readFileSync } = await import("node:fs");
+  const manifest = JSON.parse(
+    readFileSync(new URL("../prompts/manifest.json", import.meta.url), "utf8"),
+  );
+  for (const adapter of Object.values(ADAPTERS)) {
+    if (!adapter.maxPrompt) continue;
+    for (const shot of manifest.shots) {
+      const fitted = fitPrompt(shot.prompt, adapter.maxPrompt);
+      assert.ok(
+        fitted.length <= adapter.maxPrompt,
+        `${shot.key} is ${fitted.length} chars for ${adapter.id}, over its ${adapter.maxPrompt} limit`,
+      );
+    }
+  }
+});
+
+test("shortening drops the boilerplate before it touches the subject", async () => {
+  const { assemble, fitPrompt, STYLE, WORLD } = await import("../src/cinema/world.js");
+  const subject = "an enormous armoured dragon erupting from a duel disk in a floodlit arena";
+  const prompt = assemble(subject);
+  assert.ok(prompt.length > 512, "the full prompt is meant to be long");
+
+  const fitted = fitPrompt(prompt, 512);
+  assert.ok(fitted.length <= 512);
+  assert.ok(fitted.includes(subject), "the subject must survive shortening intact");
+  assert.ok(!fitted.includes(STYLE), "the long style block should have been swapped out");
+  assert.match(fitted, /Duel Disk/i, "the world must still be described, briefly");
+  assert.doesNotMatch(fitted, /[,;\s]$/, "a trimmed prompt must not end mid-clause");
+});
+
+test("a prompt already within the limit is left exactly alone", async () => {
+  const { fitPrompt } = await import("../src/cinema/world.js");
+  const short = "a dragon on a duel field";
+  assert.equal(fitPrompt(short, 512), short);
+  assert.equal(fitPrompt(short, 0), short, "no limit means no change");
+});
+
+test("stills default to the free host, so holding a key never costs more", async () => {
+  const { readFileSync } = await import("node:fs");
+  const server = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
+  const stillUrl = server.slice(server.indexOf("function stillUrl"), server.indexOf("export const stillsAreBilled"));
+  assert.match(stillUrl, /ANON_IMAGE/, "the anonymous host must be the default for stills");
+  assert.match(stillUrl, /KEY && BILL_STILLS/,
+    "the billed host must require an explicit opt-in, not just the presence of a key");
+  assert.match(server, /DUEL_BILL_STILLS/, "the opt-in must be an environment variable");
+  const env = readFileSync(new URL("../.env.example", import.meta.url), "utf8");
+  assert.match(env, /DUEL_BILL_STILLS=0/, "the example env must ship with billing off");
+});

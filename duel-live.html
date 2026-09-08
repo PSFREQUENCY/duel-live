@@ -3076,7 +3076,9 @@ function highestTier(requested = "video") {
 
 function shotBody(shot, tier) {
   // Stills are cheap and unique per shot; only video is worth generalising.
-  const archetype = tier === "video" && reuseMode === "archetype" ? archetypeFor(shot) : null;
+  const archetype = tier === "video" && reuseMode === "archetype"
+    ? archetypeFor(shot, { hasClip })
+    : null;
   return {
     id: shot.id,
     tier,
@@ -3092,7 +3094,9 @@ function shotBody(shot, tier) {
 function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
   // Shots sharing an archetype share a job, so a reused clip is fetched once.
-  const archetype = tier === "video" && reuseMode === "archetype" ? archetypeFor(shot) : null;
+  const archetype = tier === "video" && reuseMode === "archetype"
+    ? archetypeFor(shot, { hasClip })
+    : null;
   const key = `${archetype?.key ?? shot.id}:${tier}`;
   if (jobs.has(key)) return jobs.get(key);
   const job = fetchImpl("/api/shot", {
@@ -3241,7 +3245,14 @@ function reactionKeyFor(situation, duelistId) {
  * A stable key plus a prompt general enough that one clip serves every monster
  * sharing that archetype. Returns null when a shot has no reusable form.
  */
-function archetypeFor(shot) {
+/**
+ * The clip a shot should play.
+ *
+ * `hasClip` is optional. When given, a duelist-specific clip is preferred only
+ * if it actually exists -- otherwise the generic archetype is used, so one
+ * `trap` clip can cover all four duelists until their own are made.
+ */
+function archetypeFor(shot, { hasClip } = {}) {
   if (!shot?.kind) return null;
   // A shot may name its own clip -- title cards do, since they are authored
   // rather than derived from cards on the field.
@@ -3251,7 +3262,9 @@ function archetypeFor(shot) {
 
   if (!MONSTER_KINDS.has(shot.kind)) {
     const character = duelistKeyFor(shot);
-    if (character) return { key: character, prompt: shot.prompt, seconds: shot.seconds, character: true };
+    if (character && (!hasClip || hasClip(character))) {
+      return { key: character, prompt: shot.prompt, seconds: shot.seconds, character: true };
+    }
 
     const scene = shot.kind === "trap"
       ? `a huge holographic trap card flips face-up and floods the arena with hostile red light, ${where}`
@@ -3389,15 +3402,50 @@ const TITLE_STYLE = "AAA 3D cinematic animation, Unreal Engine quality, physical
   + "shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, "
   + "no watermark";
 
+// Some video APIs cap the prompt hard -- amazon/nova-reel-v1 rejects anything
+// over 512 characters, and the full style and world blocks are 636 on their own.
+// These are the same instructions said briefly, so a length-limited provider
+// still gets the look rather than a truncated sentence.
+const STYLE_SHORT = "late-90s cel anime, inked outlines, saturated colour, low camera "
+    + "angle, 16:9, no text or logos";
+
+const WORLD_SHORT = "A holographic card duel: each duelist wears a lit Duel Disk on their "
+    + "forearm, and monsters appear as huge translucent holograms projected above it";
+
+/**
+ * Shorten a prompt to fit a provider's limit without losing the subject.
+ *
+ * The subject is the only part that differs between clips, so it is the last
+ * thing to go: the style block is swapped for its short form first, then the
+ * world block, and only then is anything trimmed.
+ */
+function fitPrompt(prompt, limit) {
+    if (!limit || prompt.length <= limit) return prompt;
+
+    let out = prompt.replace(STYLE, STYLE_SHORT).replace(TITLE_STYLE, TITLE_STYLE_SHORT);
+    if (out.length <= limit) return out;
+
+    out = out.replace(WORLD, WORLD_SHORT);
+    if (out.length <= limit) return out;
+
+    // Still too long: cut at a word boundary rather than mid-word.
+    const cut = out.slice(0, limit);
+    const lastSpace = cut.lastIndexOf(" ");
+    return (lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[,;\s]+$/, "");
+}
+
 /** Every in-duel prompt in the project is assembled through here. */
 const assemble = (subject) => `${STYLE}. ${WORLD}. ${subject}.`;
+
+const TITLE_STYLE_SHORT = "AAA 3D cinematic animation, physically based rendering, "
+    + "volumetric light, chrome, cyan and magenta holographic panels, 16:9, no text or logos";
 
 /** Title cards skip the world block; they are not shot inside a duel. */
 const assembleTitle = (subject) => `${TITLE_STYLE}. ${subject}.`;
 
 const arenaFor = (duelistId) => ARENAS[LOOKS[duelistId]?.arena ?? "rooftop"];
 
-Object.assign(__exports, { STYLE, WORLD, ARENAS, LOOKS, NEUTRAL_ARENA, TITLE_STYLE, assemble, assembleTitle, arenaFor });
+Object.assign(__exports, { fitPrompt, STYLE, WORLD, ARENAS, LOOKS, NEUTRAL_ARENA, TITLE_STYLE, STYLE_SHORT, WORLD_SHORT, assemble, TITLE_STYLE_SHORT, assembleTitle, arenaFor });
 });
 
 __def("src/cinema/realtime-voice.js", {}, function (__exports, __req) {

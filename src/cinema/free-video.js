@@ -58,7 +58,9 @@ export function highestTier(requested = "video") {
 
 function shotBody(shot, tier) {
   // Stills are cheap and unique per shot; only video is worth generalising.
-  const archetype = tier === "video" && reuseMode === "archetype" ? archetypeFor(shot) : null;
+  const archetype = tier === "video" && reuseMode === "archetype"
+    ? archetypeFor(shot, { hasClip })
+    : null;
   return {
     id: shot.id,
     tier,
@@ -74,7 +76,9 @@ function shotBody(shot, tier) {
 export function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
   // Shots sharing an archetype share a job, so a reused clip is fetched once.
-  const archetype = tier === "video" && reuseMode === "archetype" ? archetypeFor(shot) : null;
+  const archetype = tier === "video" && reuseMode === "archetype"
+    ? archetypeFor(shot, { hasClip })
+    : null;
   const key = `${archetype?.key ?? shot.id}:${tier}`;
   if (jobs.has(key)) return jobs.get(key);
   const job = fetchImpl("/api/shot", {

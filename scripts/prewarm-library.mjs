@@ -4,18 +4,30 @@
 //
 // Safe to re-run: clips already on disk are skipped, not regenerated.
 
-import { libraryFor } from "../src/cinema/archetypes.js";
-import { DUELISTS } from "../src/duelists.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { availableProviders } from "../src/providers.mjs";
+import { clipKeys } from "../src/clip-library.mjs";
 
 const PORT = Number(process.env.PORT ?? 4174);
 const BASE = process.env.DUEL_BASE_URL ?? `http://localhost:${PORT}`;
 const only = process.argv.slice(2).filter((a) => !a.startsWith("-"));
-const limit = Number((process.argv.find((a) => a.startsWith("--limit=")) ?? "").split("=")[1] || 0);
+const limit = Number((process.argv.find((a) => a.startsWith("--limit=")) ?? "").split("=")[1] ?? 0);
 
-const library = libraryFor(Object.values(DUELISTS))
-  .filter((entry) => (only.length ? only.some((f) => entry.key.includes(f)) : true));
-const targets = limit ? library.slice(0, limit) : library;
+// The manifest is the single source of every clip the game can use -- archetypes,
+// duelist shots and title cards alike -- so prewarm and the hand-made prompt
+// sheets always agree on what exists and what it should look like.
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const manifest = JSON.parse(readFileSync(`${ROOT}prompts/manifest.json`, "utf8"));
+
+// A clip already in clips/ is better art at no cost; never spend on one.
+const handmade = new Set(await clipKeys(`${ROOT}clips`));
+
+const library = manifest.shots
+  .filter((shot) => !handmade.has(shot.key))
+  .filter((shot) => (only.length ? only.some((f) => shot.key.includes(f)) : true));
+const targets = limit > 0 ? library.slice(0, limit) : library;
 
 const providers = availableProviders();
 if (!providers.length) {
@@ -23,7 +35,8 @@ if (!providers.length) {
   process.exit(1);
 }
 
-console.log(`library    ${library.length} clips${limit ? ` · generating ${targets.length}` : ""}`);
+console.log(`manifest   ${manifest.shots.length} clips · ${handmade.size} already hand-made`);
+console.log(`to make    ${library.length}${limit ? ` · generating ${targets.length}` : ""}`);
 console.log(`providers  ${providers.map((p) => p.label).join(" → ")}`);
 console.log(`server     ${BASE}\n`);
 

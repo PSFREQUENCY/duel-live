@@ -77,7 +77,14 @@ export function reactionKeyFor(situation, duelistId) {
  * A stable key plus a prompt general enough that one clip serves every monster
  * sharing that archetype. Returns null when a shot has no reusable form.
  */
-export function archetypeFor(shot) {
+/**
+ * The clip a shot should play.
+ *
+ * `hasClip` is optional. When given, a duelist-specific clip is preferred only
+ * if it actually exists -- otherwise the generic archetype is used, so one
+ * `trap` clip can cover all four duelists until their own are made.
+ */
+export function archetypeFor(shot, { hasClip } = {}) {
   if (!shot?.kind) return null;
   // A shot may name its own clip -- title cards do, since they are authored
   // rather than derived from cards on the field.
@@ -87,7 +94,9 @@ export function archetypeFor(shot) {
 
   if (!MONSTER_KINDS.has(shot.kind)) {
     const character = duelistKeyFor(shot);
-    if (character) return { key: character, prompt: shot.prompt, seconds: shot.seconds, character: true };
+    if (character && (!hasClip || hasClip(character))) {
+      return { key: character, prompt: shot.prompt, seconds: shot.seconds, character: true };
+    }
 
     const scene = shot.kind === "trap"
       ? `a huge holographic trap card flips face-up and floods the arena with hostile red light, ${where}`

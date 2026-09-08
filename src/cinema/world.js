@@ -61,8 +61,43 @@ export const TITLE_STYLE = "AAA 3D cinematic animation, Unreal Engine quality, p
   + "shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, "
   + "no watermark";
 
+// Some video APIs cap the prompt hard -- amazon/nova-reel-v1 rejects anything
+// over 512 characters, and the full style and world blocks are 636 on their own.
+// These are the same instructions said briefly, so a length-limited provider
+// still gets the look rather than a truncated sentence.
+export const STYLE_SHORT = "late-90s cel anime, inked outlines, saturated colour, low camera "
+    + "angle, 16:9, no text or logos";
+
+export const WORLD_SHORT = "A holographic card duel: each duelist wears a lit Duel Disk on their "
+    + "forearm, and monsters appear as huge translucent holograms projected above it";
+
+/**
+ * Shorten a prompt to fit a provider's limit without losing the subject.
+ *
+ * The subject is the only part that differs between clips, so it is the last
+ * thing to go: the style block is swapped for its short form first, then the
+ * world block, and only then is anything trimmed.
+ */
+export function fitPrompt(prompt, limit) {
+    if (!limit || prompt.length <= limit) return prompt;
+
+    let out = prompt.replace(STYLE, STYLE_SHORT).replace(TITLE_STYLE, TITLE_STYLE_SHORT);
+    if (out.length <= limit) return out;
+
+    out = out.replace(WORLD, WORLD_SHORT);
+    if (out.length <= limit) return out;
+
+    // Still too long: cut at a word boundary rather than mid-word.
+    const cut = out.slice(0, limit);
+    const lastSpace = cut.lastIndexOf(" ");
+    return (lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[,;\s]+$/, "");
+}
+
 /** Every in-duel prompt in the project is assembled through here. */
 export const assemble = (subject) => `${STYLE}. ${WORLD}. ${subject}.`;
+
+export const TITLE_STYLE_SHORT = "AAA 3D cinematic animation, physically based rendering, "
+    + "volumetric light, chrome, cyan and magenta holographic panels, 16:9, no text or logos";
 
 /** Title cards skip the world block; they are not shot inside a duel. */
 export const assembleTitle = (subject) => `${TITLE_STYLE}. ${subject}.`;

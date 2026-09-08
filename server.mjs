@@ -72,15 +72,24 @@ function authHeaders() {
 
 // ------------------------------------------------------------- generation ---
 
+// Stills go through the anonymous host, which serves the same images for free.
+// Routing them through the keyed host bills every request -- during testing that
+// quietly spent more Pollen on stills than on video, which is the budget the key
+// exists to protect. Opt in with DUEL_BILL_STILLS=1 only if you need a model the
+// anonymous host will not serve.
+const BILL_STILLS = /^(1|true)$/i.test(process.env.DUEL_BILL_STILLS ?? "");
+
 function stillUrl(prompt, seed) {
   const q = new URLSearchParams({
     model: CFG.image, width: String(CFG.width), height: String(CFG.height),
     seed: String(seed), nologo: "true", safe: "true",
   });
-  // With no key the anonymous host still serves images, so tier 1 stays free.
-  return KEY ? `${GEN}/image/${encodeURIComponent(prompt)}?${q}`
+  return KEY && BILL_STILLS
+    ? `${GEN}/image/${encodeURIComponent(prompt)}?${q}`
     : `${ANON_IMAGE}/${encodeURIComponent(prompt)}?${q}`;
 }
+
+export const stillsAreBilled = () => Boolean(KEY && BILL_STILLS);
 
 async function fetchOnce(url, file, timeoutMs) {
   const ctl = new AbortController();
@@ -303,6 +312,7 @@ server.listen(PORT, () => {
   const providers = availableProviders();
   console.log(`Duel Live  →  http://localhost:${PORT}/`);
   console.log(`Tiers   procedural + still${KEY ? " + voice" : ""}${providers.length ? " + video" : ""}`);
+  console.log(`Stills  ${stillsAreBilled() ? "BILLED — DUEL_BILL_STILLS is on" : "free (anonymous host)"}`);
   clipCount(CLIPS_DIR).then((clips) => {
     const sources = [clips ? `${clips} hand-made clips in clips/` : null,
       providers.length ? `${providers.map((p) => p.label).join(" → ")} at ${CFG.quality}p` : null,

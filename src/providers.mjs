@@ -8,7 +8,10 @@
 //   configured()  are its credentials present?
 //   seconds(n)    the duration this provider will actually accept
 //   cost(n)       rough units, only meaningful within a provider
+//   maxPrompt     hard character cap the API enforces, if any
 //   generate({ prompt, seconds, seed, quality, signal }) -> Buffer
+
+import { fitPrompt } from "./cinema/world.js";
 
 const GEN = "https://gen.pollinations.ai";
 const GOOGLE = "https://generativelanguage.googleapis.com/v1beta";
@@ -50,6 +53,8 @@ const pollinations = {
   id: "pollinations",
   label: "Pollinations · nova-reel",
   model: env("DUEL_VIDEO_MODEL") || "amazon/nova-reel-v1",
+  // nova-reel rejects a prompt over 512 characters outright.
+  maxPrompt: 512,
   configured: () => Boolean(env("POLLINATIONS_API_KEY")),
   // nova-reel-v1 advertises min_duration 6, so a shorter ask is rejected.
   seconds: (n) => clamp(n, 6, 10),
@@ -75,6 +80,7 @@ const google = {
   id: "google",
   label: "Google · Veo 3.1",
   model: env("DUEL_GOOGLE_VIDEO_MODEL") || "veo-3.1-fast-generate-preview",
+  maxPrompt: 2000,
   configured: () => Boolean(env("GEMINI_API_KEY")),
   // Veo accepts 4, 6 or 8 seconds only. Scanning ascending with a strict
   // comparison makes ties break toward the shorter, cheaper duration.
@@ -117,6 +123,7 @@ const higgsfield = {
   id: "higgsfield",
   label: "Higgsfield · Seedance Lite",
   path: env("DUEL_HIGGSFIELD_PATH") || "/bytedance/seedance/v1/lite/text-to-video",
+  maxPrompt: 2000,
   configured: () => Boolean(env("HIGGSFIELD_API_KEY_ID") && env("HIGGSFIELD_API_KEY_SECRET")),
   seconds: (n) => clamp(n, 3, 10),
   cost: (n) => clamp(n, 3, 10),
@@ -178,7 +185,12 @@ export async function generateVideo(request, { canAfford = () => true, onAttempt
     }
     onAttempt?.(provider);
     try {
-      return { buffer: await provider.generate(request), provider: provider.id };
+      // Each provider gets the prompt shortened to what it will actually accept.
+      const prompt = fitPrompt(request.prompt, provider.maxPrompt);
+      return {
+        buffer: await provider.generate({ ...request, prompt }),
+        provider: provider.id,
+      };
     } catch (error) {
       problems.push(`${provider.id}: ${error.message}`);
     }
