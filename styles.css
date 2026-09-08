@@ -312,6 +312,10 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
 }
 #hand-hint { font-size: 11px; color: var(--ink-faint); }
+.provider-note {
+  margin-left: auto; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.06em; color: var(--good);
+}
 .hand { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 6px; }
 
 .card {

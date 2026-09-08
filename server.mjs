@@ -10,6 +10,8 @@ import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { availableProviders, generateVideo } from "./src/providers.mjs";
+
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const MEDIA_DIR = join(ROOT, ".local", "media");
 const PORT = Number(process.env.PORT ?? 4174);
@@ -21,6 +23,7 @@ const CFG = {
   voice: process.env.DUEL_VOICE_MODEL ?? "NamanSoni78/aura-2-atlas-en",
   realtime: process.env.DUEL_REALTIME_MODEL ?? "openai/gpt-realtime-2.1-mini",
   seconds: Number(process.env.DUEL_VIDEO_SECONDS ?? 6),
+  quality: process.env.DUEL_VIDEO_QUALITY ?? "480",
   width: Number(process.env.DUEL_VIDEO_WIDTH ?? 768),
   height: Number(process.env.DUEL_VIDEO_HEIGHT ?? 432),
 };
@@ -63,23 +66,6 @@ function authHeaders() {
 }
 
 // ------------------------------------------------------------- generation ---
-
-// amazon/nova-reel-v1 advertises min_duration 6 / max_duration 120 and bills per
-// second, so a shorter request is rejected rather than being cheaper.
-const VIDEO_MIN_SECONDS = 6;
-const VIDEO_MAX_SECONDS = 10;
-
-function clampSeconds(seconds) {
-  return Math.min(VIDEO_MAX_SECONDS, Math.max(VIDEO_MIN_SECONDS, Math.round(seconds)));
-}
-
-function videoUrl(prompt, seconds, seed) {
-  const q = new URLSearchParams({
-    model: CFG.video, width: String(CFG.width), height: String(CFG.height),
-    seed: String(seed), duration: String(clampSeconds(seconds)), aspectRatio: "16:9",
-  });
-  return `${GEN}/video/${encodeURIComponent(prompt)}?${q}`;
-}
 
 function stillUrl(prompt, seed) {
   const q = new URLSearchParams({
@@ -152,22 +138,51 @@ function once(key, work) {
   return inflight.get(key);
 }
 
+// A Pollen balance only gates the Pollinations adapter; the others bill their
+// own way and are vetoed by their own credentials being absent.
+async function canAfford(provider, seconds) {
+  if (provider.id !== "pollinations") return true;
+  return affordsVideo(await pollenBalance(), seconds);
+}
+
+async function generateClip(name, { prompt, seconds }) {
+  const file = join(MEDIA_DIR, name);
+  if (await exists(file)) return { cached: true, provider: "cache" };
+  const { buffer, provider } = await generateVideo({
+    prompt, seconds, seed: parseInt(digest([name]).slice(0, 8), 16) % 2147483647,
+    quality: CFG.quality,
+  }, { canAfford });
+  await mkdir(MEDIA_DIR, { recursive: true });
+  await writeFile(file, buffer);
+  return { cached: false, provider };
+}
+
 async function handleShot(req, res) {
   const body = await readBody(req);
-  const { prompt, tier = "still", seconds = CFG.seconds, id = "" } = body;
+  const { prompt, tier = "still", seconds = CFG.seconds, id = "", reuseKey = "" } = body;
   if (!prompt || typeof prompt !== "string") return json(res, 400, { error: "prompt required" });
-  if (tier === "video" && !KEY) return json(res, 402, { error: "video tier needs a free key" });
-  if (tier === "video" && !affordsVideo(await pollenBalance(), clampSeconds(seconds))) {
-    return json(res, 402, { error: "not enough free pollen for a video clip", pollen: balanceCache.pollen });
+
+  // A reuse key names an archetype clip that many shots share, so the cache
+  // filename comes from the key rather than the one-off prompt.
+  const identity = reuseKey || `${id}:${prompt}`;
+  const seed = parseInt(digest([identity]).slice(0, 8), 16) % 2147483647;
+
+  if (tier === "video") {
+    if (!availableProviders().length) {
+      return json(res, 402, { error: "no video provider is configured" });
+    }
+    const name = `${reuseKey ? `clip-${reuseKey}` : digest(["video", identity])}.mp4`;
+    try {
+      const result = await once(name, () => generateClip(name, { prompt, seconds }));
+      return json(res, 200, { url: `/media/${name}`, tier, ...result, reuseKey: reuseKey || null });
+    } catch (error) {
+      return json(res, 502, { error: String(error.message ?? error), tier });
+    }
   }
 
-  const seed = parseInt(digest([id, prompt]).slice(0, 8), 16) % 2147483647;
-  const ext = tier === "video" ? ".mp4" : ".jpg";
-  const name = `${digest([tier, prompt, String(seed)])}${ext}`;
-  const url = tier === "video" ? videoUrl(prompt, seconds, seed) : stillUrl(prompt, seed);
-
+  const name = `${digest(["still", identity, String(seed)])}.jpg`;
   try {
-    const result = await once(name, () => fetchToCache(url, name, tier === "video" ? 240000 : 60000));
+    const result = await once(name, () => fetchToCache(stillUrl(prompt, seed), name, 60000));
     return json(res, 200, { url: `/media/${name}`, tier, cached: result.cached, seed });
   } catch (error) {
     return json(res, 502, { error: String(error.message ?? error), tier });
@@ -227,13 +242,20 @@ async function serveStatic(req, res, pathname) {
 
 const ROUTES = {
   "GET /api/capability": async (req, res) => {
+    const providers = availableProviders();
     const pollen = await pollenBalance();
-    const canVideo = Boolean(KEY) && affordsVideo(pollen, clampSeconds(CFG.seconds));
+    const onlyPollinations = providers.length === 1 && providers[0].id === "pollinations";
+    const canVideo = providers.length > 0
+      && (!onlyPollinations || affordsVideo(pollen, 6));
     json(res, 200, {
       still: true, video: canVideo, voice: Boolean(KEY), realtime: Boolean(KEY),
       keyPresent: Boolean(KEY), pollen,
-      videoClipsLeft: pollen === null ? null : Math.floor(pollen / (clampSeconds(CFG.seconds) * VIDEO_POLLEN_PER_SECOND)),
-      models: { video: CFG.video, image: CFG.image, realtime: CFG.realtime },
+      providers: providers.map((p) => ({ id: p.id, label: p.label })),
+      quality: CFG.quality,
+      videoClipsLeft: onlyPollinations && pollen !== null
+        ? Math.floor(pollen / (6 * VIDEO_POLLEN_PER_SECOND))
+        : null,
+      models: { image: CFG.image, realtime: CFG.realtime },
     });
   },
   "POST /api/shot": handleShot,
@@ -257,7 +279,10 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  const tiers = KEY ? "procedural + still + video + voice" : "procedural + still (no key set)";
+  const providers = availableProviders();
   console.log(`Duel Live  →  http://localhost:${PORT}/`);
-  console.log(`Cinema tiers available: ${tiers}`);
+  console.log(`Tiers   procedural + still${KEY ? " + voice" : ""}${providers.length ? " + video" : ""}`);
+  console.log(providers.length
+    ? `Video   ${providers.map((p) => p.label).join(" → ")}  at ${CFG.quality}p`
+    : `Video   no provider configured — see .env.example`);
 });

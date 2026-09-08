@@ -52,6 +52,8 @@ each time it is generated, so a cinematic cannot contradict the duel it is depic
 | `src/banter.js` | Reads what happened and picks a line, plus a retort. |
 | `src/cinema/storyboard.js` | Events → shot list, with prompts rebuilt from battle facts. |
 | `src/cinema/free-video.js` | Tier selection, prefetch, de-duplication, fallback. |
+| `src/cinema/archetypes.js` | Collapses shots onto a reusable clip library. |
+| `src/providers.mjs` | Video provider adapters and the fallback chain. |
 | `src/cinema/procedural-stage.js` | Tier 0: seeded canvas holograms. No network. |
 | `src/cinema/player.js` | Canvas loop, shot queue, media hand-off. |
 | `src/app.js` | Orchestration and player input. |
@@ -127,13 +129,42 @@ Lines are original, written in character rather than transcribed. They are data
 (`banter-lines.js`), separate from the director (`banter.js`), and a test asserts every
 duelist covers every situation so a new duelist cannot ship half-mute.
 
-### Provider
+### Providers are a chain, not a choice
 
-Pollinations, chosen because its image tier works with **no key at all** and its free tier
-covers video (`amazon/nova-reel-v1`), voice (`aura-2`) and text. The key, when present, stays
-server-side and is never sent to the browser. Generated media is content-hashed and cached in
-`.local/media/`, so nothing is generated twice. Failed generations get exactly one retry —
-a confirmed failure is cheap to redo, a blind resubmission of an accepted job is not.
+Stills and voice run on Pollinations, chosen because its image tier works with **no key at
+all**. Video is deliberately not tied to one vendor: `src/providers.mjs` holds three adapters
+behind a single contract (`configured` / `seconds` / `cost` / `generate`) and the chain takes
+whichever is configured, affordable and working.
+
+| Provider | Model | Floor | Billing shape |
+| :--- | :--- | :--- | :--- |
+| Higgsfield | Seedance Lite | 480p, 3s | per second |
+| Pollinations | nova-reel-v1 | 720p, 6s | 0.08 Pollen/second |
+| Google | Veo 3.1 Fast | 720p, 4s | per second, 4/6/8 only |
+
+Each adapter clamps duration to what its API actually accepts rather than sending a request
+that will be rejected, and ties break toward the shorter, cheaper option. Affordability is a
+separate veto from configuration, so a spent Pollen balance skips that adapter without
+removing it from the chain. Credentials stay server-side. Generated media is cached in
+`.local/media/`; a confirmed failure gets exactly one retry, while a blind resubmission of an
+accepted job gets none.
+
+### The clip library is the real cost fix
+
+Content-hashing a per-shot prompt caches perfectly and reuses nothing, because every shot is
+unique. The insight is that **a viewer does not read the shot, they read its shape**: a dark
+spellcaster arriving in a column of violet light looks right for Dark Magician, Dark Magician
+Girl and Lord of D. alike.
+
+`archetypeFor` keys a clip on kind plus attribute plus creature family, which collapses both
+decks onto 33 clips — 15 summons, 5 fusions, 5 clashes, 5 direct attacks, and one each for
+trap, spell and finish. `npm run prewarm` generates them once; afterwards every duel plays
+cached video at no further cost.
+
+Two invariants keep it honest, both tested: a key must fully determine its prompt (anything
+the key omits — the creature family on a `direct` shot, for instance — must stay out of the
+prompt too, or one key would cache inconsistent clips), and a shot with no reusable form
+returns `null` rather than guessing.
 
 ## Testing
 

@@ -44,8 +44,8 @@ they differ only in how much fidelity a given moment is worth waiting for.
 | :--- | :--- | :--- | :--- |
 | 0 · procedural | Seeded holograms drawn on a `<canvas>` | nothing at all | instant |
 | 1 · still | AI key art, animated with camera and FX | nothing | ~1–20 s |
-| 2 · video | An AI video clip for the shot | a free key | ~30–120 s |
-| 3 · voice | Generated duelist lines | a free key | ~1–3 s |
+| 2 · video | A clip from the archetype library | any one provider | cached after first run |
+| 3 · voice | Generated duelist lines | a Pollinations key | ~1–3 s |
 
 Tier 0 is not a placeholder. It is the default experience, it works offline, and every
 higher tier is a progressive enhancement layered on top of it. A generation that fails,
@@ -63,46 +63,67 @@ reload.
 Voice works with no key at all through the browser's own speech synthesiser; a key only
 upgrades it to generated audio.
 
-### Getting a free video key
+### Video providers
 
-Video is metered in **Pollen**. You never have to buy any — "Quest Pollen" is the free
-balance, and `amazon/nova-reel-v1` spends from it. Sign in at
-[enter.pollinations.ai/keys](https://enter.pollinations.ai/keys) with **GitHub** (no card,
-no payment details) and create a **secret key** — it starts with `sk_` and stays on your
-server.
+Video is not tied to one vendor. Providers are tried in order and the first that
+is **configured, affordable and working** wins, so a spent balance or an outage
+drops to the next one instead of dropping the feature.
 
-Then earn a starting balance. These are the live quest rewards, cheapest first:
+| Provider | Model | Floor | Where to get credentials |
+| :--- | :--- | :--- | :--- |
+| Higgsfield | Seedance Lite | **480p**, 3s | higgsfield.ai → API keys |
+| Pollinations | nova-reel-v1 | 720p, 6s | [enter.pollinations.ai/keys](https://enter.pollinations.ai/keys) |
+| Google | Veo 3.1 Fast | 720p, 4s | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 
-| Pollen | How |
-| ---: | :--- |
-| 0.25 | Create your first API key |
-| 0.25 ×3 | One text, one image, one audio request — `npm run keycheck` makes all three |
-| 0.25 | Log in to any app in the Pollinations app directory |
-| 1.00 | Connect Discord and join their server |
-| 3.00 | Sign in with a GitHub account at least two years old — automatic |
-| 5.00 | Get a pull request merged into the Pollinations repo |
-| 3–30 | Close a `POLLEN-QUEST` bounty issue |
+Higgsfield is first by default because it is the only one with a genuine **480p**
+tier — the others quietly use their own floor when you ask for 480. Set
+`DUEL_VIDEO_PROVIDERS` to reorder, and `DUEL_VIDEO_QUALITY=720` to go up.
 
-`amazon/nova-reel-v1` has a **6-second minimum** and bills 0.08 Pollen per second, so **one
-clip costs 0.48 Pollen** — there is no cheaper test. Budget at least that before expecting
-tier 2 to do anything. If your GitHub account is over two years old, signing in alone covers
-six clips.
+Be clear-eyed about what resolution buys: Pollinations bills per *second*
+regardless of size, so 480p there saves decode and transfer, not money. The
+saving that matters is reuse.
 
-Then add it in one command:
+### The clip library — generate 33, reuse forever
 
-```bash
-npm run key -- sk_your_key_here
+Generating a fresh clip per shot means nothing is ever reused and a small budget
+buys a handful of moments. Duel Live keys clips by **what a viewer actually
+reads** instead — kind, attribute, creature family — so `Dark Magician`,
+`Dark Magician Girl` and `Lord of D.` all play the same *dark spellcaster
+summon*. That collapses both duels onto a fixed library:
+
+```
+summon 15 · fusion 5 · clash 5 · direct 5 · trap 1 · spell 1 · finish 1  =  33 clips
 ```
 
-That writes `.env.local` (git-ignored), verifies the key against the live API, and tells you
-your balance and how many clips it buys. `npm start` picks the file up automatically from
-then on. Run `npm run key` with no argument to re-read the earning routes.
+Build it once:
 
-Duel Live is built for a small balance: it spends video only on the most cinematic moments,
-content-hashes and caches every clip under `.local/media/` so a shot never generates twice,
-and the cinema selector shows how many clips you have left. When the balance runs low the
-server stops accepting video requests and the game drops to stills on its own — it will not
-silently drain your Pollen mid-duel.
+```bash
+npm run prewarm              # generates all 33; re-run to retry only what failed
+npm run prewarm summon       # or just one family
+npm run prewarm --limit=3    # or a taster
+```
+
+After that every duel plays on cached video at no further cost, forever. Switch
+the **Clips** control to *Generate every shot* for per-shot fidelity when you
+have budget to spend.
+
+### Pollen, if you use Pollinations
+
+`amazon/nova-reel-v1` has a **6-second minimum** at 0.08 Pollen per second, so
+one clip is **0.48 Pollen** — there is no cheaper smoke test. Free "Quest Pollen"
+comes from the **Quests** page on the dashboard: 0.25 each for your first key,
+first text/image/audio request and first app login, 1.00 for Discord, 3.00 for a
+GitHub account over two years old, 5.00 for a merged PR. Making the API calls
+alone does *not* credit them — verified against a live account, where all three
+requests succeeded and the balance did not move.
+
+```bash
+npm run key -- sk_your_key   # writes .env.local, verifies, reports balance
+npm run keycheck             # which tiers are reachable right now
+```
+
+Credentials stay on the server and are never sent to the browser. Generated media
+is cached under `.local/media/`.
 
 ## Architecture
 
@@ -159,12 +180,13 @@ asserts that no card can reference an effect the engine cannot resolve.
 ## Development
 
 ```bash
-npm test         # 81 tests: engine, effects, decks, cinema, banter, recovery, wiring,
-                 #           integration, bundle
+npm test         # 93 tests: engine, effects, decks, cinema, banter, recovery,
+                 #           providers, wiring, integration, bundle
 npm run smoke    # boots the real app against a DOM stub and plays ten turns
 npm run selfplay # drives 200 headless duels per matchup as an engine soak test
 npm run keycheck # reports which cinema tiers are reachable right now
-npm run key      # add a key, or print how to earn free Pollen
+npm run key      # add a Pollinations key, or print how to earn free Pollen
+npm run prewarm  # generate the 33-clip archetype library once
 npm run build    # regenerate duel-live.html
 ```
 
@@ -179,8 +201,10 @@ length; both matchups resolve in ~15 turns and finish essentially every time.
   window per attack, one card in it.
 - The AI scores the engine's own legal actions. It plays a coherent game and uses its
   signature cards, but it does not search ahead.
-- Free-tier video is genuinely slow and rate-limited. Tier 2 is budgeted to the two most
-  cinematic moments per exchange, and everything else stays on the fast tiers by design.
+- Video generation is slow everywhere. Tier 2 is budgeted per exchange and prefetched behind
+  the tier below, and the archetype library exists so that cost is paid once rather than per
+  duel. Tier 2 has been built and unit-tested against all three provider contracts but not yet
+  executed end-to-end against a funded account.
 - `.env*` (except the example), `.local/` and `outputs/` are Git-ignored. Never commit a key.
 
 ## Licence

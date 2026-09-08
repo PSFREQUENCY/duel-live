@@ -35,6 +35,13 @@
             <option value="procedural">Procedural only</option>
           </select>
         </label>
+        <label class="control" for="reuse-select">
+          <span>Clips</span>
+          <select id="reuse-select">
+            <option value="archetype">Reuse library (33 clips)</option>
+            <option value="exact">Generate every shot</option>
+          </select>
+        </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
         <button class="btn" id="rules-btn" type="button">Rules</button>
         <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
@@ -113,7 +120,11 @@
     </main>
 
     <section class="hand-rail" aria-label="Your hand">
-      <div class="hand-head"><h2>Hand</h2><span id="hand-hint">Click a card to play it</span></div>
+      <div class="hand-head">
+        <h2>Hand</h2>
+        <span id="hand-hint">Click a card to play it</span>
+        <span id="provider-note" class="provider-note" hidden></span>
+      </div>
       <div class="hand" id="hand"></div>
     </section>
 

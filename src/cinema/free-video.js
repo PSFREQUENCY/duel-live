@@ -8,7 +8,17 @@
 // Tier 2 is prefetched while tier 0/1 is on screen, exactly so the player never
 // waits on a generator.
 
+import { archetypeFor } from "./archetypes.js";
+
 export const TIERS = ["procedural", "still", "video"];
+
+// "archetype" reuses one clip across every shot that reads the same way, so a
+// fixed library covers the whole game. "exact" generates per shot -- better
+// fidelity, but nothing is ever reused.
+export const REUSE_MODES = ["archetype", "exact"];
+let reuseMode = "archetype";
+export const setReuseMode = (mode) => { reuseMode = REUSE_MODES.includes(mode) ? mode : "archetype"; };
+export const getReuseMode = () => reuseMode;
 
 const jobs = new Map();
 let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
@@ -37,12 +47,15 @@ export function highestTier(requested = "video") {
 }
 
 function shotBody(shot, tier) {
+  // Stills are cheap and unique per shot; only video is worth generalising.
+  const archetype = tier === "video" && reuseMode === "archetype" ? archetypeFor(shot) : null;
   return {
     id: shot.id,
     tier,
-    prompt: shot.prompt,
-    seconds: shot.seconds ?? 6,
     kind: shot.kind,
+    prompt: archetype?.prompt ?? shot.prompt,
+    reuseKey: archetype?.key ?? "",
+    seconds: shot.seconds ?? 6,
   };
 }
 
@@ -50,7 +63,9 @@ function shotBody(shot, tier) {
 // procedural shot while the network works.
 export function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
-  const key = `${shot.id}:${tier}`;
+  // Shots sharing an archetype share a job, so a reused clip is fetched once.
+  const archetype = tier === "video" && reuseMode === "archetype" ? archetypeFor(shot) : null;
+  const key = `${archetype?.key ?? shot.id}:${tier}`;
   if (jobs.has(key)) return jobs.get(key);
   const job = fetchImpl("/api/shot", {
     method: "POST",
