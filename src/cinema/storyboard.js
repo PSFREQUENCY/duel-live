@@ -3,7 +3,7 @@
 
 import { CARDS } from "../cards/index.js";
 import { DUELISTS, getMatchup } from "../duelists.js";
-import { assembleTitle, LOOKS } from "./world.js";
+import { assemble, assembleTitle, LOOKS } from "./world.js";
 
 const STYLE = "cel-shaded late-90s anime, heavy ink outlines, saturated holographic lighting, "
   + "dramatic low camera angle, 16:9 widescreen, no text, no watermark, no logos";
@@ -186,3 +186,30 @@ export function titleShot(kind, state) {
     prompt: assembleTitle(card.subject),
   };
 }
+
+/**
+ * A shot of one duelist: their opening pose, or the reaction that goes under a
+ * line of banter. `clipKey` names the hand-made clip these are made for.
+ */
+export function duelistShot(clipKey, duelistId, state, { title, subtitle, seconds = 4 } = {}) {
+  const look = LOOKS[duelistId];
+  if (!look) return null;
+  const arena = ARENA_TEXT[look.arena];
+  return {
+    id: `${clipKey}-t${state?.turn ?? 1}`,
+    clipKey,
+    kind: clipKey.startsWith("open") ? "open" : "reaction",
+    title: title ?? DUELISTS[duelistId]?.name ?? "",
+    subtitle: subtitle ?? "",
+    seconds,
+    side: state?.sides?.player?.duelistId === duelistId ? "player" : "opponent",
+    duelistId,
+    turn: state?.turn ?? 1,
+    prompt: assemble(`${look.look}, in ${arena}`),
+  };
+}
+
+const ARENA_TEXT = {
+  rooftop: "a rain-slicked skyscraper rooftop duel arena at night",
+  cliff: "a torch-lit stone duel arena on a sea cliff at dusk",
+};

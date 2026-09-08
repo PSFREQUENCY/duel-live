@@ -8,13 +8,14 @@ import {
 import { chooseAction, chooseTrapResponse } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
 import { createCinema } from "./cinema/player.js";
-import { clearJobs, getCapability, planTiers, probeCapability, setReuseMode } from "./cinema/free-video.js";
+import { clearJobs, getCapability, hasClip, planTiers, probeCapability, setReuseMode } from "./cinema/free-video.js";
 import { enableRemoteVoice, speak } from "./cinema/realtime-voice.js";
 import {
   el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones,
   resetLifePointTracking,
 } from "./render.js";
-import { buildStoryboard, idleShot, titleShot } from "./cinema/storyboard.js";
+import { reactionKeyFor } from "./cinema/archetypes.js";
+import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
 
 const ui = {
@@ -105,6 +106,17 @@ function speakBanter(lines) {
   }
 }
 
+// A reaction clip only plays when one is really on disk, and only when the
+// cinema is free -- banter punctuates the action, it must not queue behind it.
+function playReaction(line) {
+  const key = reactionKeyFor(line.situation, line.duelistId);
+  if (!key || !hasClip(key) || cinema.busy) return;
+  const shot = duelistShot(key, line.duelistId, state, {
+    title: DUELISTS[line.duelistId].name, subtitle: line.text, seconds: 4,
+  });
+  if (shot) cinema.enqueue(planTiers([shot], { videoBudget: 1 }));
+}
+
 function showBanter(line) {
   const duelist = DUELISTS[line.duelistId];
   ui.banter.hidden = false;
@@ -123,9 +135,17 @@ function showBanter(line) {
   ui.log.prepend(li);
   while (ui.log.children.length > 60) ui.log.lastChild?.remove();
 
+  playReaction(line);
   speak(line.text, line.duelistId, { muted });
   clearTimeout(showBanter.timer);
   showBanter.timer = setTimeout(() => { ui.banter.hidden = true; }, 4200);
+}
+
+// A title card with no clip and no way to generate one would play as a blank
+// procedural beat, which is worse than not playing it at all.
+function playable(shot) {
+  if (!shot.clipKey) return true;
+  return hasClip(shot.clipKey) || getCapability().video;
 }
 
 function videoBudget() {
@@ -263,7 +283,8 @@ function announceWinner() {
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
   ui.hint.textContent = `${duelist.name} wins — ${state.winReason === "deckout" ? "deck out" : "0 LP"}.`;
   speakBanter(closingExchange(state));
-  cinema.enqueue(planTiers([titleShot("outro", state)], { videoBudget: 1 }));
+  const outro = titleShot("outro", state);
+  if (playable(outro)) cinema.enqueue(planTiers([outro], { videoBudget: 1 }));
 }
 
 // ----------------------------------------------------------------- input ---
@@ -335,8 +356,15 @@ function startDuel(requested) {
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
   // Intro plays once per session; the versus plate opens every duel.
-  const opening = [introShown ? null : titleShot("intro", state), titleShot("versus", state)]
-    .filter(Boolean);
+  const openings = ["player", "opponent"]
+    .map((side) => state.sides[side].duelistId)
+    .filter((id) => hasClip(`open-${id}`))
+    .map((id) => duelistShot(`open-${id}`, id, state, { subtitle: "takes the field", seconds: 5 }));
+  const opening = [
+    introShown ? null : titleShot("intro", state),
+    titleShot("versus", state),
+    ...openings,
+  ].filter(Boolean).filter(playable);
   introShown = true;
   cinema.enqueue(planTiers(opening, { videoBudget: opening.length }));
   logEvent(ui.log, { type: "phase", phase: "draw", side: "player", turn: 1 }, state);

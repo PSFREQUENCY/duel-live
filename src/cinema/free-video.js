@@ -22,6 +22,13 @@ export const getReuseMode = () => reuseMode;
 
 const jobs = new Map();
 let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
+let availableClips = new Set();
+
+/** True when a hand-made clip for this key is on disk. */
+export const hasClip = (key) => Boolean(key) && availableClips.has(normaliseKey(key));
+
+const normaliseKey = (key) =>
+  String(key).trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/-+/g, "-");
 
 export function getCapability() {
   return { ...capability };
@@ -30,7 +37,10 @@ export function getCapability() {
 export async function probeCapability(fetchImpl = fetch) {
   try {
     const res = await fetchImpl("/api/capability");
-    if (res.ok) capability = { ...(await res.json()), checked: true };
+    if (res.ok) {
+      capability = { ...(await res.json()), checked: true };
+      availableClips = new Set((capability.clipKeys ?? []).map(normaliseKey));
+    }
   } catch {
     capability = { still: false, video: false, voice: false, realtime: false, checked: true };
   }

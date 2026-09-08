@@ -114,3 +114,12 @@ test("a draw failure cannot kill the render loop", async () => {
   pending.shift()?.(100);
   assert.ok(frames >= 6, "the loop must still be alive once drawing recovers");
 });
+
+test("a title card with nothing to show is not queued at all", async () => {
+  const { readFileSync } = await import("node:fs");
+  const app = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  assert.match(app, /function playable\(shot\)/,
+    "shots that can neither load a clip nor generate one must be dropped");
+  assert.match(app, /\.filter\(playable\)/, "the opening sequence must be filtered");
+  assert.match(app, /if \(playable\(outro\)\)/, "the outro must be filtered too");
+});

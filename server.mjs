@@ -10,6 +10,7 @@ import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { clipCount, clipKeys, findClip } from "./src/clip-library.mjs";
 import { availableProviders, generateVideo } from "./src/providers.mjs";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
@@ -40,6 +41,7 @@ const MIME = {
   ".json": "application/json; charset=utf-8", ".mp4": "video/mp4",
   ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
   ".webp": "image/webp", ".mp3": "audio/mpeg", ".svg": "image/svg+xml",
+  ".webm": "video/webm", ".mov": "video/quicktime", ".m4v": "video/mp4",
 };
 
 const json = (res, code, body) => {
@@ -133,15 +135,6 @@ async function pollenBalance() {
 const affordsVideo = (pollen, seconds) =>
   pollen === null || pollen >= seconds * VIDEO_POLLEN_PER_SECOND;
 
-async function countClips() {
-  try {
-    const { readdir } = await import("node:fs/promises");
-    return (await readdir(CLIPS_DIR)).filter((f) => f.endsWith(".mp4")).length;
-  } catch {
-    return 0;
-  }
-}
-
 const inflight = new Map();
 function once(key, work) {
   if (!inflight.has(key)) {
@@ -181,8 +174,12 @@ async function handleShot(req, res) {
 
   if (tier === "video") {
     // A hand-made clip always wins: it is free, instant, and better art.
-    if (reuseKey && await exists(join(CLIPS_DIR, `${reuseKey}.mp4`))) {
-      return json(res, 200, { url: `/clips/${reuseKey}.mp4`, tier, cached: true, provider: "handmade", reuseKey });
+    const handmade = await findClip(CLIPS_DIR, reuseKey);
+    if (handmade) {
+      return json(res, 200, {
+        url: `/clips/${encodeURIComponent(handmade)}`,
+        tier, cached: true, provider: "handmade", reuseKey,
+      });
     }
     if (!availableProviders().length) {
       return json(res, 402, { error: "no video provider is configured", reuseKey: reuseKey || null });
@@ -241,7 +238,7 @@ async function serveStatic(req, res, pathname) {
   const rel = normalize(pathname === "/" ? "/index.html" : pathname);
   // Generated media lives outside the source tree, under .local/media.
   const file = rel.startsWith("/media/") ? join(MEDIA_DIR, rel.slice("/media/".length))
-    : rel.startsWith("/clips/") ? join(CLIPS_DIR, rel.slice("/clips/".length))
+    : rel.startsWith("/clips/") ? join(CLIPS_DIR, decodeURIComponent(rel.slice("/clips/".length)))
       : join(ROOT, rel);
   if (!file.startsWith(ROOT)) return json(res, 403, { error: "forbidden" });
   try {
@@ -261,7 +258,7 @@ async function serveStatic(req, res, pathname) {
 const ROUTES = {
   "GET /api/capability": async (req, res) => {
     const providers = availableProviders();
-    const handmade = await countClips();
+    const handmade = await clipCount(CLIPS_DIR);
     const pollen = await pollenBalance();
     const onlyPollinations = providers.length === 1 && providers[0].id === "pollinations";
     // Hand-made clips make video available even with no provider at all.
@@ -272,6 +269,9 @@ const ROUTES = {
       keyPresent: Boolean(KEY), pollen,
       providers: providers.map((p) => ({ id: p.id, label: p.label })),
       handmadeClips: handmade,
+      // The client only schedules a character or arena shot when its clip is
+      // really there, so a missing clip is silence rather than a blank scene.
+      clipKeys: await clipKeys(CLIPS_DIR),
       quality: CFG.quality,
       videoClipsLeft: onlyPollinations && pollen !== null
         ? Math.floor(pollen / (6 * VIDEO_POLLEN_PER_SECOND))
@@ -303,7 +303,7 @@ server.listen(PORT, () => {
   const providers = availableProviders();
   console.log(`Duel Live  →  http://localhost:${PORT}/`);
   console.log(`Tiers   procedural + still${KEY ? " + voice" : ""}${providers.length ? " + video" : ""}`);
-  countClips().then((clips) => {
+  clipCount(CLIPS_DIR).then((clips) => {
     const sources = [clips ? `${clips} hand-made clips in clips/` : null,
       providers.length ? `${providers.map((p) => p.label).join(" → ")} at ${CFG.quality}p` : null,
     ].filter(Boolean);

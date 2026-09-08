@@ -193,3 +193,38 @@ test("a character is described in exactly one place", async () => {
     assert.ok(LOOKS[id]?.look?.length > 60, `${id} has no usable look in the world bible`);
   }
 });
+
+test("clip filenames are matched loosely, so a generator's naming does not matter", async () => {
+  const { normaliseClipKey } = await import("../src/clip-library.mjs");
+  for (const [file, key] of [
+    ["arena cliff.mp4", "arena-cliff"],
+    ["Open_Yugi.MOV", "open-yugi"],
+    ["open-kaiba.webm", "open-kaiba"],
+    ["  React  Shocked  Mai .m4v", "react-shocked-mai"],
+    ["summon-DARK-spellcaster.mp4", "summon-dark-spellcaster"],
+  ]) {
+    assert.equal(normaliseClipKey(file), key, `${file} should key as ${key}`);
+  }
+});
+
+test("the clip index reads the real folder and ignores non-video entries", async () => {
+  const { clipKeys, findClip } = await import("../src/clip-library.mjs");
+  const { fileURLToPath } = await import("node:url");
+  const dir = fileURLToPath(new URL("../clips", import.meta.url));
+  const keys = await clipKeys(dir);
+  assert.ok(Array.isArray(keys));
+  // Every key must be normalised, and no directory or stray file may sneak in.
+  for (const key of keys) {
+    assert.equal(key, key.toLowerCase());
+    assert.doesNotMatch(key, /[\s_]/, `${key} is not normalised`);
+    assert.ok(await findClip(dir, key), `${key} indexed but not resolvable`);
+  }
+  assert.equal(await findClip(dir, "definitely-not-a-clip"), null);
+  assert.equal(await findClip(dir, ""), null);
+});
+
+test("a missing clips folder is normal, not an error", async () => {
+  const { clipKeys, clipCount } = await import("../src/clip-library.mjs");
+  assert.deepEqual(await clipKeys("/nowhere/at/all"), []);
+  assert.equal(await clipCount("/nowhere/at/all"), 0);
+});

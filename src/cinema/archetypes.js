@@ -5,7 +5,7 @@
 // replayed for free forever.
 
 import { CARDS } from "../cards/index.js";
-import { assemble, NEUTRAL_ARENA } from "./world.js";
+import { assemble, LOOKS, NEUTRAL_ARENA } from "./world.js";
 
 const FAMILY = {
   Dragon: "dragon", "Sea Serpent": "dragon",
@@ -51,10 +51,12 @@ const MONSTER_KINDS = new Set(["summon", "fusion", "clash", "direct"]);
 // Shots that are really about the duelist, not the monster. When we know who is
 // acting, a character clip beats a generic one -- and these are exactly the
 // clips the hand-made shot list produces.
-const DUELIST_CLIP = { spell: "play-activate", trap: "play-activate", finish: "win", idle: null };
+const DUELIST_CLIP = { spell: "play-activate", trap: "play-activate", finish: "win" };
 
 export function duelistKeyFor(shot) {
   if (!shot?.duelistId) return null;
+  // The standoff plate is about the arena, not the duelist in it.
+  if (shot.kind === "idle") return `arena-${LOOKS[shot.duelistId]?.arena ?? "rooftop"}`;
   const prefix = DUELIST_CLIP[shot.kind];
   return prefix ? `${prefix}-${shot.duelistId}` : null;
 }
