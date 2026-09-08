@@ -355,7 +355,22 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   padding: 22px; border-radius: var(--radius);
   background: var(--bg-raise); border: 1px solid var(--line); box-shadow: var(--shadow);
 }
+.modal-card--wide { width: min(940px, 100%); }
 .modal-card h2 { margin: 0 0 12px; font-size: 17px; }
+
+.share-canvas {
+  display: block; width: 100%; height: auto; border-radius: 10px;
+  border: 1px solid var(--line); background: #080c1a;
+}
+.share-caption {
+  margin: 12px 0 0; font-size: 12.5px; color: var(--ink-dim); line-height: 1.5;
+}
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.share-hint {
+  margin: 10px 0 0; min-height: 16px; font-family: var(--mono);
+  font-size: 11px; color: var(--good);
+}
+.share-hint.is-warn { color: var(--accent-warm); }
 .modal-body { font-size: 13px; color: var(--ink-dim); margin-bottom: 16px; }
 .modal-body h3 { color: var(--ink); font-size: 12px; margin: 16px 0 5px; font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 .modal-body ul { margin: 0; padding-left: 18px; }

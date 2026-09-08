@@ -109,6 +109,7 @@
         <div class="recovery">
           <button class="btn btn-ghost" id="skip-btn" type="button" hidden>Skip scene ⏭</button>
           <button class="btn btn-warn" id="resume-btn" type="button" hidden>Resume duel</button>
+          <button class="btn btn-accent" id="share-btn" type="button" hidden>Share result</button>
         </div>
         <div class="prompt" id="prompt" hidden>
           <p id="prompt-text"></p>
@@ -127,6 +128,22 @@
       </div>
       <div class="hand" id="hand"></div>
     </section>
+
+    <div class="modal" id="share-modal" hidden>
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="share-title">
+        <h2 id="share-title">Duel result</h2>
+        <canvas id="share-canvas" class="share-canvas" width="1200" height="630"></canvas>
+        <p class="share-caption" id="share-caption"></p>
+        <div class="share-actions">
+          <button class="btn btn-accent" id="share-send" type="button" hidden>Share…</button>
+          <button class="btn" id="share-copy" type="button">Copy image</button>
+          <button class="btn" id="share-copy-text" type="button">Copy text</button>
+          <button class="btn" id="share-download" type="button">Save PNG</button>
+          <button class="btn" id="share-close" type="button">Close</button>
+        </div>
+        <p class="share-hint" id="share-hint"></p>
+      </div>
+    </div>
 
     <div class="modal" id="modal" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">

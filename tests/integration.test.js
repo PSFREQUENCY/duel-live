@@ -84,3 +84,14 @@ test("restarting resets life points and clears the log", async () => {
 test("no unhandled rejection escaped while the duel ran", () => {
   assert.deepEqual(errors, []);
 });
+
+test("winning reveals the share control, and it is wired", async () => {
+  const app = (await import("node:fs")).readFileSync(
+    new URL("../src/app.js", import.meta.url), "utf8");
+  assert.match(app, /ui\.share\.hidden = !over/, "the share button must appear only once a duel ends");
+  for (const id of ["share-send", "share-copy", "share-copy-text", "share-download", "share-close"]) {
+    assert.ok(app.includes(id), `${id} is never bound`);
+  }
+  assert.match(app, /navigator\.canShare/, "file sharing must be feature-detected, not assumed");
+  assert.match(app, /right-click the card/i, "a blocked download must explain the fallback");
+});

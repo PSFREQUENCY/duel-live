@@ -364,7 +364,22 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   padding: 22px; border-radius: var(--radius);
   background: var(--bg-raise); border: 1px solid var(--line); box-shadow: var(--shadow);
 }
+.modal-card--wide { width: min(940px, 100%); }
 .modal-card h2 { margin: 0 0 12px; font-size: 17px; }
+
+.share-canvas {
+  display: block; width: 100%; height: auto; border-radius: 10px;
+  border: 1px solid var(--line); background: #080c1a;
+}
+.share-caption {
+  margin: 12px 0 0; font-size: 12.5px; color: var(--ink-dim); line-height: 1.5;
+}
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.share-hint {
+  margin: 10px 0 0; min-height: 16px; font-family: var(--mono);
+  font-size: 11px; color: var(--good);
+}
+.share-hint.is-warn { color: var(--accent-warm); }
 .modal-body { font-size: 13px; color: var(--ink-dim); margin-bottom: 16px; }
 .modal-body h3 { color: var(--ink); font-size: 12px; margin: 16px 0 5px; font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 .modal-body ul { margin: 0; padding-left: 18px; }
@@ -485,6 +500,7 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
         <div class="recovery">
           <button class="btn btn-ghost" id="skip-btn" type="button" hidden>Skip scene ⏭</button>
           <button class="btn btn-warn" id="resume-btn" type="button" hidden>Resume duel</button>
+          <button class="btn btn-accent" id="share-btn" type="button" hidden>Share result</button>
         </div>
         <div class="prompt" id="prompt" hidden>
           <p id="prompt-text"></p>
@@ -503,6 +519,22 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
       </div>
       <div class="hand" id="hand"></div>
     </section>
+
+    <div class="modal" id="share-modal" hidden>
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="share-title">
+        <h2 id="share-title">Duel result</h2>
+        <canvas id="share-canvas" class="share-canvas" width="1200" height="630"></canvas>
+        <p class="share-caption" id="share-caption"></p>
+        <div class="share-actions">
+          <button class="btn btn-accent" id="share-send" type="button" hidden>Share…</button>
+          <button class="btn" id="share-copy" type="button">Copy image</button>
+          <button class="btn" id="share-copy-text" type="button">Copy text</button>
+          <button class="btn" id="share-download" type="button">Save PNG</button>
+          <button class="btn" id="share-close" type="button">Close</button>
+        </div>
+        <p class="share-hint" id="share-hint"></p>
+      </div>
+    </div>
 
     <div class="modal" id="modal" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -527,7 +559,7 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
@@ -542,12 +574,16 @@ const { el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase,
 const { reactionKeyFor } = __req("./cinema/archetypes.js");
 const { buildStoryboard, duelistShot, idleShot, titleShot } = __req("./cinema/storyboard.js");
 const { closingExchange, directBanter, openingExchange } = __req("./banter.js");
+const { summariseDuel } = __req("./duel-stats.js");
+const { drawShareCard, shareFilename, shareText } = __req("./share-card.js");
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
   prompt: el("prompt"), promptText: el("prompt-text"), promptActions: el("prompt-actions"),
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+  share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
+  shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
 
 let state = null;
@@ -556,6 +592,7 @@ let busy = false;
 let attackFrom = null;
 let stalledTicks = 0;
 let introShown = false;
+let duelEvents = [];
 
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
@@ -601,6 +638,7 @@ function updateControls(mine) {
   ui.advance.textContent = over ? "Duel over"
     : state.phase === "main1" ? "To Battle Phase" : "End turn";
   ui.skip.hidden = !cinema.busy;
+  ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
   ui.hint.textContent = over
     ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
@@ -615,6 +653,7 @@ const myTurn = () => state && state.activeSide === "player" && !state.winner;
 // ------------------------------------------------------------ event flow ---
 
 function present(events) {
+  duelEvents.push(...events);
   for (const event of events) logEvent(ui.log, event, state);
   const shots = buildStoryboard(events, state);
   if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
@@ -802,6 +841,76 @@ function advance(phase) {
   present(result.events);
 }
 
+// ------------------------------------------------------------- share card ---
+
+function openShareCard() {
+  const stats = summariseDuel(duelEvents, state);
+  drawShareCard(ui.shareCanvas, stats);
+  ui.shareCaption.textContent = shareText(stats);
+  ui.shareHint.textContent = "";
+  ui.shareHint.classList.remove("is-warn");
+  // Sharing a file is only offered where the browser will actually take one.
+  ui.shareModal.hidden = false;
+  const canShareFiles = Boolean(navigator.canShare?.({ files: [testFile()] }));
+  el("share-send").hidden = !canShareFiles;
+}
+
+// navigator.canShare needs a real File to answer honestly.
+const testFile = () => new File([new Uint8Array(1)], "probe.png", { type: "image/png" });
+
+const cardBlob = () =>
+  new Promise((done) => ui.shareCanvas.toBlob(done, "image/png"));
+
+function shareNote(text, warn = false) {
+  ui.shareHint.textContent = text;
+  ui.shareHint.classList.toggle("is-warn", warn);
+}
+
+async function sendShare() {
+  const stats = summariseDuel(duelEvents, state);
+  const blob = await cardBlob();
+  const file = new File([blob], shareFilename(stats), { type: "image/png" });
+  try {
+    await navigator.share({ files: [file], text: shareText(stats), title: "Duel Live" });
+  } catch (error) {
+    if (error?.name !== "AbortError") shareNote("Sharing was refused by the browser.", true);
+  }
+}
+
+async function copyImage() {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": await cardBlob() })]);
+    shareNote("Image copied — paste it anywhere.");
+  } catch {
+    shareNote("This browser blocks image copying. Right-click the card to save it.", true);
+  }
+}
+
+async function copyCardText() {
+  try {
+    await navigator.clipboard.writeText(shareText(summariseDuel(duelEvents, state)));
+    shareNote("Text copied.");
+  } catch {
+    shareNote("Copying was blocked. Select the caption instead.", true);
+  }
+}
+
+// A sandboxed page cannot start its own download, so say so plainly rather than
+// handing over a link that silently does nothing.
+async function downloadCard() {
+  const stats = summariseDuel(duelEvents, state);
+  const url = URL.createObjectURL(await cardBlob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = shareFilename(stats);
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  shareNote("Saved. If nothing downloaded, right-click the card and save the image.");
+}
+
 function announceWinner() {
   cinema.setIdle(null);
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
@@ -876,6 +985,8 @@ function startDuel(requested) {
   attackFrom = null;
   ui.log.innerHTML = "";
   ui.prompt.hidden = true;
+  duelEvents = [];
+  ui.share.hidden = true;
   state = createDuel(matchupId, { seed: Date.now() });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
@@ -915,15 +1026,25 @@ function bind() {
   });
   ui.skip.addEventListener("click", () => { cinema.skip(); renderAll(); });
   ui.resume.addEventListener("click", resume);
+  ui.share.addEventListener("click", openShareCard);
+  el("share-send").addEventListener("click", sendShare);
+  el("share-copy").addEventListener("click", copyImage);
+  el("share-copy-text").addEventListener("click", copyCardText);
+  el("share-download").addEventListener("click", downloadCard);
+  el("share-close").addEventListener("click", () => { ui.shareModal.hidden = true; });
+  ui.shareModal.addEventListener("click", (e) => {
+    if (e.target === ui.shareModal) ui.shareModal.hidden = true;
+  });
   ui.stage.addEventListener("click", () => { if (cinema.busy) { cinema.skip(); renderAll(); } });
   document.addEventListener("keydown", (e) => {
     if (e.key === " " && cinema.busy) { e.preventDefault(); cinema.skip(); renderAll(); }
-    if (e.key === "Escape") { ui.modal.hidden = true; }
+    if (e.key === "Escape") { ui.modal.hidden = true; ui.shareModal.hidden = true; }
   });
   el("rules-btn").addEventListener("click", showRules);
   el("modal-close").addEventListener("click", () => { ui.modal.hidden = true; });
   ui.modal.addEventListener("click", (e) => { if (e.target === ui.modal) ui.modal.hidden = true; });
   ui.modal.hidden = true;
+  ui.shareModal.hidden = true;
 }
 
 function showRules() {
@@ -4172,6 +4293,388 @@ const REPLY_FOR = {
 };
 
 Object.assign(__exports, { BANTER, SITUATIONS, REPLY_FOR });
+});
+
+__def("src/duel-stats.js", {"./duelists.js":"src/duelists.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// Duel statistics, derived from the engine's own event log.
+//
+// Nothing here counts anything the rules engine did not emit, so a shared card
+// can never claim a hit that did not happen.
+
+const { DUELISTS, getMatchup } = __req("./duelists.js");
+const { other } = __req("./duel-state.js");
+const EMPTY_SIDE = () => ({
+  damageTaken: 0,
+  lifePaid: 0,
+  summons: 0,
+  fusions: 0,
+  trapsSprung: 0,
+  spellsCast: 0,
+  directAttacks: 0,
+  cardsDrawn: 0,
+  monstersLost: 0,
+});
+
+/**
+ * Fold a duel's events into the numbers worth showing. `turns` comes from the
+ * last draw phase rather than a counter, so a duel that ended mid-turn reports
+ * the turn it actually ended on.
+ */
+function summariseDuel(events, state) {
+  const sides = { player: EMPTY_SIDE(), opponent: EMPTY_SIDE() };
+  const startingLife = getMatchup(state.matchupId)?.lifePoints ?? 8000;
+  // The engine reports the full size of an attack even when it overkills, so a
+  // running total of `amount` overshoots the life points that actually existed.
+  // The event's own `lp` tells us what really came off the bar.
+  const previousLife = { player: startingLife, opponent: startingLife };
+  let turns = 1;
+  let biggestHit = null;
+  let lastAttacker = null;
+
+  for (const event of events) {
+    const side = event.side;
+    const mine = sides[side];
+    switch (event.type) {
+      case "phase":
+        if (event.phase === "draw") turns = Math.max(turns, event.turn ?? turns);
+        break;
+      case "draw":
+        if (mine) mine.cardsDrawn += 1;
+        break;
+      case "summon":
+        if (!mine || event.how === "token") break;
+        if (event.how === "fusion") mine.fusions += 1;
+        else mine.summons += 1;
+        break;
+      case "activate":
+        if (!mine) break;
+        if (event.reveal) mine.trapsSprung += 1;
+        else mine.spellsCast += 1;
+        break;
+      case "declare":
+        lastAttacker = { side, card: event.card };
+        break;
+      case "directAttack":
+        if (!mine) break;
+        mine.directAttacks += 1;
+        break;
+      case "damage": {
+        // `side` names whoever took the damage. Counting what was taken rather
+        // than guessing who to credit means the total can never over-claim: a
+        // cost a duelist pays themselves is not damage anyone dealt them.
+        if (!mine) break;
+        const absorbed = Math.max(0, previousLife[side] - event.lp);
+        previousLife[side] = event.lp;
+        // A cost a duelist pays themselves is not damage anyone dealt them,
+        // but it is still life points spent, so it is tracked separately.
+        if (event.cause === "cost") { mine.lifePaid += absorbed; break; }
+        mine.damageTaken += absorbed;
+        // The headline hit keeps the attack's real size, overkill included --
+        // a 3000 ATK strike into 200 life points was still a 3000 ATK strike.
+        if (!biggestHit || event.amount > biggestHit.damage) {
+          biggestHit = {
+            damage: event.amount,
+            side: other(side),
+            card: event.cause === "battle" || event.cause === "direct"
+              ? (lastAttacker?.card ?? null)
+              : null,
+          };
+        }
+        break;
+      }
+      case "destroy":
+        if (event.cause === "battle" && mine) mine.monstersLost += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Damage dealt is the mirror of damage taken, so the two always agree.
+  sides.player.damageDealt = sides.opponent.damageTaken;
+  sides.opponent.damageDealt = sides.player.damageTaken;
+
+  const winner = state.winner ?? null;
+  return {
+    matchupId: state.matchupId,
+    winner,
+    loser: winner ? other(winner) : null,
+    reason: state.winReason ?? null,
+    turns,
+    lifePoints: {
+      player: state.sides.player.lp,
+      opponent: state.sides.opponent.lp,
+    },
+    duelists: {
+      player: DUELISTS[state.sides.player.duelistId],
+      opponent: DUELISTS[state.sides.opponent.duelistId],
+    },
+    sides,
+    biggestHit,
+  };
+}
+
+/** The one line worth leading a share card with. */
+function headline(stats) {
+  if (!stats.winner) return "Duel in progress";
+  const winner = stats.duelists[stats.winner];
+  if (stats.reason === "deckout") return `${winner.name} wins on a deck out`;
+  const margin = stats.lifePoints[stats.winner];
+  if (margin >= 7000) return `${winner.name} wins without breaking a sweat`;
+  if (margin <= 1000) return `${winner.name} wins by a hair`;
+  return `${winner.name} takes the duel`;
+}
+
+/** The stat tiles a card shows, already formatted. */
+function statTiles(stats) {
+  const side = stats.winner ?? "player";
+  const mine = stats.sides[side];
+  const tiles = [
+    { label: "Life Points", value: String(stats.lifePoints[side]) },
+    { label: "Turns", value: String(stats.turns) },
+    { label: "Damage dealt", value: mine.damageDealt.toLocaleString("en") },
+    { label: "Summons", value: String(mine.summons + mine.fusions) },
+  ];
+  if (mine.fusions > 0) tiles.push({ label: "Fusions", value: String(mine.fusions) });
+  if (mine.trapsSprung > 0) tiles.push({ label: "Traps sprung", value: String(mine.trapsSprung) });
+  if (mine.directAttacks > 0) tiles.push({ label: "Direct attacks", value: String(mine.directAttacks) });
+  return tiles.slice(0, 6);
+}
+
+Object.assign(__exports, { summariseDuel, headline, statTiles });
+});
+
+__def("src/share-card.js", {"./cards/index.js":"src/cards/index.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duel-stats.js":"src/duel-stats.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// The share card: a 1200x630 canvas render of a finished duel.
+//
+// Drawn rather than screenshotted so it reads at thumbnail size on a timeline,
+// where a capture of the game UI would be an unreadable smear.
+
+const { CARDS } = __req("./cards/index.js");
+const { ATTRIBUTE_PALETTE, drawMonster } = __req("./cinema/procedural-stage.js");
+const { headline, statTiles } = __req("./duel-stats.js");
+const { getMatchup } = __req("./duelists.js");
+const CARD_WIDTH = 1200;
+const CARD_HEIGHT = 630;
+
+const PAD = 56;
+const INK = "#e8eefc";
+const DIM = "#92a1c4";
+const FAINT = "#5f6d90";
+const MONO = '"SF Mono", "JetBrains Mono", Menlo, Consolas, monospace';
+const SANS = 'Inter, "Helvetica Neue", Arial, sans-serif';
+
+function backdrop(ctx, accentA, accentB) {
+    const sky = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    sky.addColorStop(0, "#080c1a");
+    sky.addColorStop(0.5, "#111a33");
+    sky.addColorStop(1, "#080a16");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+    for (const [x, colour] of [[CARD_WIDTH * 0.2, accentA], [CARD_WIDTH * 0.85, accentB]]) {
+        const glow = ctx.createRadialGradient(x, CARD_HEIGHT * 0.5, 10, x, CARD_HEIGHT * 0.5, 520);
+        glow.addColorStop(0, `${colour}44`);
+        glow.addColorStop(1, "transparent");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    }
+
+    // Faint arena grid, so the card belongs to the same world as the game.
+    ctx.save();
+    ctx.strokeStyle = `${accentB}22`;
+    ctx.lineWidth = 1;
+    for (let y = CARD_HEIGHT * 0.62; y < CARD_HEIGHT; y += 26) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CARD_WIDTH, y);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function label(ctx, text, x, y, colour = FAINT) {
+    ctx.font = `600 13px ${MONO}`;
+    ctx.fillStyle = colour;
+    ctx.letterSpacing = "2px";
+    ctx.fillText(text.toUpperCase(), x, y);
+    ctx.letterSpacing = "0px";
+}
+
+function drawHeader(ctx, stats) {
+    const matchup = getMatchup(stats.matchupId);
+    label(ctx, "Duel Live", PAD, PAD + 4, "#4fc9f0");
+    ctx.font = `500 15px ${SANS}`;
+    ctx.fillStyle = FAINT;
+    ctx.fillText(matchup?.name ?? "", PAD, PAD + 30);
+
+    ctx.font = `700 52px ${SANS}`;
+    ctx.fillStyle = INK;
+    ctx.fillText(headline(stats), PAD, PAD + 96);
+
+    if (stats.winner) {
+        const loser = stats.duelists[stats.loser];
+        ctx.font = `400 20px ${SANS}`;
+        ctx.fillStyle = DIM;
+        ctx.fillText(`over ${loser.name}`, PAD, PAD + 130);
+    }
+}
+
+function drawTiles(ctx, stats) {
+    const tiles = statTiles(stats);
+    const top = 268;
+    const columns = 3;
+    const gap = 18;
+    const boxW = (CARD_WIDTH * 0.55 - PAD - gap * (columns - 1)) / columns;
+    const boxH = 92;
+
+    tiles.forEach((tile, i) => {
+        const x = PAD + (i % columns) * (boxW + gap);
+        const y = top + Math.floor(i / columns) * (boxH + gap);
+        ctx.fillStyle = "rgba(18, 26, 48, 0.82)";
+        ctx.strokeStyle = "rgba(120, 160, 220, 0.22)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(x, y, boxW, boxH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        label(ctx, tile.label, x + 16, y + 28);
+        ctx.font = `700 34px ${MONO}`;
+        ctx.fillStyle = INK;
+        ctx.fillText(tile.value, x + 16, y + 70);
+    });
+    return top + Math.ceil(tiles.length / columns) * (boxH + gap);
+}
+
+function drawBiggestHit(ctx, stats, y) {
+    const hit = stats.biggestHit;
+    if (!hit?.card) return;
+    ctx.fillStyle = "rgba(244, 197, 49, 0.10)";
+    ctx.strokeStyle = "rgba(244, 197, 49, 0.42)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(PAD, y + 8, CARD_WIDTH * 0.55 - PAD, 74, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    label(ctx, "Biggest hit", PAD + 18, y + 36, "#f4c531");
+    ctx.font = `600 21px ${SANS}`;
+    ctx.fillStyle = INK;
+    const text = `${hit.card} — ${hit.damage.toLocaleString("en")}`;
+    ctx.fillText(text, PAD + 18, y + 66);
+}
+
+// The winner's ace, drawn with the game's own renderer. The silhouettes are
+// built to read at roughly fifty pixels on the battlefield, so blowing one up
+// exposes how crude it is -- it is framed as a projection on a lit plinth, with
+// scanlines, so the abstraction reads as a hologram rather than a failed dragon.
+function drawAce(ctx, stats) {
+    const winner = stats.duelists[stats.winner ?? "player"];
+    const card = CARDS[winner?.ace];
+    if (!card) return;
+
+    const cx = CARD_WIDTH * 0.79;
+    const cy = CARD_HEIGHT * 0.44;
+    const palette = ATTRIBUTE_PALETTE[card.attribute] ?? ATTRIBUTE_PALETTE.DARK;
+
+    const halo = ctx.createRadialGradient(cx, cy, 10, cx, cy, 250);
+    halo.addColorStop(0, `${palette.core}30`);
+    halo.addColorStop(1, "transparent");
+    ctx.fillStyle = halo;
+    ctx.fillRect(CARD_WIDTH * 0.55, 0, CARD_WIDTH * 0.45, CARD_HEIGHT);
+
+    // The projector plinth the hologram stands on.
+    const plinthY = CARD_HEIGHT * 0.70;
+    ctx.save();
+    ctx.strokeStyle = `${palette.core}88`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, plinthY, 150, 26, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.ellipse(cx, plinthY, 96, 16, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // The projection cone rising from it.
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const cone = ctx.createLinearGradient(0, plinthY, 0, cy - 120);
+    cone.addColorStop(0, `${palette.core}33`);
+    cone.addColorStop(1, "transparent");
+    ctx.fillStyle = cone;
+    ctx.beginPath();
+    ctx.moveTo(cx - 150, plinthY);
+    ctx.lineTo(cx - 66, cy - 120);
+    ctx.lineTo(cx + 66, cy - 120);
+    ctx.lineTo(cx + 150, plinthY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    drawMonster(ctx, card, { x: cx, y: cy, scale: 112, alpha: 0.92, t: 0 });
+
+    // Hologram scanlines, drawn over the monster and clipped to the cone.
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = palette.glow;
+    for (let y = cy - 150; y < plinthY; y += 5) ctx.fillRect(cx - 170, y, 340, 1);
+    ctx.restore();
+
+    ctx.textAlign = "center";
+    ctx.font = `600 22px ${SANS}`;
+    ctx.fillStyle = INK;
+    ctx.fillText(card.name, cx, CARD_HEIGHT - 88);
+    ctx.font = `500 15px ${MONO}`;
+    ctx.fillStyle = DIM;
+    ctx.fillText(`${card.atk} ATK · ${winner.title}`, cx, CARD_HEIGHT - 62);
+    ctx.textAlign = "left";
+}
+
+/** Render a finished duel onto a canvas. Returns the canvas it drew on. */
+function drawShareCard(canvas, stats) {
+    canvas.width = CARD_WIDTH;
+    canvas.height = CARD_HEIGHT;
+    const ctx = canvas.getContext("2d");
+    const winner = stats.duelists[stats.winner ?? "player"];
+    const loser = stats.duelists[stats.loser ?? "opponent"];
+
+    backdrop(ctx, winner?.accent ?? "#4fc9f0", loser?.accent ?? "#e05a9c");
+    ctx.textBaseline = "alphabetic";
+    drawAce(ctx, stats);
+    drawHeader(ctx, stats);
+    const afterTiles = drawTiles(ctx, stats);
+    drawBiggestHit(ctx, stats, afterTiles);
+
+    ctx.font = `500 14px ${MONO}`;
+    ctx.fillStyle = FAINT;
+    ctx.fillText("duel-live · rules engine, AI cinema", PAD, CARD_HEIGHT - 34);
+
+    ctx.strokeStyle = `${winner?.accent ?? "#4fc9f0"}66`;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1.5, 1.5, CARD_WIDTH - 3, CARD_HEIGHT - 3);
+    return canvas;
+}
+
+const shareFilename = (stats) =>
+    `duel-live-${stats.matchupId}-${stats.winner ?? "draw"}.png`;
+
+function shareText(stats) {
+    const winner = stats.duelists[stats.winner ?? "player"];
+    const side = stats.winner ?? "player";
+    const bits = [
+        `${headline(stats)} — ${stats.lifePoints[side]} LP left after ${stats.turns} turns.`,
+    ];
+    if (stats.biggestHit?.card) {
+        bits.push(`Biggest hit: ${stats.biggestHit.card} for ${stats.biggestHit.damage}.`);
+    }
+    bits.push(`${winner.name} · Duel Live`);
+    return bits.join(" ");
+}
+
+Object.assign(__exports, { drawShareCard, shareText, CARD_WIDTH, CARD_HEIGHT, shareFilename });
 });
 
 __make("src/app.js");

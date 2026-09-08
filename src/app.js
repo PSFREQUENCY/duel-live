@@ -17,6 +17,8 @@ import {
 import { reactionKeyFor } from "./cinema/archetypes.js";
 import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
+import { summariseDuel } from "./duel-stats.js";
+import { drawShareCard, shareFilename, shareText } from "./share-card.js";
 
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
@@ -24,6 +26,8 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+  share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
+  shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
 
 let state = null;
@@ -32,6 +36,7 @@ let busy = false;
 let attackFrom = null;
 let stalledTicks = 0;
 let introShown = false;
+let duelEvents = [];
 
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
@@ -77,6 +82,7 @@ function updateControls(mine) {
   ui.advance.textContent = over ? "Duel over"
     : state.phase === "main1" ? "To Battle Phase" : "End turn";
   ui.skip.hidden = !cinema.busy;
+  ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
   ui.hint.textContent = over
     ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
@@ -91,6 +97,7 @@ const myTurn = () => state && state.activeSide === "player" && !state.winner;
 // ------------------------------------------------------------ event flow ---
 
 function present(events) {
+  duelEvents.push(...events);
   for (const event of events) logEvent(ui.log, event, state);
   const shots = buildStoryboard(events, state);
   if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
@@ -278,6 +285,76 @@ function advance(phase) {
   present(result.events);
 }
 
+// ------------------------------------------------------------- share card ---
+
+function openShareCard() {
+  const stats = summariseDuel(duelEvents, state);
+  drawShareCard(ui.shareCanvas, stats);
+  ui.shareCaption.textContent = shareText(stats);
+  ui.shareHint.textContent = "";
+  ui.shareHint.classList.remove("is-warn");
+  // Sharing a file is only offered where the browser will actually take one.
+  ui.shareModal.hidden = false;
+  const canShareFiles = Boolean(navigator.canShare?.({ files: [testFile()] }));
+  el("share-send").hidden = !canShareFiles;
+}
+
+// navigator.canShare needs a real File to answer honestly.
+const testFile = () => new File([new Uint8Array(1)], "probe.png", { type: "image/png" });
+
+const cardBlob = () =>
+  new Promise((done) => ui.shareCanvas.toBlob(done, "image/png"));
+
+function shareNote(text, warn = false) {
+  ui.shareHint.textContent = text;
+  ui.shareHint.classList.toggle("is-warn", warn);
+}
+
+async function sendShare() {
+  const stats = summariseDuel(duelEvents, state);
+  const blob = await cardBlob();
+  const file = new File([blob], shareFilename(stats), { type: "image/png" });
+  try {
+    await navigator.share({ files: [file], text: shareText(stats), title: "Duel Live" });
+  } catch (error) {
+    if (error?.name !== "AbortError") shareNote("Sharing was refused by the browser.", true);
+  }
+}
+
+async function copyImage() {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": await cardBlob() })]);
+    shareNote("Image copied — paste it anywhere.");
+  } catch {
+    shareNote("This browser blocks image copying. Right-click the card to save it.", true);
+  }
+}
+
+async function copyCardText() {
+  try {
+    await navigator.clipboard.writeText(shareText(summariseDuel(duelEvents, state)));
+    shareNote("Text copied.");
+  } catch {
+    shareNote("Copying was blocked. Select the caption instead.", true);
+  }
+}
+
+// A sandboxed page cannot start its own download, so say so plainly rather than
+// handing over a link that silently does nothing.
+async function downloadCard() {
+  const stats = summariseDuel(duelEvents, state);
+  const url = URL.createObjectURL(await cardBlob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = shareFilename(stats);
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  shareNote("Saved. If nothing downloaded, right-click the card and save the image.");
+}
+
 function announceWinner() {
   cinema.setIdle(null);
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
@@ -352,6 +429,8 @@ function startDuel(requested) {
   attackFrom = null;
   ui.log.innerHTML = "";
   ui.prompt.hidden = true;
+  duelEvents = [];
+  ui.share.hidden = true;
   state = createDuel(matchupId, { seed: Date.now() });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
@@ -391,15 +470,25 @@ function bind() {
   });
   ui.skip.addEventListener("click", () => { cinema.skip(); renderAll(); });
   ui.resume.addEventListener("click", resume);
+  ui.share.addEventListener("click", openShareCard);
+  el("share-send").addEventListener("click", sendShare);
+  el("share-copy").addEventListener("click", copyImage);
+  el("share-copy-text").addEventListener("click", copyCardText);
+  el("share-download").addEventListener("click", downloadCard);
+  el("share-close").addEventListener("click", () => { ui.shareModal.hidden = true; });
+  ui.shareModal.addEventListener("click", (e) => {
+    if (e.target === ui.shareModal) ui.shareModal.hidden = true;
+  });
   ui.stage.addEventListener("click", () => { if (cinema.busy) { cinema.skip(); renderAll(); } });
   document.addEventListener("keydown", (e) => {
     if (e.key === " " && cinema.busy) { e.preventDefault(); cinema.skip(); renderAll(); }
-    if (e.key === "Escape") { ui.modal.hidden = true; }
+    if (e.key === "Escape") { ui.modal.hidden = true; ui.shareModal.hidden = true; }
   });
   el("rules-btn").addEventListener("click", showRules);
   el("modal-close").addEventListener("click", () => { ui.modal.hidden = true; });
   ui.modal.addEventListener("click", (e) => { if (e.target === ui.modal) ui.modal.hidden = true; });
   ui.modal.hidden = true;
+  ui.shareModal.hidden = true;
 }
 
 function showRules() {

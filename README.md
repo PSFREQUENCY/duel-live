@@ -158,6 +158,24 @@ Blue-Eyes Ultimate Dragon.
 scale off each other. Mai plays tempo and equips; Joey's Extra Deck holds Flame Swordsman,
 Thousand Dragon and Black Skull Dragon.
 
+### Share card
+
+Win a duel and **Share result** renders a 1200×630 card on a canvas: the headline,
+six stat tiles, the biggest single hit of the duel, and the winner's ace as a
+holographic projection. It is drawn rather than screenshotted, so it stays legible
+at thumbnail size on a timeline where a capture of the game UI would be a smear.
+
+Every number comes from the engine's own event log, and the arithmetic reconciles:
+for both duelists, `life points + damage taken + life paid` equals the starting
+8000 in every duel, which a test asserts across sixty of them. A cost a duelist
+pays themselves is never credited to their opponent, and the headline hit keeps
+the attack's real size even when it overkilled.
+
+Sharing uses the Web Share API where the browser will take a file, and falls back
+to copying the image, copying the text, or saving the PNG. In a sandboxed page
+that blocks downloads the card is still on screen to save by hand, and the app
+says so rather than handing over a link that silently does nothing.
+
 ### Banter
 
 The duelists talk. Summon your ace, land a fusion, spring a trap, take a big hit, or drop
@@ -180,13 +198,16 @@ asserts that no card can reference an effect the engine cannot resolve.
 ## Development
 
 ```bash
-npm test         # 93 tests: engine, effects, decks, cinema, banter, recovery,
-                 #           providers, wiring, integration, bundle
+npm test         # 116 tests: engine, effects, decks, cinema, banter, recovery,
+                 #            providers, share card, wiring, integration, bundle
 npm run smoke    # boots the real app against a DOM stub and plays ten turns
 npm run selfplay # drives 200 headless duels per matchup as an engine soak test
 npm run keycheck # reports which cinema tiers are reachable right now
 npm run key      # add a Pollinations key, or print how to earn free Pollen
-npm run prewarm  # generate the 33-clip archetype library once
+npm run prewarm  # generate any clips not already hand-made
+npm run clips    # coverage report for clips/
+npm run clips:preview  # filmstrip every clip so you can see what is in it
+npm run shotlist # regenerate prompts/ from the game's own data
 npm run build    # regenerate duel-live.html
 ```
 
