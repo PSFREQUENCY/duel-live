@@ -94,4 +94,7 @@ test("winning reveals the share control, and it is wired", async () => {
   }
   assert.match(app, /navigator\.canShare/, "file sharing must be feature-detected, not assumed");
   assert.match(app, /right-click the card/i, "a blocked download must explain the fallback");
+  assert.match(app, /claude\?\.use\?\.\("downloads"\)/,
+    "a hosted page must save through the capability, not an inert link");
+  assert.match(app, /declined:/, "a declined save must be handled, not retried");
 });

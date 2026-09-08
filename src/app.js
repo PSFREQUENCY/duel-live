@@ -339,20 +339,50 @@ async function copyCardText() {
   }
 }
 
-// A sandboxed page cannot start its own download, so say so plainly rather than
-// handing over a link that silently does nothing.
+// When the page is hosted, a plain download link is inert -- the host mediates
+// saving through a capability instead. Resolved once, since it can take a moment
+// to answer and answers `null` when this view cannot save at all.
+let downloadsReady = null;
+async function downloads() {
+  downloadsReady ??= globalThis.claude?.use?.("downloads") ?? Promise.resolve(null);
+  return downloadsReady;
+}
+
+const DOWNLOAD_MESSAGE = {
+  declined: ["Save cancelled.", true],
+  rate_limited: ["A save prompt is already open — try again in a moment.", true],
+  too_large: ["That file was too large for the chosen destination.", true],
+};
+
 async function downloadCard() {
   const stats = summariseDuel(duelEvents, state);
-  const url = URL.createObjectURL(await cardBlob());
+  const filename = shareFilename(stats);
+  const blob = await cardBlob();
+
+  const host = await downloads();
+  if (host) {
+    try {
+      await host.save({ filename, data: blob });
+      shareNote("Saved.");
+    } catch (error) {
+      const [text, warn] = DOWNLOAD_MESSAGE[error?.code]
+        ?? ["Saving is not available here — right-click the card to save it.", true];
+      shareNote(text, warn);
+    }
+    return;
+  }
+
+  // Local build: an ordinary link is fine and needs no permission.
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = shareFilename(stats);
+  link.download = filename;
   link.rel = "noopener";
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  shareNote("Saved. If nothing downloaded, right-click the card and save the image.");
+  shareNote("Saved. If nothing downloaded, right-click the card to save the image.");
 }
 
 function announceWinner() {
