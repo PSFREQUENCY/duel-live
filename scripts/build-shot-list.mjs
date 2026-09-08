@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 
 import { libraryFor } from "../src/cinema/archetypes.js";
 import { DUELISTS as GAME_DUELISTS } from "../src/duelists.js";
-import { CONNECTIVE_SHOTS, DUELIST_SHOTS } from "./shot-bible.mjs";
-import { ARENAS, assemble, LOOKS, STYLE, WORLD } from "../src/cinema/world.js";
+import { CONNECTIVE_SHOTS, DUELIST_SHOTS, TITLE_SHOTS } from "./shot-bible.mjs";
+import { ARENAS, assemble, assembleTitle, LOOKS, STYLE, WORLD } from "../src/cinema/world.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OUT = join(ROOT, "prompts");
@@ -57,7 +57,16 @@ const connectiveShots = () => CONNECTIVE_SHOTS.map((shot) => ({
   prompt: assemble(shot.subject),
 }));
 
-const shots = [...duelistShots(), ...monsterShots(), ...connectiveShots()]
+const titleShots = () => TITLE_SHOTS.map((shot) => ({
+  key: shot.id,
+  category: "title",
+  label: shot.label,
+  priority: shot.priority,
+  seconds: shot.seconds,
+  prompt: assembleTitle(shot.subject),
+}));
+
+const shots = [...titleShots(), ...duelistShots(), ...monsterShots(), ...connectiveShots()]
   .sort((a, b) => a.priority - b.priority || a.category.localeCompare(b.category) || a.key.localeCompare(b.key));
 
 const byPriority = (n) => shots.filter((s) => s.priority === n);

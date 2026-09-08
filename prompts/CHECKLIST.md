@@ -3,7 +3,7 @@
 Tick as you generate. `npm run clips` reports the same thing from what is
 actually in `clips/`.
 
-## Priority 1 — 26 clips
+## Priority 1 — 30 clips
 
 - [ ] `arena-cliff.mp4` — Establishing — cliff arena (6s)
 - [ ] `arena-rooftop.mp4` — Establishing — rooftop arena (6s)
@@ -31,6 +31,10 @@ actually in `clips/`.
 - [ ] `win-kaiba.mp4` — Seto Kaiba — Victory (6s)
 - [ ] `win-mai.mp4` — Mai Valentine — Victory (6s)
 - [ ] `win-yugi.mp4` — Yugi Muto — Victory (6s)
+- [ ] `intro.mp4` — Opening title sequence (6s)
+- [ ] `outro.mp4` — End of duel (6s)
+- [ ] `vs-joey-mai.mp4` — Versus plate — Duel II (6s)
+- [ ] `vs-yugi-kaiba.mp4` — Versus plate — Duel I (6s)
 
 ## Priority 2 — 37 clips
 

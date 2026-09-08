@@ -539,7 +539,7 @@ const { createCinema } = __req("./cinema/player.js");
 const { clearJobs, getCapability, planTiers, probeCapability, setReuseMode } = __req("./cinema/free-video.js");
 const { enableRemoteVoice, speak } = __req("./cinema/realtime-voice.js");
 const { el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones, resetLifePointTracking } = __req("./render.js");
-const { buildStoryboard, idleShot } = __req("./cinema/storyboard.js");
+const { buildStoryboard, idleShot, titleShot } = __req("./cinema/storyboard.js");
 const { closingExchange, directBanter, openingExchange } = __req("./banter.js");
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
@@ -554,6 +554,7 @@ let muted = false;
 let busy = false;
 let attackFrom = null;
 let stalledTicks = 0;
+let introShown = false;
 
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
@@ -786,6 +787,7 @@ function announceWinner() {
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
   ui.hint.textContent = `${duelist.name} wins — ${state.winReason === "deckout" ? "deck out" : "0 LP"}.`;
   speakBanter(closingExchange(state));
+  cinema.enqueue(planTiers([titleShot("outro", state)], { videoBudget: 1 }));
 }
 
 // ----------------------------------------------------------------- input ---
@@ -856,6 +858,11 @@ function startDuel(requested) {
   state = createDuel(matchupId, { seed: Date.now() });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
+  // Intro plays once per session; the versus plate opens every duel.
+  const opening = [introShown ? null : titleShot("intro", state), titleShot("versus", state)]
+    .filter(Boolean);
+  introShown = true;
+  cinema.enqueue(planTiers(opening, { videoBudget: opening.length }));
   logEvent(ui.log, { type: "phase", phase: "draw", side: "player", turn: 1 }, state);
   speakBanter(openingExchange(state));
   renderAll();
@@ -2147,6 +2154,8 @@ Object.assign(__exports, { mulberry32, shuffle, makeInstance, resetUidCounter, c
 __def("src/duelists.js", {}, function (__exports, __req) {
 // Duelist profiles: deck list, extra deck, AI temperament, and the voice lines
 // the cinema layer speaks. Lines are original paraphrase, not show transcripts.
+// What each duelist *looks like* lives in src/cinema/world.js, so the prompt
+// sheets and the runtime cannot describe the same character two different ways.
 
 const x = (id, n) => Array.from({ length: n }, () => id);
 
@@ -2157,7 +2166,6 @@ const DUELISTS = {
     title: "King of Games",
     accent: "#f4c531",
     aura: "linear-gradient(160deg,#3b2a6d,#120a24)",
-    portrait: "a spiky black-and-magenta haired teenage duelist in a blue school jacket with a golden pyramid pendant",
     ace: "darkMagician",
     strategy: "control",
     lines: {
@@ -2188,7 +2196,6 @@ const DUELISTS = {
     title: "CEO of KaibaCorp",
     accent: "#4fc9f0",
     aura: "linear-gradient(160deg,#0d3550,#04121c)",
-    portrait: "a tall stern brown-haired duelist in a white high-collared coat with a metal duel gauntlet",
     ace: "blueEyes",
     strategy: "aggro",
     lines: {
@@ -2219,7 +2226,6 @@ const DUELISTS = {
     title: "The Underdog",
     accent: "#f08a3c",
     aura: "linear-gradient(160deg,#5c3410,#1c0e04)",
-    portrait: "a scruffy blond teenage duelist in a green jacket and white shirt, grinning",
     ace: "redEyes",
     strategy: "swingy",
     lines: {
@@ -2250,7 +2256,6 @@ const DUELISTS = {
     title: "Harpie Queen",
     accent: "#e05a9c",
     aura: "linear-gradient(160deg,#5a1440,#1c0616)",
-    portrait: "a confident blonde duelist in a purple jacket with a violet duel disk",
     ace: "harpiesPetDragon",
     strategy: "tempo",
     lines: {
@@ -3097,6 +3102,7 @@ function jobCount() {
 // A shot is worth spending a slow video generation on only if it is a moment
 // the player will remember. Everything else stays on the fast tiers.
 function deservesVideo(shot) {
+  if (shot.clipKey) return true;
   return shot.kind === "fusion" || shot.kind === "finish" || shot.kind === "direct"
     || (shot.kind === "clash" && (shot.event?.attackerAtk ?? 0) >= 2000)
     || (shot.kind === "summon" && (shot.event?.atk ?? 0) >= 2400)
@@ -3197,6 +3203,9 @@ function reactionKeyFor(situation, duelistId) {
  */
 function archetypeFor(shot) {
   if (!shot?.kind) return null;
+  // A shot may name its own clip -- title cards do, since they are authored
+  // rather than derived from cards on the field.
+  if (shot.clipKey) return { key: shot.clipKey, prompt: shot.prompt, seconds: shot.seconds, title: true };
   const look = (a) => ATTRIBUTE_LOOK[a] ?? ATTRIBUTE_LOOK.DARK;
   const where = `in ${NEUTRAL_ARENA}`;
 
@@ -3332,12 +3341,23 @@ const LOOKS = {
 const NEUTRAL_ARENA = "a floodlit open-air duel arena at night, holographic projector "
   + "pylons at its edges, empty stands beyond";
 
-/** Every prompt in the project is assembled through here. */
+// Title cards sit outside the duel, so they get their own register: a modern
+// 3D broadcast look rather than the hand-inked cel animation of the match.
+const TITLE_STYLE = "AAA 3D cinematic animation, Unreal Engine quality, physically based "
+  + "rendering, volumetric light shafts, chromatic aberration, brushed chrome and carbon fibre, "
+  + "glowing cyan and magenta holographic interface panels, deep blacks, anamorphic lens flares, "
+  + "shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, "
+  + "no watermark";
+
+/** Every in-duel prompt in the project is assembled through here. */
 const assemble = (subject) => `${STYLE}. ${WORLD}. ${subject}.`;
+
+/** Title cards skip the world block; they are not shot inside a duel. */
+const assembleTitle = (subject) => `${TITLE_STYLE}. ${subject}.`;
 
 const arenaFor = (duelistId) => ARENAS[LOOKS[duelistId]?.arena ?? "rooftop"];
 
-Object.assign(__exports, { STYLE, WORLD, ARENAS, LOOKS, NEUTRAL_ARENA, assemble, arenaFor });
+Object.assign(__exports, { STYLE, WORLD, ARENAS, LOOKS, NEUTRAL_ARENA, TITLE_STYLE, assemble, assembleTitle, arenaFor });
 });
 
 __def("src/cinema/realtime-voice.js", {}, function (__exports, __req) {
@@ -3586,12 +3606,13 @@ function describe(event, state) {
 Object.assign(__exports, { renderZones, renderHand, renderDuelists, renderLifePoints, resetLifePointTracking, renderPhase, logEvent, describe, el, CARDS });
 });
 
-__def("src/cinema/storyboard.js", {"../cards/index.js":"src/cards/index.js","../duelists.js":"src/duelists.js"}, function (__exports, __req) {
+__def("src/cinema/storyboard.js", {"../cards/index.js":"src/cards/index.js","../duelists.js":"src/duelists.js","./world.js":"src/cinema/world.js"}, function (__exports, __req) {
 // Turns rules-engine events into a shot list. The prompt text is rebuilt from
 // battle facts every time, so the cinema can never contradict the duel.
 
 const { CARDS } = __req("../cards/index.js");
 const { DUELISTS, getMatchup } = __req("../duelists.js");
+const { assembleTitle, LOOKS } = __req("./world.js");
 const STYLE = "cel-shaded late-90s anime, heavy ink outlines, saturated holographic lighting, "
   + "dramatic low camera angle, 16:9 widescreen, no text, no watermark, no logos";
 
@@ -3615,6 +3636,8 @@ function shotSeed(shot) {
 function duelistOf(state, side) {
   return DUELISTS[state.sides[side].duelistId];
 }
+
+const lookOf = (duelist) => LOOKS[duelist.id]?.look ?? duelist.name;
 
 function baseScene(state) {
   return getMatchup(state.matchupId).arena;
@@ -3686,7 +3709,7 @@ const SHOT_BUILDERS = {
       title: `${duelist.name} wins`,
       subtitle: event.reason === "deckout" ? "Deck out" : "Life Points depleted",
       seconds: 5,
-      prompt: `${duelist.portrait} stands victorious as the holograms fade; `
+      prompt: `${lookOf(duelist)} stands victorious as the holograms fade; `
         + `${baseScene(state)}; ${STYLE}`,
       voice: duelist.lines.win,
       loserVoice: loser.lines.lose,
@@ -3726,13 +3749,53 @@ function idleShot(state) {
     seconds: 4,
     side: "player",
     turn: state.turn,
-    prompt: `${player.portrait} facing off against ${foe.portrait} across ${baseScene(state)}, `
+    prompt: `${lookOf(player)} facing off against ${lookOf(foe)} across ${baseScene(state)}, `
       + `duel disks lit, holograms idling; ${STYLE}`,
     voice: null,
   };
 }
 
-Object.assign(__exports, { shotSeed, buildStoryboard, idleShot });
+const TITLE_CARDS = {
+  intro: {
+    title: "Duel Live", subtitle: "Choose a card. Watch the duel animate itself.", seconds: 6,
+    subject: "a camera flies through a vast dark cyber-arena as a forearm duel disk unfolds in "
+      + "extreme close-up, card slots igniting one by one; holographic monster silhouettes bloom "
+      + "and dissolve around it; the camera pulls back hard to reveal the arena floor lighting up "
+      + "in a grid",
+  },
+  outro: {
+    title: "Duel over", subtitle: "", seconds: 6,
+    subject: "the holographic arena powers down: light panels shutting off in sequence, monster "
+      + "silhouettes dissolving into drifting particles, a forearm duel disk folding closed and "
+      + "going dark, camera craning up into black",
+  },
+};
+
+/** The intro, the outro, and the versus plate that opens each duel. */
+function titleShot(kind, state) {
+  if (kind === "versus") {
+    const matchup = getMatchup(state.matchupId);
+    const [a, b] = [duelistOf(state, "player"), duelistOf(state, "opponent")];
+    return {
+      id: `vs-${state.matchupId}`, clipKey: `vs-${state.matchupId}`, kind: "versus",
+      title: `${a.name}  vs  ${b.name}`, subtitle: matchup.tagline, seconds: 6,
+      side: "player", duelistId: a.id, turn: state.turn,
+      prompt: assembleTitle(`a split-screen versus plate: on the left ${lookOf(a)}, on the right `
+        + `${lookOf(b)}, both rendered as photoreal 3D characters lit from below, facing each `
+        + `other across a jagged energy seam that tears down the centre of frame`),
+    };
+  }
+  const card = TITLE_CARDS[kind];
+  if (!card) return null;
+  return {
+    id: kind, clipKey: kind, kind,
+    title: card.title, subtitle: card.subtitle, seconds: card.seconds,
+    side: "player", duelistId: state?.sides?.player?.duelistId ?? null, turn: state?.turn ?? 1,
+    prompt: assembleTitle(card.subject),
+  };
+}
+
+Object.assign(__exports, { shotSeed, buildStoryboard, idleShot, titleShot });
 });
 
 __def("src/banter.js", {"./banter-lines.js":"src/banter-lines.js","./cards/index.js":"src/cards/index.js","./duelists.js":"src/duelists.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {

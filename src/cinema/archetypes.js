@@ -77,6 +77,9 @@ export function reactionKeyFor(situation, duelistId) {
  */
 export function archetypeFor(shot) {
   if (!shot?.kind) return null;
+  // A shot may name its own clip -- title cards do, since they are authored
+  // rather than derived from cards on the field.
+  if (shot.clipKey) return { key: shot.clipKey, prompt: shot.prompt, seconds: shot.seconds, title: true };
   const look = (a) => ATTRIBUTE_LOOK[a] ?? ATTRIBUTE_LOOK.DARK;
   const where = `in ${NEUTRAL_ARENA}`;
 

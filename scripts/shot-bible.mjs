@@ -2,9 +2,9 @@
 // all come from src/cinema/world.js, so the sheets and the runtime prompt
 // builder can never drift apart.
 
-export { ARENAS, LOOKS as DUELISTS, STYLE, WORLD, assemble } from "../src/cinema/world.js";
+export { ARENAS, LOOKS as DUELISTS, STYLE, WORLD, TITLE_STYLE, assemble, assembleTitle } from "../src/cinema/world.js";
 
-import { ARENAS } from "../src/cinema/world.js";
+import { ARENAS, LOOKS } from "../src/cinema/world.js";
 
 // Per-duelist shots. `{look}` and `{arena}` are substituted per duelist.
 export const DUELIST_SHOTS = [
@@ -57,4 +57,27 @@ export const CONNECTIVE_SHOTS = [
   { id: "standoff-cliff", priority: 3, seconds: 6, label: "Standoff loop — cliff",
     subject: `two duelists faced off at opposite ends of ${ARENAS.cliff}, Duel Disks lit, `
       + "monsters idling as holograms between them, banners snapping" },
+];
+
+// Title cards: the intro, the outro, and a versus plate per duel. These use
+// TITLE_STYLE, not the in-duel look.
+const versus = (a, b) => `a split-screen versus plate: on the left ${LOOKS[a].look}, on the `
+  + `right ${LOOKS[b].look}, both rendered as photoreal 3D characters lit from below, facing `
+  + `each other across a jagged energy seam that tears down the centre of frame; holographic `
+  + `card silhouettes and data panels sweep past the camera; the seam flares white on impact`;
+
+export const TITLE_SHOTS = [
+  { id: "intro", priority: 1, seconds: 6, label: "Opening title sequence",
+    subject: "a camera flies through a vast dark cyber-arena as a forearm duel disk unfolds in "
+      + "extreme close-up, card slots igniting one by one; holographic monster silhouettes bloom "
+      + "and dissolve around it; the camera pulls back hard to reveal the arena floor lighting up "
+      + "in a grid" },
+  { id: "outro", priority: 1, seconds: 6, label: "End of duel",
+    subject: "the holographic arena powers down: light panels shutting off in sequence, monster "
+      + "silhouettes dissolving into drifting particles, a forearm duel disk folding closed and "
+      + "going dark, camera craning up into black" },
+  { id: "vs-yugi-kaiba", priority: 1, seconds: 6, label: "Versus plate — Duel I",
+    subject: versus("yugi", "kaiba") },
+  { id: "vs-joey-mai", priority: 1, seconds: 6, label: "Versus plate — Duel II",
+    subject: versus("joey", "mai") },
 ];

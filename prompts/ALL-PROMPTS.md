@@ -1,6 +1,6 @@
 # Duel Live — every prompt
 
-78 clips. Generate at **16:9**, **480p is enough**, durations as noted.
+82 clips. Generate at **16:9**, **480p is enough**, durations as noted.
 Save each file as the filename in its heading and drop it in `clips/`.
 
 The first two sentences of every prompt are identical on purpose — that shared
@@ -215,6 +215,38 @@ late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film
 
 ```
 late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, standing tall as the last holograms break apart and dissolve around them, Duel Disk powering down, wind pulling at their clothes; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges.
+```
+
+### `intro.mp4` — Opening title sequence
+
+*6s · 16:9 · 480p is fine*
+
+```
+AAA 3D cinematic animation, Unreal Engine quality, physically based rendering, volumetric light shafts, chromatic aberration, brushed chrome and carbon fibre, glowing cyan and magenta holographic interface panels, deep blacks, anamorphic lens flares, shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, no watermark. a camera flies through a vast dark cyber-arena as a forearm duel disk unfolds in extreme close-up, card slots igniting one by one; holographic monster silhouettes bloom and dissolve around it; the camera pulls back hard to reveal the arena floor lighting up in a grid.
+```
+
+### `outro.mp4` — End of duel
+
+*6s · 16:9 · 480p is fine*
+
+```
+AAA 3D cinematic animation, Unreal Engine quality, physically based rendering, volumetric light shafts, chromatic aberration, brushed chrome and carbon fibre, glowing cyan and magenta holographic interface panels, deep blacks, anamorphic lens flares, shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, no watermark. the holographic arena powers down: light panels shutting off in sequence, monster silhouettes dissolving into drifting particles, a forearm duel disk folding closed and going dark, camera craning up into black.
+```
+
+### `vs-joey-mai.mp4` — Versus plate — Duel II
+
+*6s · 16:9 · 480p is fine*
+
+```
+AAA 3D cinematic animation, Unreal Engine quality, physically based rendering, volumetric light shafts, chromatic aberration, brushed chrome and carbon fibre, glowing cyan and magenta holographic interface panels, deep blacks, anamorphic lens flares, shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, no watermark. a split-screen versus plate: on the left a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, on the right a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, both rendered as photoreal 3D characters lit from below, facing each other across a jagged energy seam that tears down the centre of frame; holographic card silhouettes and data panels sweep past the camera; the seam flares white on impact.
+```
+
+### `vs-yugi-kaiba.mp4` — Versus plate — Duel I
+
+*6s · 16:9 · 480p is fine*
+
+```
+AAA 3D cinematic animation, Unreal Engine quality, physically based rendering, volumetric light shafts, chromatic aberration, brushed chrome and carbon fibre, glowing cyan and magenta holographic interface panels, deep blacks, anamorphic lens flares, shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, no watermark. a split-screen versus plate: on the left a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, on the right a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, both rendered as photoreal 3D characters lit from below, facing each other across a jagged energy seam that tears down the centre of frame; holographic card silhouettes and data panels sweep past the camera; the seam flares white on impact.
 ```
 
 ## Priority 2 — depth

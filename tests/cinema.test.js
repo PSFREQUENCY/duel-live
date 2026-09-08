@@ -63,10 +63,10 @@ test("a full duel produces a coherent shot list", () => {
   assert.equal(shots.at(-1).kind, "finish");
 });
 
-test("the idle shot names both duelists", () => {
+test("the idle shot describes both duelists from the shared world bible", () => {
   const shot = idleShot(state);
-  assert.match(shot.prompt, /spiky black-and-magenta haired/);
-  assert.match(shot.prompt, /white high-collared coat/);
+  assert.match(shot.prompt, /star-shaped black hair/, "Yugi's look, as world.js defines it");
+  assert.match(shot.prompt, /white high-collared coat/, "Kaiba's look, as world.js defines it");
 });
 
 test("video is spent only on moments worth the wait", () => {

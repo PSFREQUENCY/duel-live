@@ -14,7 +14,7 @@ import {
   el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones,
   resetLifePointTracking,
 } from "./render.js";
-import { buildStoryboard, idleShot } from "./cinema/storyboard.js";
+import { buildStoryboard, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
 
 const ui = {
@@ -30,6 +30,7 @@ let muted = false;
 let busy = false;
 let attackFrom = null;
 let stalledTicks = 0;
+let introShown = false;
 
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
@@ -262,6 +263,7 @@ function announceWinner() {
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
   ui.hint.textContent = `${duelist.name} wins — ${state.winReason === "deckout" ? "deck out" : "0 LP"}.`;
   speakBanter(closingExchange(state));
+  cinema.enqueue(planTiers([titleShot("outro", state)], { videoBudget: 1 }));
 }
 
 // ----------------------------------------------------------------- input ---
@@ -332,6 +334,11 @@ function startDuel(requested) {
   state = createDuel(matchupId, { seed: Date.now() });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
+  // Intro plays once per session; the versus plate opens every duel.
+  const opening = [introShown ? null : titleShot("intro", state), titleShot("versus", state)]
+    .filter(Boolean);
+  introShown = true;
+  cinema.enqueue(planTiers(opening, { videoBudget: opening.length }));
   logEvent(ui.log, { type: "phase", phase: "draw", side: "player", turn: 1 }, state);
   speakBanter(openingExchange(state));
   renderAll();

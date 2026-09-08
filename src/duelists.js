@@ -1,5 +1,7 @@
 // Duelist profiles: deck list, extra deck, AI temperament, and the voice lines
 // the cinema layer speaks. Lines are original paraphrase, not show transcripts.
+// What each duelist *looks like* lives in src/cinema/world.js, so the prompt
+// sheets and the runtime cannot describe the same character two different ways.
 
 const x = (id, n) => Array.from({ length: n }, () => id);
 
@@ -10,7 +12,6 @@ export const DUELISTS = {
     title: "King of Games",
     accent: "#f4c531",
     aura: "linear-gradient(160deg,#3b2a6d,#120a24)",
-    portrait: "a spiky black-and-magenta haired teenage duelist in a blue school jacket with a golden pyramid pendant",
     ace: "darkMagician",
     strategy: "control",
     lines: {
@@ -41,7 +42,6 @@ export const DUELISTS = {
     title: "CEO of KaibaCorp",
     accent: "#4fc9f0",
     aura: "linear-gradient(160deg,#0d3550,#04121c)",
-    portrait: "a tall stern brown-haired duelist in a white high-collared coat with a metal duel gauntlet",
     ace: "blueEyes",
     strategy: "aggro",
     lines: {
@@ -72,7 +72,6 @@ export const DUELISTS = {
     title: "The Underdog",
     accent: "#f08a3c",
     aura: "linear-gradient(160deg,#5c3410,#1c0e04)",
-    portrait: "a scruffy blond teenage duelist in a green jacket and white shirt, grinning",
     ace: "redEyes",
     strategy: "swingy",
     lines: {
@@ -103,7 +102,6 @@ export const DUELISTS = {
     title: "Harpie Queen",
     accent: "#e05a9c",
     aura: "linear-gradient(160deg,#5a1440,#1c0616)",
-    portrait: "a confident blonde duelist in a purple jacket with a violet duel disk",
     ace: "harpiesPetDragon",
     strategy: "tempo",
     lines: {

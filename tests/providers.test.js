@@ -152,3 +152,44 @@ test("shots with no reusable form opt out rather than guessing", () => {
   assert.equal(archetypeFor({}), null);
   assert.equal(archetypeFor({ kind: "summon", title: "Not A Real Card", event: {} }), null);
 });
+
+test("a title card names its own clip instead of deriving one", () => {
+  const shot = { kind: "versus", clipKey: "vs-yugi-kaiba", prompt: "x", seconds: 6 };
+  const entry = archetypeFor(shot);
+  assert.equal(entry.key, "vs-yugi-kaiba");
+  assert.equal(entry.title, true);
+  for (const kind of ["intro", "outro"]) {
+    assert.equal(archetypeFor({ kind, clipKey: kind, prompt: "x", seconds: 6 }).key, kind);
+  }
+});
+
+test("title cards use the 3D register, never the in-duel cel look", async () => {
+  const { titleShot } = await import("../src/cinema/storyboard.js");
+  const { createDuel } = await import("../src/duel-engine.js");
+  const state = createDuel("yugi-kaiba", { seed: 3 });
+  for (const kind of ["intro", "versus", "outro"]) {
+    const shot = titleShot(kind, state);
+    assert.match(shot.prompt, /AAA 3D cinematic animation/, `${kind} lost the title style`);
+    assert.doesNotMatch(shot.prompt, /cel-shaded/, `${kind} mixed in the in-duel style`);
+    assert.doesNotMatch(shot.prompt, /Duel Disk clamped/, `${kind} should not carry the in-duel world block`);
+  }
+  assert.match(titleShot("versus", state).prompt, /star-shaped black hair/, "the versus plate must show both duelists");
+  assert.equal(titleShot("nonsense", state), null);
+});
+
+test("a title card is always worth a clip", async () => {
+  const { deservesVideo } = await import("../src/cinema/free-video.js");
+  assert.equal(deservesVideo({ kind: "versus", clipKey: "vs-joey-mai" }), true);
+  assert.equal(deservesVideo({ kind: "intro", clipKey: "intro" }), true);
+});
+
+test("a character is described in exactly one place", async () => {
+  const { readFileSync } = await import("node:fs");
+  const duelists = readFileSync(new URL("../src/duelists.js", import.meta.url), "utf8");
+  assert.doesNotMatch(duelists, /portrait:/,
+    "character looks belong in src/cinema/world.js, or the sheets and the runtime will drift");
+  const { LOOKS } = await import("../src/cinema/world.js");
+  for (const id of ["yugi", "kaiba", "joey", "mai"]) {
+    assert.ok(LOOKS[id]?.look?.length > 60, `${id} has no usable look in the world bible`);
+  }
+});

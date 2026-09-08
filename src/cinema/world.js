@@ -53,7 +53,18 @@ export const LOOKS = {
 export const NEUTRAL_ARENA = "a floodlit open-air duel arena at night, holographic projector "
   + "pylons at its edges, empty stands beyond";
 
-/** Every prompt in the project is assembled through here. */
+// Title cards sit outside the duel, so they get their own register: a modern
+// 3D broadcast look rather than the hand-inked cel animation of the match.
+export const TITLE_STYLE = "AAA 3D cinematic animation, Unreal Engine quality, physically based "
+  + "rendering, volumetric light shafts, chromatic aberration, brushed chrome and carbon fibre, "
+  + "glowing cyan and magenta holographic interface panels, deep blacks, anamorphic lens flares, "
+  + "shallow depth of field, motion blur, 16:9 widescreen, no text, no letters, no logos, "
+  + "no watermark";
+
+/** Every in-duel prompt in the project is assembled through here. */
 export const assemble = (subject) => `${STYLE}. ${WORLD}. ${subject}.`;
+
+/** Title cards skip the world block; they are not shot inside a duel. */
+export const assembleTitle = (subject) => `${TITLE_STYLE}. ${subject}.`;
 
 export const arenaFor = (duelistId) => ARENAS[LOOKS[duelistId]?.arena ?? "rooftop"];

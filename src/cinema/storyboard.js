@@ -3,6 +3,7 @@
 
 import { CARDS } from "../cards/index.js";
 import { DUELISTS, getMatchup } from "../duelists.js";
+import { assembleTitle, LOOKS } from "./world.js";
 
 const STYLE = "cel-shaded late-90s anime, heavy ink outlines, saturated holographic lighting, "
   + "dramatic low camera angle, 16:9 widescreen, no text, no watermark, no logos";
@@ -27,6 +28,8 @@ export function shotSeed(shot) {
 function duelistOf(state, side) {
   return DUELISTS[state.sides[side].duelistId];
 }
+
+const lookOf = (duelist) => LOOKS[duelist.id]?.look ?? duelist.name;
 
 function baseScene(state) {
   return getMatchup(state.matchupId).arena;
@@ -98,7 +101,7 @@ const SHOT_BUILDERS = {
       title: `${duelist.name} wins`,
       subtitle: event.reason === "deckout" ? "Deck out" : "Life Points depleted",
       seconds: 5,
-      prompt: `${duelist.portrait} stands victorious as the holograms fade; `
+      prompt: `${lookOf(duelist)} stands victorious as the holograms fade; `
         + `${baseScene(state)}; ${STYLE}`,
       voice: duelist.lines.win,
       loserVoice: loser.lines.lose,
@@ -138,8 +141,48 @@ export function idleShot(state) {
     seconds: 4,
     side: "player",
     turn: state.turn,
-    prompt: `${player.portrait} facing off against ${foe.portrait} across ${baseScene(state)}, `
+    prompt: `${lookOf(player)} facing off against ${lookOf(foe)} across ${baseScene(state)}, `
       + `duel disks lit, holograms idling; ${STYLE}`,
     voice: null,
+  };
+}
+
+const TITLE_CARDS = {
+  intro: {
+    title: "Duel Live", subtitle: "Choose a card. Watch the duel animate itself.", seconds: 6,
+    subject: "a camera flies through a vast dark cyber-arena as a forearm duel disk unfolds in "
+      + "extreme close-up, card slots igniting one by one; holographic monster silhouettes bloom "
+      + "and dissolve around it; the camera pulls back hard to reveal the arena floor lighting up "
+      + "in a grid",
+  },
+  outro: {
+    title: "Duel over", subtitle: "", seconds: 6,
+    subject: "the holographic arena powers down: light panels shutting off in sequence, monster "
+      + "silhouettes dissolving into drifting particles, a forearm duel disk folding closed and "
+      + "going dark, camera craning up into black",
+  },
+};
+
+/** The intro, the outro, and the versus plate that opens each duel. */
+export function titleShot(kind, state) {
+  if (kind === "versus") {
+    const matchup = getMatchup(state.matchupId);
+    const [a, b] = [duelistOf(state, "player"), duelistOf(state, "opponent")];
+    return {
+      id: `vs-${state.matchupId}`, clipKey: `vs-${state.matchupId}`, kind: "versus",
+      title: `${a.name}  vs  ${b.name}`, subtitle: matchup.tagline, seconds: 6,
+      side: "player", duelistId: a.id, turn: state.turn,
+      prompt: assembleTitle(`a split-screen versus plate: on the left ${lookOf(a)}, on the right `
+        + `${lookOf(b)}, both rendered as photoreal 3D characters lit from below, facing each `
+        + `other across a jagged energy seam that tears down the centre of frame`),
+    };
+  }
+  const card = TITLE_CARDS[kind];
+  if (!card) return null;
+  return {
+    id: kind, clipKey: kind, kind,
+    title: card.title, subtitle: card.subtitle, seconds: card.seconds,
+    side: "player", duelistId: state?.sides?.player?.duelistId ?? null, turn: state?.turn ?? 1,
+    prompt: assembleTitle(card.subject),
   };
 }

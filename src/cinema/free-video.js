@@ -112,6 +112,7 @@ export function jobCount() {
 // A shot is worth spending a slow video generation on only if it is a moment
 // the player will remember. Everything else stays on the fast tiers.
 export function deservesVideo(shot) {
+  if (shot.clipKey) return true;
   return shot.kind === "fusion" || shot.kind === "finish" || shot.kind === "direct"
     || (shot.kind === "clash" && (shot.event?.attackerAtk ?? 0) >= 2000)
     || (shot.kind === "summon" && (shot.event?.atk ?? 0) >= 2400)
