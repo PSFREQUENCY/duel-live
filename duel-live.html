@@ -1,0 +1,3740 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="Rule-driven Yu-Gi-Oh style duels rendered as AI cinema on a zero-cost provider stack. Yugi vs Kaiba, Joey vs Mai." />
+    <title>Duel Live</title>
+    <style>
+/* Duel Live — holographic duel arena. Dark-first: the arena is a light source,
+   everything else recedes around it. */
+
+:root {
+  --bg: #05060d;
+  --bg-raise: #0c1020;
+  --bg-card: #121728;
+  --line: #24304d;
+  --line-soft: #1a2238;
+  --ink: #e8eefc;
+  --ink-dim: #92a1c4;
+  --ink-faint: #5f6d90;
+  --accent: #4fc9f0;
+  --accent-warm: #f4c531;
+  --danger: #ff5d6c;
+  --good: #6ee7a8;
+  --radius: 12px;
+  --radius-sm: 7px;
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* Class rules that set `display` outrank the UA rule for [hidden]; without this
+   the modal and the media layers render even while marked hidden. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.4; }
+.orb-a { width: 46vw; height: 46vw; left: -12vw; top: -14vw; background: #1b3f7a; }
+.orb-b { width: 40vw; height: 40vw; right: -10vw; bottom: -16vw; background: #5a1a52; }
+
+/* ------------------------------------------------------------- topbar --- */
+
+.topbar {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  padding: 14px clamp(12px, 3vw, 28px);
+  border-bottom: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(10, 14, 28, 0.92), rgba(5, 6, 13, 0.7));
+  backdrop-filter: blur(10px);
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 8px; flex: none;
+  background: conic-gradient(from 210deg, var(--accent), var(--accent-warm), #b96bff, var(--accent));
+  box-shadow: 0 0 22px rgba(79, 201, 240, 0.45);
+}
+.eyebrow {
+  margin: 0; font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+  color: var(--accent); text-transform: uppercase;
+}
+.brand h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.control { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-faint); }
+.control span { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; }
+select, .btn {
+  font-family: inherit; font-size: 12px; color: var(--ink);
+  background: var(--bg-card); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 7px 11px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
+.btn:active { transform: translateY(1px); }
+.btn-accent { background: var(--accent); color: #04121c; border-color: var(--accent); font-weight: 600; }
+.btn-accent:hover { background: #7ad9f7; color: #04121c; }
+.btn-wide { width: 100%; justify-content: center; padding: 10px; font-weight: 600; }
+.btn[aria-pressed="false"] { color: var(--ink-faint); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* -------------------------------------------------------------- arena --- */
+
+.arena-wrap {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px; padding: 16px clamp(12px, 3vw, 28px) 0;
+  align-items: start;
+}
+
+.arena {
+  position: relative; aspect-ratio: 16 / 9; width: 100%;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; box-shadow: var(--shadow); background: #070b18;
+}
+
+.stage-canvas { cursor: pointer; }
+.stage-canvas, .stage-media {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.stage-media { opacity: 0; transition: opacity 0.55s ease; z-index: 1; }
+.stage-media.is-live { opacity: 1; }
+.stage-vignette {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 58%, rgba(0, 0, 0, 0.55) 100%),
+    repeating-linear-gradient(0deg, rgba(120, 200, 255, 0.035) 0 1px, transparent 1px 3px);
+}
+
+.duelist-bar {
+  position: absolute; z-index: 4; left: 12px; right: 12px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 7px 11px; border-radius: 9px;
+  background: rgba(6, 9, 18, 0.78); border: 1px solid var(--line-soft);
+  backdrop-filter: blur(6px);
+}
+.duelist-bar--foe { top: 12px; }
+.duelist-bar--me { bottom: 12px; }
+.duelist-id { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.duelist-id strong { display: block; font-size: 13px; }
+.duelist-id small { display: block; font-size: 10px; color: var(--ink-faint); }
+.pip { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px currentColor; }
+
+.lp-block { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 130px; }
+.lp-track {
+  flex: 1; height: 7px; border-radius: 4px; overflow: hidden;
+  background: #1a2136; border: 1px solid var(--line-soft);
+}
+.lp-track i {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--good), var(--accent));
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lp-track i.is-low { background: linear-gradient(90deg, var(--danger), #ff9a5c); }
+.lp-num { font-family: var(--mono); font-size: 15px; font-weight: 600; min-width: 52px; text-align: right; }
+.lp-num.is-hit { animation: lp-hit 0.5s ease; color: var(--danger); }
+@keyframes lp-hit {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(-5px) scale(1.12); }
+  60% { transform: translateX(4px) scale(1.06); }
+}
+.counts { display: flex; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+
+/* --------------------------------------------------------------- zones --- */
+
+/* Height-driven so four rows always fit the arena: each row is a fixed slice of
+   the arena height and the zones take their width from their card ratio. */
+.zones {
+  position: absolute; z-index: 3; left: 50%; transform: translateX(-50%);
+  display: flex; justify-content: center; align-items: stretch;
+  gap: clamp(4px, 0.9vw, 10px); height: 15%; width: 88%;
+}
+.zones--foe { top: 11%; }
+.zones--foe-monsters { top: 28%; }
+.zones--me-monsters { bottom: 28%; }
+.zones--me { bottom: 11%; }
+
+.zone {
+  position: relative; height: 100%; flex: none;
+  aspect-ratio: 59 / 86; border-radius: 5px;
+  border: 1px dashed rgba(140, 190, 255, 0.38);
+  background: rgba(18, 28, 54, 0.55);
+  box-shadow: inset 0 0 12px rgba(90, 150, 220, 0.12);
+  display: grid; place-items: center; padding: 3px;
+  font-size: 9px; text-align: center; overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+.zone.is-filled {
+  border-style: solid; border-color: var(--slot-accent, var(--accent));
+  background: linear-gradient(165deg, rgba(24, 34, 60, 0.95), rgba(9, 13, 26, 0.95));
+  box-shadow: 0 0 14px -3px var(--slot-accent, var(--accent)), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.zone.is-facedown {
+  background: repeating-linear-gradient(135deg, #2b1e46 0 6px, #1d1533 6px 12px);
+  border-color: #6b4fa8; color: transparent;
+}
+.zone.is-defense { transform: rotate(-90deg) scale(0.84); }
+.zone.is-target { cursor: pointer; border-color: var(--danger); box-shadow: 0 0 16px -2px var(--danger); }
+.zone.is-ready { cursor: pointer; border-color: var(--accent-warm); box-shadow: 0 0 16px -2px var(--accent-warm); }
+.zone.is-attacking { animation: lunge 0.45s ease; }
+@keyframes lunge {
+  0%, 100% { transform: none; }
+  40% { transform: translateY(var(--lunge, -14px)) scale(1.06); }
+}
+.zone-name {
+  position: absolute; inset: auto 2px 2px; font-size: 8px; line-height: 1.15;
+  font-weight: 600; color: var(--ink); text-shadow: 0 1px 3px #000;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.zone-stat {
+  position: absolute; top: 2px; right: 3px; font-family: var(--mono);
+  font-size: 8px; font-weight: 700; color: var(--accent-warm); text-shadow: 0 1px 3px #000;
+}
+.zone-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* ------------------------------------------------------------- caption --- */
+
+.shot-caption {
+  position: absolute; z-index: 5; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); text-align: center;
+  padding: 14px 26px; border-radius: 10px; max-width: 76%;
+  background: rgba(4, 7, 16, 0.74); border: 1px solid var(--line);
+  backdrop-filter: blur(8px); animation: caption-in 0.4s ease;
+}
+@keyframes caption-in {
+  from { opacity: 0; transform: translate(-50%, -42%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.shot-kind {
+  display: inline-block; font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.2em; color: #04121c; background: var(--accent);
+  padding: 2px 8px; border-radius: 3px; margin-bottom: 7px;
+}
+.shot-caption strong { display: block; font-size: clamp(17px, 2.4vw, 27px); letter-spacing: -0.02em; }
+.shot-caption small { display: block; margin-top: 4px; font-size: 11px; color: var(--ink-dim); }
+.shot-tier {
+  display: block; margin-top: 7px; font-family: var(--mono);
+  font-size: 8px; letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
+}
+
+/* -------------------------------------------------------------- banter --- */
+
+.banter {
+  position: absolute; z-index: 6; left: 50%; bottom: 17%;
+  transform: translateX(-50%); width: min(660px, 80%);
+  padding: 9px 16px; border-radius: 10px;
+  /* Sits over the backrow like a subtitle: readable, but the board reads through. */
+  background: linear-gradient(180deg, rgba(5, 8, 18, 0.82), rgba(5, 8, 18, 0.62));
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--banter-accent, var(--line));
+  border-left: 3px solid var(--banter-accent, var(--accent));
+  backdrop-filter: blur(8px);
+  animation: banter-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes banter-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.banter-who {
+  display: block; font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--banter-accent, var(--accent)); margin-bottom: 3px;
+}
+.banter-text {
+  margin: 0; font-size: clamp(13px, 1.5vw, 16px); line-height: 1.35;
+  font-style: italic; color: var(--ink);
+}
+
+.log li.is-banter {
+  font-style: italic; background: #0d1322;
+  border-left-color: var(--banter-accent, var(--accent-warm));
+}
+
+/* ---------------------------------------------------------------- side --- */
+
+.side {
+  display: flex; flex-direction: column; gap: 11px;
+  padding: 13px; border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: rgba(9, 13, 26, 0.6); max-height: calc(100vh - 150px);
+}
+.phase-rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.phase {
+  font-family: var(--mono); font-size: 9px; text-align: center; padding: 6px 2px;
+  border-radius: 5px; background: #121728; color: var(--ink-faint);
+  border: 1px solid transparent; letter-spacing: 0.04em;
+}
+.phase.is-now { background: var(--accent); color: #04121c; font-weight: 700; }
+
+.recovery { display: flex; gap: 6px; }
+.recovery .btn { flex: 1; font-size: 11px; padding: 7px 6px; }
+.btn-ghost { color: var(--ink-dim); }
+.btn-warn { border-color: var(--accent-warm); color: var(--accent-warm); }
+.btn-warn:hover { border-color: var(--accent-warm); background: rgba(244, 197, 49, 0.12); }
+
+.prompt {
+  padding: 10px; border-radius: 8px; font-size: 12px;
+  border: 1px solid var(--accent-warm); background: rgba(244, 197, 49, 0.09);
+}
+.prompt p { margin: 0 0 8px; }
+.prompt-actions { display: flex; flex-direction: column; gap: 5px; }
+.prompt-actions .btn { text-align: left; font-size: 11px; }
+
+.side-heading {
+  margin: 2px 0 0; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
+}
+.log {
+  list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
+  font-size: 11.5px; display: flex; flex-direction: column; gap: 5px; min-height: 90px;
+}
+.log li {
+  padding: 5px 8px; border-radius: 5px; background: #101526;
+  border-left: 2px solid var(--line); color: var(--ink-dim);
+}
+.log li.is-me { border-left-color: var(--accent); }
+.log li.is-foe { border-left-color: var(--danger); }
+.log li.is-big { border-left-color: var(--accent-warm); color: var(--ink); font-weight: 600; }
+
+/* ---------------------------------------------------------------- hand --- */
+
+.hand-rail { position: relative; z-index: 1; padding: 14px clamp(12px, 3vw, 28px) 24px; }
+.hand-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.hand-head h2 {
+  margin: 0; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
+}
+#hand-hint { font-size: 11px; color: var(--ink-faint); }
+.hand { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 6px; }
+
+.card {
+  flex: none; width: 118px; padding: 8px; border-radius: 9px; cursor: pointer;
+  background: linear-gradient(165deg, var(--bg-card), #0b0f1c);
+  border: 1px solid var(--line); text-align: left;
+  color: inherit; font: inherit;
+  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+.card:hover:not(:disabled) {
+  transform: translateY(-5px);
+  border-color: var(--card-accent, var(--accent));
+  box-shadow: 0 10px 26px -8px var(--card-accent, var(--accent));
+}
+.card:disabled { opacity: 0.42; cursor: not-allowed; }
+.card-top { display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 5px; }
+.card-kind {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em;
+  padding: 2px 5px; border-radius: 3px; background: var(--card-accent, var(--accent)); color: #04121c;
+}
+.card-level { font-family: var(--mono); font-size: 9px; color: var(--accent-warm); }
+.card-name { font-size: 11.5px; font-weight: 600; line-height: 1.25; margin-bottom: 4px; }
+.card-stats { font-family: var(--mono); font-size: 9.5px; color: var(--ink-dim); }
+.card-text {
+  font-size: 9.5px; color: var(--ink-faint); line-height: 1.35; margin-top: 4px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* --------------------------------------------------------------- modal --- */
+
+.modal {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  padding: 20px; background: rgba(2, 4, 10, 0.82); backdrop-filter: blur(5px);
+}
+.modal-card {
+  width: min(560px, 100%); max-height: 82vh; overflow-y: auto;
+  padding: 22px; border-radius: var(--radius);
+  background: var(--bg-raise); border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.modal-card h2 { margin: 0 0 12px; font-size: 17px; }
+.modal-body { font-size: 13px; color: var(--ink-dim); margin-bottom: 16px; }
+.modal-body h3 { color: var(--ink); font-size: 12px; margin: 16px 0 5px; font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+.modal-body ul { margin: 0; padding-left: 18px; }
+.modal-body li { margin-bottom: 4px; }
+.modal-body code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+
+@media (max-width: 900px) {
+  .arena-wrap { grid-template-columns: minmax(0, 1fr); }
+  .side { max-height: none; }
+  .zones { width: 96%; height: 13%; gap: 4px; }
+  .duelist-bar { position: static; margin: 0; border-radius: 0; }
+  .arena { aspect-ratio: auto; min-height: 62vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <p class="eyebrow">DUEL LIVE</p>
+          <h1 id="matchup-name">Duel I — Battle City Finals</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <label class="control" for="matchup-select">
+          <span>Duel</span>
+          <select id="matchup-select">
+            <option value="yugi-kaiba">Yugi vs Kaiba</option>
+            <option value="joey-mai">Joey vs Mai Valentine</option>
+          </select>
+        </label>
+        <label class="control" for="tier-select">
+          <span>Cinema</span>
+          <select id="tier-select">
+            <option value="video">Auto (best free tier)</option>
+            <option value="still">AI stills only</option>
+            <option value="procedural">Procedural only</option>
+          </select>
+        </label>
+        <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
+        <button class="btn" id="rules-btn" type="button">Rules</button>
+        <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
+      </div>
+    </header>
+
+    <main class="arena-wrap">
+      <section class="arena" aria-label="Duel arena">
+        <canvas id="stage" class="stage-canvas" width="1280" height="720"></canvas>
+        <img id="stage-still" class="stage-media" alt="" hidden />
+        <video id="stage-video" class="stage-media" muted playsinline preload="auto" hidden></video>
+        <div class="stage-vignette" aria-hidden="true"></div>
+
+        <div class="duelist-bar duelist-bar--foe">
+          <div class="duelist-id">
+            <span class="pip" id="foe-pip"></span>
+            <div><strong id="foe-name">Seto Kaiba</strong><small id="foe-title">CEO of KaibaCorp</small></div>
+          </div>
+          <div class="lp-block">
+            <div class="lp-track"><i id="foe-lp-fill"></i></div>
+            <span class="lp-num" id="foe-lp">8000</span>
+          </div>
+          <div class="counts"><span id="foe-hand">H 5</span><span id="foe-deck">D 35</span><span id="foe-gy">GY 0</span></div>
+        </div>
+
+        <div class="zones zones--foe" id="foe-backrow" aria-label="Opponent spell and trap zones"></div>
+        <div class="zones zones--foe-monsters" id="foe-monsters" aria-label="Opponent monster zones"></div>
+
+        <div class="shot-caption" id="shot-caption" hidden>
+          <span class="shot-kind" id="shot-kind">SUMMON</span>
+          <strong id="shot-title"></strong>
+          <small id="shot-sub"></small>
+          <span class="shot-tier" id="shot-tier"></span>
+        </div>
+
+        <div class="zones zones--me-monsters" id="my-monsters" aria-label="Your monster zones"></div>
+        <div class="zones zones--me" id="my-backrow" aria-label="Your spell and trap zones"></div>
+
+        <div class="banter" id="banter" hidden>
+          <span class="banter-who" id="banter-who"></span>
+          <p class="banter-text" id="banter-text"></p>
+        </div>
+
+        <div class="duelist-bar duelist-bar--me">
+          <div class="duelist-id">
+            <span class="pip" id="me-pip"></span>
+            <div><strong id="me-name">Yugi Muto</strong><small id="me-title">King of Games</small></div>
+          </div>
+          <div class="lp-block">
+            <div class="lp-track"><i id="me-lp-fill"></i></div>
+            <span class="lp-num" id="me-lp">8000</span>
+          </div>
+          <div class="counts"><span id="me-deck">D 35</span><span id="me-gy">GY 0</span><span id="me-turn">T1</span></div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="phase-rail" id="phase-rail" role="group" aria-label="Phase">
+          <span class="phase" data-phase="draw">Draw</span>
+          <span class="phase" data-phase="main1">Main</span>
+          <span class="phase" data-phase="battle">Battle</span>
+          <span class="phase" data-phase="end">End</span>
+        </div>
+        <button class="btn btn-wide" id="advance-btn" type="button">To Battle Phase</button>
+        <div class="recovery">
+          <button class="btn btn-ghost" id="skip-btn" type="button" hidden>Skip scene ⏭</button>
+          <button class="btn btn-warn" id="resume-btn" type="button" hidden>Resume duel</button>
+        </div>
+        <div class="prompt" id="prompt" hidden>
+          <p id="prompt-text"></p>
+          <div class="prompt-actions" id="prompt-actions"></div>
+        </div>
+        <h2 class="side-heading">Duel log</h2>
+        <ol class="log" id="log"></ol>
+      </aside>
+    </main>
+
+    <section class="hand-rail" aria-label="Your hand">
+      <div class="hand-head"><h2>Hand</h2><span id="hand-hint">Click a card to play it</span></div>
+      <div class="hand" id="hand"></div>
+    </section>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h2 id="modal-title">How this duel works</h2>
+        <div class="modal-body" id="modal-body"></div>
+        <button class="btn btn-accent" id="modal-close" type="button">Close</button>
+      </div>
+    </div>
+
+    <script type="module">
+
+const __mods = new Map();
+const __cache = new Map();
+function __def(id, map, factory) { __mods.set(id, { map, factory }); }
+function __make(id) {
+  if (__cache.has(id)) return __cache.get(id);
+  const mod = __mods.get(id);
+  if (!mod) throw new Error("missing module: " + id);
+  const exports = {};
+  __cache.set(id, exports);
+  mod.factory(exports, (spec) => __make(mod.map[spec]));
+  return exports;
+}
+
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js"}, function (__exports, __req) {
+// Orchestration: drives the duel, feeds the cinema, and handles player input.
+// The engine decides outcomes; this file only sequences and presents them.
+
+const { getCard } = __req("./cards/index.js");
+const { applyAction, createDuel, endTurn, legalActions, respondToTrapWindow, setPhase, trapWindow } = __req("./duel-engine.js");
+const { chooseAction, chooseTrapResponse } = __req("./duel-ai.js");
+const { DUELISTS, getMatchup, MATCHUPS } = __req("./duelists.js");
+const { createCinema } = __req("./cinema/player.js");
+const { clearJobs, getCapability, planTiers, probeCapability } = __req("./cinema/free-video.js");
+const { enableRemoteVoice, speak } = __req("./cinema/realtime-voice.js");
+const { el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones, resetLifePointTracking } = __req("./render.js");
+const { buildStoryboard, idleShot } = __req("./cinema/storyboard.js");
+const { closingExchange, directBanter, openingExchange } = __req("./banter.js");
+const ui = {
+  hand: el("hand"), log: el("log"), advance: el("advance-btn"),
+  prompt: el("prompt"), promptText: el("prompt-text"), promptActions: el("prompt-actions"),
+  hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
+  skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
+  banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+};
+
+let state = null;
+let muted = false;
+let busy = false;
+let attackFrom = null;
+let stalledTicks = 0;
+
+const cinema = createCinema({
+  canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
+  caption: {
+    root: el("shot-caption"), kind: el("shot-kind"), title: el("shot-title"),
+    sub: el("shot-sub"), tier: el("shot-tier"),
+  },
+  getState: () => state,
+  accents: () => {
+    if (!state) return ["#4fc9f0", "#4fc9f0"];
+    return [DUELISTS[state.sides.player.duelistId].accent, DUELISTS[state.sides.opponent.duelistId].accent];
+  },
+  onShot: () => renderAll(),
+});
+
+// ------------------------------------------------------------- rendering ---
+
+function renderAll() {
+  if (!state) return;
+  const max = getMatchup(state.matchupId).lifePoints;
+  renderDuelists(state);
+  renderLifePoints(state, max);
+  renderPhase(state.phase);
+
+  const mine = myTurn() ? legalActions(state, "player") : [];
+  const attackers = new Set(mine.filter((a) => a.type === "attack").map((a) => a.uid));
+  const targets = attackFrom
+    ? new Set(mine.filter((a) => a.uid === attackFrom && a.targetUid).map((a) => a.targetUid))
+    : new Set();
+
+  renderZones(state, "opponent", el("foe-backrow"), { row: "backrow" });
+  renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster });
+  renderZones(state, "player", el("my-monsters"), { row: "monsters", ready: attackers, onZoneClick: onMyMonster });
+  renderZones(state, "player", el("my-backrow"), { row: "backrow" });
+  renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
+
+  updateControls(mine);
+}
+
+function updateControls(mine) {
+  const over = Boolean(state.winner);
+  ui.advance.disabled = busy || over || !myTurn();
+  ui.advance.textContent = over ? "Duel over"
+    : state.phase === "main1" ? "To Battle Phase" : "End turn";
+  ui.skip.hidden = !cinema.busy;
+  ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
+  ui.hint.textContent = over
+    ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
+    : !myTurn() ? "Opponent is thinking…"
+      : state.phase === "battle"
+        ? (attackFrom ? "Pick a target, or click your monster again to cancel." : "Click a glowing monster to attack.")
+        : mine.length ? "Click a card to play it." : "Nothing playable — advance the phase.";
+}
+
+const myTurn = () => state && state.activeSide === "player" && !state.winner;
+
+// ------------------------------------------------------------ event flow ---
+
+function present(events) {
+  for (const event of events) logEvent(ui.log, event, state);
+  const shots = buildStoryboard(events, state);
+  if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
+  speakBanter(directBanter(events, state));
+  renderAll();
+}
+
+// Duelists trade lines over the action rather than narrating it. Queued so a
+// reply lands after the line it answers instead of on top of it.
+function speakBanter(lines) {
+  for (const [i, line] of lines.entries()) {
+    setTimeout(() => showBanter(line), i * 1600);
+  }
+}
+
+function showBanter(line) {
+  const duelist = DUELISTS[line.duelistId];
+  ui.banter.hidden = false;
+  ui.banter.style.setProperty("--banter-accent", duelist.accent);
+  ui.banterWho.textContent = duelist.name;
+  ui.banterText.textContent = line.text;
+  // Restart the entry animation even when the strip is already showing.
+  ui.banter.classList.remove("banter");
+  void ui.banter.offsetWidth;
+  ui.banter.classList.add("banter");
+
+  const li = document.createElement("li");
+  li.textContent = `${duelist.name}: “${line.text}”`;
+  li.classList.add("is-banter");
+  li.style.setProperty("--banter-accent", duelist.accent);
+  ui.log.prepend(li);
+  while (ui.log.children.length > 60) ui.log.lastChild?.remove();
+
+  speak(line.text, line.duelistId, { muted });
+  clearTimeout(showBanter.timer);
+  showBanter.timer = setTimeout(() => { ui.banter.hidden = true; }, 4200);
+}
+
+function videoBudget() {
+  const pref = el("tier-select").value;
+  if (pref !== "video") return 0;
+  return getCapability().video ? 2 : 0;
+}
+
+async function run(mutator) {
+  if (busy) return;
+  busy = true;
+  updateControls([]);
+  try {
+    const result = mutator();
+    state = result.state;
+    present(result.events);
+    await settle();
+    await maybeTrapWindow();
+    await maybeOpponentTurn();
+  } catch (error) {
+    // A thrown turn used to strand the duel on the opponent's side with every
+    // control disabled and nothing able to resume it.
+    reportSnag(error);
+  } finally {
+    busy = false;
+    renderAll();
+  }
+}
+
+function reportSnag(error) {
+  console.error("duel step failed", error);
+  cinema.clear();
+  ui.prompt.hidden = true;
+  const li = document.createElement("li");
+  li.textContent = "The duel hit a snag — recovering. Press Resume if it does not continue.";
+  li.classList.add("is-big");
+  ui.log.prepend(li);
+}
+
+// The cinema is presentation, not gameplay: the engine has already decided the
+// outcome. So waiting on it is always bounded -- past the cap, play resumes and
+// the remaining shots drain behind the action.
+const SETTLE_CAP_MS = 3500;
+// A whole opponent turn is several actions; waiting the cap on each one stacks
+// up into a long dead interface. Past this budget the duel keeps resolving and
+// the cinema simply narrates from slightly behind.
+const TURN_BUDGET_MS = 4000;
+
+function settle(capMs = SETTLE_CAP_MS) {
+  return new Promise((done) => {
+    const deadline = Date.now() + capMs;
+    const tick = () => {
+      if (!cinema.busy) return done();
+      if (Date.now() > deadline) { cinema.skip({ all: true }); return done(); }
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
+
+async function maybeTrapWindow() {
+  while (state.pending?.kind === "trapWindow") {
+    if (state.pending.side === "player") {
+      const choice = await askTrap(state.pending);
+      const result = respondToTrapWindow(state, choice);
+      state = result.state;
+      present(result.events);
+    } else {
+      const choice = chooseTrapResponse(state, Math.random);
+      const result = respondToTrapWindow(state, choice);
+      state = result.state;
+      present(result.events);
+    }
+    await settle();
+  }
+}
+
+async function maybeOpponentTurn() {
+  const deadline = Date.now() + TURN_BUDGET_MS;
+  let guard = 0;
+  while (!state.winner && state.activeSide === "opponent" && guard < 60) {
+    guard += 1;
+    await maybeTrapWindow();
+    if (state.winner) break;
+
+    const action = chooseAction(state, "opponent", Math.random);
+    const step = action ? applyAction(state, action)
+      : state.phase === "main1" ? setPhase(state, "battle")
+        : endTurn(state);
+    state = step.state;
+    present(step.events);
+
+    // Inside the budget, let each beat play. Past it, keep resolving and let the
+    // queued shots catch up on their own rather than freezing the interface.
+    const left = deadline - Date.now();
+    if (left > 0) await settle(Math.min(left, SETTLE_CAP_MS));
+    else await Promise.resolve();
+  }
+  await maybeTrapWindow();
+  if (state.winner) announceWinner();
+}
+
+// If the duel is left on the opponent's side with nothing running, no click the
+// player can make will move it. The watchdog notices and picks the turn back up.
+function startWatchdog() {
+  setInterval(() => {
+    if (busy || !state || state.winner) return;
+    const stalled = state.activeSide === "opponent" || state.pending;
+    if (!stalled) return;
+    stalledTicks += 1;
+    if (stalledTicks < 2) return;
+    stalledTicks = 0;
+    resume();
+  }, 2500);
+}
+
+function resume() {
+  if (busy || !state || state.winner) return;
+  cinema.skip({ all: true });
+  ui.prompt.hidden = true;
+  run(() => ({ state, events: [] }));
+}
+
+function advance(phase) {
+  const result = setPhase(state, phase);
+  state = result.state;
+  present(result.events);
+}
+
+function announceWinner() {
+  cinema.setIdle(null);
+  const duelist = DUELISTS[state.sides[state.winner].duelistId];
+  ui.hint.textContent = `${duelist.name} wins — ${state.winReason === "deckout" ? "deck out" : "0 LP"}.`;
+  speakBanter(closingExchange(state));
+}
+
+// ----------------------------------------------------------------- input ---
+
+function onPlayCard(inst, options) {
+  if (busy || !myTurn()) return;
+  if (options.length === 1) return void run(() => applyAction(state, options[0]));
+  askChoice(`${getCard(inst.cardId).name} — how do you want to play it?`, options.map((action) => ({
+    label: action.label, value: action,
+  }))).then((action) => { if (action) run(() => applyAction(state, action)); });
+}
+
+function onMyMonster(inst) {
+  if (busy || !myTurn() || state.phase !== "battle") return;
+  const options = legalActions(state, "player").filter((a) => a.type === "attack" && a.uid === inst.uid);
+  if (!options.length) return;
+  if (attackFrom === inst.uid) { attackFrom = null; renderAll(); return; }
+  const direct = options.find((a) => !a.targetUid);
+  if (direct) return void run(() => applyAction(state, direct));
+  attackFrom = inst.uid;
+  renderAll();
+}
+
+function onFoeMonster(inst) {
+  if (busy || !attackFrom) return;
+  const action = legalActions(state, "player")
+    .find((a) => a.type === "attack" && a.uid === attackFrom && a.targetUid === inst.uid);
+  attackFrom = null;
+  if (action) run(() => applyAction(state, action));
+  else renderAll();
+}
+
+function askChoice(question, choices) {
+  return new Promise((done) => {
+    ui.prompt.hidden = false;
+    ui.promptText.textContent = question;
+    ui.promptActions.innerHTML = "";
+    for (const choice of [...choices, { label: "Cancel", value: null }]) {
+      const button = document.createElement("button");
+      button.className = "btn";
+      button.type = "button";
+      button.textContent = choice.label;
+      button.addEventListener("click", () => { ui.prompt.hidden = true; done(choice.value); });
+      ui.promptActions.append(button);
+    }
+  });
+}
+
+function askTrap(pending) {
+  const options = pending.options.map((uid) => {
+    const inst = state.sides.player.backrow.find((c) => c && c.uid === uid);
+    return { label: `Activate ${getCard(inst.cardId).name}`, value: uid };
+  });
+  return askChoice("Your opponent is attacking. Respond?", options);
+}
+
+// ------------------------------------------------------------- lifecycle ---
+
+function startDuel(requested) {
+  const matchupId = getMatchup(requested) ? requested : Object.keys(MATCHUPS)[0];
+  el("matchup-select").value = matchupId;
+  cinema.clear();
+  clearJobs();
+  resetLifePointTracking();
+  attackFrom = null;
+  ui.log.innerHTML = "";
+  ui.prompt.hidden = true;
+  state = createDuel(matchupId, { seed: Date.now() });
+  cinema.setIdle(idleShot(state));
+  ui.banter.hidden = true;
+  logEvent(ui.log, { type: "phase", phase: "draw", side: "player", turn: 1 }, state);
+  speakBanter(openingExchange(state));
+  renderAll();
+}
+
+function bind() {
+  ui.advance.addEventListener("click", () => {
+    if (busy || !myTurn()) return;
+    if (state.phase === "main1") { advance("battle"); renderAll(); return; }
+    attackFrom = null;
+    run(() => endTurn(state));
+  });
+  el("restart-btn").addEventListener("click", () => startDuel(el("matchup-select").value));
+  el("matchup-select").addEventListener("change", (e) => startDuel(e.target.value));
+  el("tier-select").addEventListener("change", (e) => cinema.setTier(e.target.value));
+  el("sound-btn").addEventListener("click", (e) => {
+    muted = !muted;
+    cinema.setMuted(muted);
+    e.target.textContent = muted ? "Voice off" : "Voice on";
+    e.target.setAttribute("aria-pressed", String(!muted));
+  });
+  ui.skip.addEventListener("click", () => { cinema.skip(); renderAll(); });
+  ui.resume.addEventListener("click", resume);
+  ui.stage.addEventListener("click", () => { if (cinema.busy) { cinema.skip(); renderAll(); } });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === " " && cinema.busy) { e.preventDefault(); cinema.skip(); renderAll(); }
+    if (e.key === "Escape") { ui.modal.hidden = true; }
+  });
+  el("rules-btn").addEventListener("click", showRules);
+  el("modal-close").addEventListener("click", () => { ui.modal.hidden = true; });
+  ui.modal.addEventListener("click", (e) => { if (e.target === ui.modal) ui.modal.hidden = true; });
+  ui.modal.hidden = true;
+}
+
+function showRules() {
+  const cap = getCapability();
+  ui.modalBody.innerHTML = `
+    <p>A simplified but real duel: 8000 Life Points, one Normal Summon per turn,
+    tributes for Level 5+, Attack and Defence positions, Fusion Summons, and set
+    Spells and Traps that fire when you are attacked.</p>
+    <h3>Your turn</h3>
+    <ul>
+      <li>Main Phase — click a card in hand to summon, set, or activate it.</li>
+      <li>Battle Phase — click a glowing monster, then an enemy monster, or attack directly.</li>
+      <li>End turn to pass. Hand limit is 6.</li>
+    </ul>
+    <h3>Cinema tiers</h3>
+    <ul>
+      <li><code>procedural</code> — canvas holograms. No key, no network, instant.</li>
+      <li><code>still</code> — AI key art, animated. ${cap.still ? "available" : "offline"}.</li>
+      <li><code>video</code> — AI video clips. ${cap.video ? "available" : "needs a free key in .env.local"}.</li>
+    </ul>
+    <p>Higher tiers are prefetched while the procedural shot plays, so the duel
+    never waits on a generator.</p>`;
+  ui.modal.hidden = false;
+}
+
+async function boot() {
+  bind();
+  cinema.start();
+  startWatchdog();
+  startDuel(el("matchup-select").value);
+  const cap = await probeCapability();
+  enableRemoteVoice(cap.voice);
+  const option = el("tier-select").querySelector('option[value="video"]');
+  if (cap.video) {
+    const left = cap.videoClipsLeft;
+    option.textContent = left === null ? "Auto (best free tier)" : `Auto (video — ${left} free clips left)`;
+  } else if (!cap.still) {
+    // No backend at all — the single-file build opened straight from disk.
+    option.textContent = "Procedural (no server — runs fully offline)";
+    ui.hint.dataset.offline = "true";
+  } else {
+    option.textContent = cap.keyPresent
+      ? "Auto (stills — out of free video pollen)"
+      : "Auto (stills — add a free key for video)";
+  }
+}
+
+boot();
+
+});
+
+__def("src/cards/index.js", {"./monsters.js":"src/cards/monsters.js","./spells.js":"src/cards/spells.js","./traps.js":"src/cards/traps.js"}, function (__exports, __req) {
+const { MONSTERS, FUSION_MONSTERS } = __req("./monsters.js");
+const { SPELLS } = __req("./spells.js");
+const { TRAPS } = __req("./traps.js");
+
+const CARDS = { ...MONSTERS, ...SPELLS, ...TRAPS };
+
+function getCard(id) {
+  const card = CARDS[id];
+  if (!card) throw new Error(`Unknown card id: ${id}`);
+  return card;
+}
+
+const isMonster = (card) => card?.kind === "monster";
+const isSpell = (card) => card?.kind === "spell";
+const isTrap = (card) => card?.kind === "trap";
+
+Object.assign(__exports, { getCard, CARDS, isMonster, isSpell, isTrap, MONSTERS, FUSION_MONSTERS, SPELLS, TRAPS });
+});
+
+__def("src/cards/monsters.js", {}, function (__exports, __req) {
+// Monster cards. Stats follow the classic TCG printings used in the anime duels
+// this project recreates. `art` is a prompt seed for the cinema layer, never a
+// bundled image -- no licensed artwork ships with this repo.
+
+const m = (id, name, level, attribute, type, atk, def, art, extra = {}) => ({
+  id, name, kind: "monster", level, attribute, type, atk, def, art, ...extra,
+});
+
+const MONSTERS = {
+  // -- Yugi -------------------------------------------------------------
+  darkMagician: m("darkMagician", "Dark Magician", 7, "DARK", "Spellcaster", 2500, 2100,
+    "a violet-robed sorcerer with a green staff, arcane runes spiralling around him"),
+  darkMagicianGirl: m("darkMagicianGirl", "Dark Magician Girl", 6, "DARK", "Spellcaster", 2000, 1700,
+    "a young blue-and-pink armoured sorceress with a spiral wand and blonde hair",
+    { onSummonBuff: { perGraveyard: ["darkMagician"], atk: 300 } }),
+  kuriboh: m("kuriboh", "Kuriboh", 1, "DARK", "Fiend", 300, 200,
+    "a small round brown furry creature with huge green eyes and tiny clawed hands",
+    { shieldFromHand: true }),
+  celticGuardian: m("celticGuardian", "Celtic Guardian", 4, "EARTH", "Warrior", 1400, 1200,
+    "a lithe blond elven swordsman in green and bronze armour"),
+  beaverWarrior: m("beaverWarrior", "Beaver Warrior", 4, "EARTH", "Beast-Warrior", 1200, 1500,
+    "an armoured beaver soldier with a short sword and round shield"),
+  gaia: m("gaia", "Gaia The Fierce Knight", 7, "EARTH", "Warrior", 2300, 2100,
+    "a purple-armoured lancer charging on a barded warhorse, twin lances lowered"),
+  curseOfDragon: m("curseOfDragon", "Curse of Dragon", 5, "DARK", "Dragon", 2000, 1500,
+    "a gaunt yellow wyvern wreathed in green necrotic flame"),
+  summonedSkull: m("summonedSkull", "Summoned Skull", 6, "DARK", "Fiend", 2500, 1200,
+    "a towering skeletal demon crackling with violet lightning"),
+  busterBlader: m("busterBlader", "Buster Blader", 7, "EARTH", "Warrior", 2600, 2300,
+    "a purple-armoured swordsman hefting an enormous notched greatsword",
+    { atkPerFoeType: { type: "Dragon", atk: 500 } }),
+  bigShieldGardna: m("bigShieldGardna", "Big Shield Gardna", 4, "EARTH", "Warrior", 100, 2600,
+    "a kneeling guardian behind a vast ornate tower shield"),
+  gazelle: m("gazelle", "Gazelle the King of Mythical Beasts", 4, "EARTH", "Beast", 1500, 1200,
+    "a horned golden lion-beast mid-pounce"),
+  berfomet: m("berfomet", "Berfomet", 4, "DARK", "Fiend", 1400, 1800,
+    "a winged blue-skinned demon with a ram's skull crown"),
+  magnetValkyrion: m("magnetValkyrion", "Berserk Gorilla", 4, "EARTH", "Beast", 2000, 1000,
+    "a furious crimson-furred gorilla with iron knuckles", { mustAttack: true }),
+
+  // -- Kaiba ------------------------------------------------------------
+  blueEyes: m("blueEyes", "Blue-Eyes White Dragon", 8, "LIGHT", "Dragon", 3000, 2500,
+    "a colossal white-scaled dragon with piercing blue eyes and jagged wings"),
+  lordOfD: m("lordOfD", "Lord of D.", 4, "DARK", "Spellcaster", 1200, 1100,
+    "a cloaked sorcerer in a dragon-skull helm", { protectsType: "Dragon" }),
+  battleOx: m("battleOx", "Battle Ox", 4, "EARTH", "Beast-Warrior", 1700, 1000,
+    "a hulking minotaur in blue armour swinging a broad axe"),
+  saggi: m("saggi", "Saggi the Dark Clown", 3, "DARK", "Fiend", 600, 1500,
+    "a spindly pale harlequin with a jagged grin, floating in shadow"),
+  vorseRaider: m("vorseRaider", "Vorse Raider", 4, "DARK", "Beast-Warrior", 1900, 1200,
+    "a horned blue-skinned warrior with a curved cleaver blade"),
+  kaiserSeahorse: m("kaiserSeahorse", "Kaiser Sea Horse", 4, "LIGHT", "Sea Serpent", 1700, 1650,
+    "an armoured cobalt seahorse knight with a trident", { doubleTributeFor: "LIGHT" }),
+  laJinn: m("laJinn", "La Jinn the Mystical Genie of the Lamp", 4, "DARK", "Fiend", 1800, 1000,
+    "a muscular green genie coiling out of a brass lamp"),
+  rudeKaiser: m("rudeKaiser", "Rude Kaiser", 4, "EARTH", "Beast-Warrior", 1800, 1600,
+    "a green reptilian warrior with twin battle-axes"),
+  ryuKishin: m("ryuKishin", "Ryu-Kishin Powered", 4, "DARK", "Fiend", 1600, 1200,
+    "a stone gargoyle glowing with unnatural power"),
+
+  // -- Joey -------------------------------------------------------------
+  redEyes: m("redEyes", "Red-Eyes Black Dragon", 7, "DARK", "Dragon", 2400, 2000,
+    "a sleek obsidian dragon with blazing crimson eyes"),
+  babyDragon: m("babyDragon", "Baby Dragon", 3, "WIND", "Dragon", 1200, 700,
+    "a chubby amber hatchling dragon with oversized eyes"),
+  timeWizard: m("timeWizard", "Time Wizard", 2, "WIND", "Spellcaster", 500, 400,
+    "a tiny wizard clutching a clock-faced staff, gears spinning",
+    { coinFlip: "timeRoulette" }),
+  rocketWarrior: m("rocketWarrior", "Rocket Warrior", 4, "WIND", "Warrior", 1500, 1300,
+    "a white armoured warrior shaped like a launch rocket", { pierceGuard: true }),
+  pantherWarrior: m("pantherWarrior", "Panther Warrior", 4, "EARTH", "Beast-Warrior", 2000, 1600,
+    "a black panther beastman in violet armour with a scimitar",
+    { attackCost: "tribute" }),
+  alligatorsSword: m("alligatorsSword", "Alligator's Sword", 4, "EARTH", "Beast-Warrior", 1500, 1200,
+    "a bipedal crocodile swordsman in leather harness"),
+  littleWinguard: m("littleWinguard", "Little-Winguard", 4, "WIND", "Warrior", 1400, 1800,
+    "a small blue-caped guardian with a wing-crested helm"),
+  gearfried: m("gearfried", "Gearfried the Iron Knight", 4, "EARTH", "Warrior", 1800, 1600,
+    "a knight sealed inside living black iron armour"),
+  axeRaider: m("axeRaider", "Axe Raider", 4, "EARTH", "Warrior", 1700, 1150,
+    "a bare-chested warrior in orange armour hoisting a huge axe"),
+  flameManipulator: m("flameManipulator", "Flame Manipulator", 3, "FIRE", "Spellcaster", 900, 1000,
+    "a red-robed fire mage with a burning whip"),
+  masaki: m("masaki", "Masaki the Legendary Swordsman", 4, "EARTH", "Warrior", 1100, 1100,
+    "a grizzled ronin in blue robes drawing a katana"),
+
+  // -- Mai --------------------------------------------------------------
+  harpieLady: m("harpieLady", "Harpie Lady", 4, "WIND", "Winged Beast", 1300, 1400,
+    "a winged woman with taloned feet, red hair and clawed gauntlets"),
+  cyberHarpie: m("cyberHarpie", "Cyber Harpie Lady", 4, "WIND", "Winged Beast", 1800, 1300,
+    "a harpy in gleaming cybernetic blue armour plating"),
+  harpieSisters: m("harpieSisters", "Harpie Lady Sisters", 6, "WIND", "Winged Beast", 1950, 2100,
+    "three winged harpy sisters in red, blue and green, wings spread in formation",
+    { noNormalSummon: true }),
+  harpiesPetDragon: m("harpiesPetDragon", "Harpie's Pet Dragon", 7, "WIND", "Dragon", 2000, 2500,
+    "a rose-scaled dragon coiled protectively, wings flared",
+    { atkPerAlly: { name: "Harpie Lady", atk: 300, def: 200 } }),
+  harpieGirl: m("harpieGirl", "Harpie Girl", 2, "WIND", "Winged Beast", 500, 500,
+    "a young harpy in training with small wings", { treatedAs: "Harpie Lady" }),
+  amazonessSwordsWoman: m("amazonessSwordsWoman", "Amazoness Swords Woman", 4, "EARTH", "Warrior", 1500, 1600,
+    "an amazon warrior in leopard hide with a heavy broadsword",
+    { reflectBattleDamage: true }),
+  dunames: m("dunames", "Dunames Dark Witch", 4, "LIGHT", "Fairy", 1800, 1050,
+    "a winged fairy in white and gold armour"),
+  birdface: m("birdface", "Birdface", 4, "WIND", "Winged Beast", 1600, 1600,
+    "a hawk-headed sentinel in feathered plate"),
+
+  // -- Tokens -----------------------------------------------------------
+  sheepToken: m("sheepToken", "Sheep Token", 1, "EARTH", "Beast", 0, 0,
+    "a small fluffy pastel-coloured cartoon sheep standing on a duel field",
+    { token: true }),
+
+  // -- Fusions ----------------------------------------------------------
+  blueEyesUltimate: m("blueEyesUltimate", "Blue-Eyes Ultimate Dragon", 12, "LIGHT", "Dragon", 4500, 3800,
+    "a three-headed colossal white dragon, all heads charging light",
+    { fusion: ["blueEyes", "blueEyes", "blueEyes"] }),
+  gaiaDragonChampion: m("gaiaDragonChampion", "Gaia the Dragon Champion", 7, "WIND", "Dragon", 2600, 2100,
+    "a purple-armoured lancer riding a yellow wyvern through storm clouds",
+    { fusion: ["gaia", "curseOfDragon"] }),
+  chimera: m("chimera", "Chimera the Flying Mythical Beast", 6, "WIND", "Beast", 2100, 1800,
+    "a winged two-headed lion-goat chimera",
+    { fusion: ["gazelle", "berfomet"] }),
+  flameSwordsman: m("flameSwordsman", "Flame Swordsman", 5, "FIRE", "Warrior", 1800, 1600,
+    "a swordsman in red and blue armour whose blade is a column of fire",
+    { fusion: ["flameManipulator", "masaki"] }),
+  thousandDragon: m("thousandDragon", "Thousand Dragon", 7, "WIND", "Dragon", 2400, 2000,
+    "an ancient wizened pink dragon with a long white beard",
+    { fusion: ["babyDragon", "timeWizard"] }),
+  blackSkullDragon: m("blackSkullDragon", "Black Skull Dragon", 9, "DARK", "Dragon", 3200, 2500,
+    "a skeletal black dragon fused with a horned demon, breathing hellfire",
+    { fusion: ["summonedSkull", "redEyes"] }),
+};
+
+const FUSION_MONSTERS = Object.values(MONSTERS).filter((card) => card.fusion);
+
+Object.assign(__exports, { MONSTERS, FUSION_MONSTERS });
+});
+
+__def("src/cards/spells.js", {}, function (__exports, __req) {
+// Spell cards. `effect.op` names are resolved by src/duel-effects.js -- adding a
+// card means adding data here, not another branch in the engine.
+
+const s = (id, name, sub, text, effect, art, extra = {}) => ({
+  id, name, kind: "spell", sub, text, effect, art, ...extra,
+});
+
+const SPELLS = {
+  polymerization: s("polymerization", "Polymerization", "normal",
+    "Fusion Summon 1 Fusion Monster using materials from your hand or field.",
+    { op: "fusionSummon" },
+    "two swirling energy vortices merging into one blinding core"),
+
+  monsterReborn: s("monsterReborn", "Monster Reborn", "normal",
+    "Special Summon 1 monster from either Graveyard.",
+    { op: "revive", from: "either" },
+    "a glowing ankh of golden light hovering over an open grave"),
+
+  darkHole: s("darkHole", "Dark Hole", "normal",
+    "Destroy all monsters on the field.",
+    { op: "destroyAllMonsters" },
+    "a black singularity tearing the arena apart, debris spiralling inward"),
+
+  swordsOfRevealingLight: s("swordsOfRevealingLight", "Swords of Revealing Light", "continuous",
+    "Your opponent cannot declare attacks for 3 turns.",
+    { op: "lockAttacks", turns: 3 },
+    "a cage of luminous swords raining down and pinning the field"),
+
+  magicalHats: s("magicalHats", "Magical Hats", "quick",
+    "Hide your monster among four hats; the next attack has a 1-in-4 chance to hit.",
+    { op: "magicalHats" },
+    "four enormous black top hats with green question marks spinning on a stage"),
+
+  brainControl: s("brainControl", "Brain Control", "normal",
+    "Pay 800 LP; take control of 1 face-up opponent monster until end of turn.",
+    { op: "takeControl", cost: 800 },
+    "a spectral hand of green light closing around a floating brain"),
+
+  potOfGreed: s("potOfGreed", "Pot of Greed", "normal", "Draw 2 cards.",
+    { op: "draw", count: 2 },
+    "a grinning green ceramic pot overflowing with golden light"),
+
+  gracefulCharity: s("gracefulCharity", "Graceful Charity", "normal",
+    "Draw 3 cards, then discard 2.",
+    { op: "draw", count: 3, discard: 2 },
+    "a winged angel scattering three glowing cards"),
+
+  darkMagicAttack: s("darkMagicAttack", "Dark Magic Attack", "normal",
+    "If you control Dark Magician: destroy all Spells and Traps your opponent controls.",
+    { op: "destroyFoeBackrow", requires: "darkMagician" },
+    "a violet shockwave from a raised staff shattering glass sigils"),
+
+  // -- Kaiba ------------------------------------------------------------
+  fluteOfSummoningDragon: s("fluteOfSummoningDragon", "The Flute of Summoning Dragon", "normal",
+    "If you control Lord of D.: Special Summon up to 2 Dragons from your hand.",
+    { op: "summonFromHand", type: "Dragon", count: 2, requires: "lordOfD" },
+    "an ornate ivory flute ringing out over storm clouds"),
+
+  shrink: s("shrink", "Shrink", "quick",
+    "Halve the ATK of 1 face-up monster until the end of this turn.",
+    { op: "modifyAtk", factor: 0.5, target: "any" },
+    "a beam of compressing light shrinking a giant beast"),
+
+  despell: s("despell", "De-Spell", "normal",
+    "Destroy 1 Spell your opponent controls.",
+    { op: "destroyFoeBackrow", limit: 1, only: "spell" },
+    "a cracked glass rune dissolving into sparks"),
+
+  // -- Joey -------------------------------------------------------------
+  scapegoat: s("scapegoat", "Scapegoat", "quick",
+    "Special Summon 4 Sheep Tokens in Defence Position.",
+    { op: "tokens", count: 4, name: "Sheep Token", atk: 0, def: 0 },
+    "four pastel cartoon sheep popping into existence in a row"),
+
+  shieldAndSword: s("shieldAndSword", "Shield & Sword", "normal",
+    "Swap the ATK and DEF of all face-up monsters until the end of this turn.",
+    { op: "swapAtkDef" },
+    "a sword and shield crossing and inverting in a flash of white"),
+
+  giantTrunade: s("giantTrunade", "Giant Trunade", "normal",
+    "Return all Spells and Traps on the field to their owners' hands.",
+    { op: "bounceAllBackrow" },
+    "a green cyclone sweeping cards off the field"),
+
+  salamandra: s("salamandra", "Salamandra", "equip",
+    "Equipped FIRE monster gains 700 ATK.",
+    { op: "equip", atk: 700, requires: { attribute: "FIRE" } },
+    "a blade sheathed in a roaring column of orange flame"),
+
+  // -- Mai --------------------------------------------------------------
+  elegantEgotist: s("elegantEgotist", "Elegant Egotist", "normal",
+    "If you control a Harpie Lady: Special Summon Harpie Lady Sisters from your Deck.",
+    { op: "summonFromDeck", cardId: "harpieSisters", requires: "harpieLady" },
+    "a mirror shattering as three winged silhouettes step through"),
+
+  cyberShield: s("cyberShield", "Cyber Shield", "equip",
+    "Equipped Harpie Lady gains 500 ATK.",
+    { op: "equip", atk: 500, requires: { name: "Harpie Lady" } },
+    "gleaming blue cybernetic armour clasping onto outstretched wings"),
+
+  roseWhip: s("roseWhip", "Rose Whip", "equip",
+    "Equipped Winged Beast gains 300 ATK and 200 DEF.",
+    { op: "equip", atk: 300, def: 200, requires: { type: "Winged Beast" } },
+    "a thorned rose-vine whip uncoiling with a crack"),
+
+  featherDuster: s("featherDuster", "Harpie's Feather Duster", "normal",
+    "Destroy all Spells and Traps your opponent controls.",
+    { op: "destroyFoeBackrow" },
+    "a storm of razor feathers shredding a row of glowing cards"),
+};
+
+Object.assign(__exports, { SPELLS });
+});
+
+__def("src/cards/traps.js", {}, function (__exports, __req) {
+// Trap cards. `trigger` tells the engine when to offer the card; `effect.op` is
+// resolved by src/duel-effects.js exactly like a Spell.
+
+const t = (id, name, sub, trigger, text, effect, art) => ({
+  id, name, kind: "trap", sub, trigger, text, effect, art,
+});
+
+const TRAPS = {
+  mirrorForce: t("mirrorForce", "Mirror Force", "normal", "onAttack",
+    "Destroy all Attack Position monsters your opponent controls.",
+    { op: "destroyAttackers" },
+    "a mirrored barrier splintering an incoming beam back across the field"),
+
+  magicCylinder: t("magicCylinder", "Magic Cylinder", "normal", "onAttack",
+    "Negate the attack and inflict damage equal to the attacking monster's ATK.",
+    { op: "reflectAttack" },
+    "two ornate cylinders swallowing a blast and firing it back"),
+
+  spellbindingCircle: t("spellbindingCircle", "Spellbinding Circle", "continuous", "onAttack",
+    "The attacking monster cannot attack and loses 700 ATK.",
+    { op: "bindMonster", atk: -700 },
+    "a glowing yellow rune-circle clamping around a monster's feet"),
+
+  waboku: t("waboku", "Waboku", "normal", "onAttack",
+    "Take no battle damage this turn; your monsters are not destroyed by battle.",
+    { op: "negateBattle" },
+    "three blue-robed acolytes raising a shimmering ward"),
+
+  // -- Kaiba ------------------------------------------------------------
+  crushCardVirus: t("crushCardVirus", "Crush Card Virus", "normal", "onSummon",
+    "Tribute a DARK monster with 1000 or less ATK: destroy every monster with 1500 or more ATK your opponent controls or draws for 3 turns.",
+    { op: "crushVirus", threshold: 1500, turns: 3 },
+    "a swarm of black viral cubes eating through a monster's body"),
+
+  ringOfDestruction: t("ringOfDestruction", "Ring of Destruction", "normal", "onAttack",
+    "Destroy 1 face-up monster and inflict its ATK as damage to both players.",
+    { op: "ringOfDestruction" },
+    "a spiked collar of grenades snapping shut and detonating"),
+
+  negateAttack: t("negateAttack", "Negate Attack", "counter", "onAttack",
+    "Negate the attack and end the Battle Phase.",
+    { op: "negateBattle", endBattlePhase: true },
+    "a swirling vortex shield absorbing a charging monster"),
+
+  // -- Joey -------------------------------------------------------------
+  gracefulDice: t("gracefulDice", "Graceful Dice", "normal", "onAttack",
+    "Roll a die: your monsters gain ATK equal to the result x 100 this turn.",
+    { op: "diceBuff", side: "self", per: 100 },
+    "a glowing white die tumbling in mid-air over a battlefield"),
+
+  skullDice: t("skullDice", "Skull Dice", "normal", "onAttack",
+    "Roll a die: your opponent's monsters lose ATK equal to the result x 100 this turn.",
+    { op: "diceBuff", side: "foe", per: -100 },
+    "a black skull-faced die clattering down and cracking the ground"),
+
+  kunaiWithChain: t("kunaiWithChain", "Kunai with Chain", "normal", "onAttack",
+    "Negate the attack, then equip to a monster you control which gains 500 ATK.",
+    { op: "negateBattle", thenEquipAtk: 500 },
+    "a weighted chain whipping out and snaring a monster mid-charge"),
+
+  trapHole: t("trapHole", "Trap Hole", "normal", "onSummon",
+    "Destroy 1 Normal Summoned monster with 1000 or more ATK.",
+    { op: "destroySummoned", minAtk: 1000 },
+    "the arena floor splitting open beneath a monster's feet"),
+
+  // -- Mai --------------------------------------------------------------
+  mirrorWall: t("mirrorWall", "Mirror Wall", "continuous", "onAttack",
+    "Halve the ATK of every attacking monster.",
+    { op: "modifyAtk", factor: 0.5, target: "attackers" },
+    "a towering wall of mirrored glass rising across the field"),
+
+  gravityBind: t("gravityBind", "Gravity Bind", "continuous", "onSummon",
+    "Level 4 or higher monsters cannot attack.",
+    { op: "gravityBind", minLevel: 4 },
+    "rippling gravity waves pinning monsters flat to the ground"),
+
+  dustTornado: t("dustTornado", "Dust Tornado", "normal", "onSummon",
+    "Destroy 1 Spell or Trap your opponent controls.",
+    { op: "destroyFoeBackrow", limit: 1 },
+    "a tight dust devil ripping a card out of the ground"),
+};
+
+Object.assign(__exports, { TRAPS });
+});
+
+__def("src/duel-engine.js", {"./cards/index.js":"src/cards/index.js","./duel-effects.js":"src/duel-effects.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// The rules engine. It owns every outcome in a duel; the cinema layer only ever
+// renders the events it emits. Actions are pure: apply* clones before mutating.
+
+const { getCard } = __req("./cards/index.js");
+const { applyEffect, dealDamage, findFusion, placeMonster, sendToGraveyard } = __req("./duel-effects.js");
+const { cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone, monstersOn, mulberry32, other, SIDES } = __req("./duel-state.js");
+
+const PHASES = ["draw", "main1", "battle", "end"];
+const clone = (state) => structuredClone(state);
+
+function rngFor(state) {
+  return () => {
+    state.rngCalls += 1;
+    return mulberry32(state.seed + state.rngCalls * 7919)();
+  };
+}
+
+function newCtx(state, extra = {}) {
+  return { events: [], rng: rngFor(state), negateAttack: false, endBattlePhase: false, ...extra };
+}
+
+function tributesRequired(card) {
+  if (card.level >= 7) return 2;
+  if (card.level >= 5) return 1;
+  return 0;
+}
+
+function tributeValue(state, side, inst) {
+  const card = cardOf(inst);
+  return card.doubleTributeFor ? 2 : 1;
+}
+
+function canNormalSummon(state, side, uid) {
+  const s = state.sides[side];
+  const inst = s.hand.find((c) => c.uid === uid);
+  if (!inst) return false;
+  const card = cardOf(inst);
+  if (card.kind !== "monster" || card.fusion || card.noNormalSummon) return false;
+  if (s.normalSummonUsed || emptyMonsterZone(state, side) < 0) return false;
+  const need = tributesRequired(card);
+  const available = monstersOn(state, side).reduce((sum, m) => sum + tributeValue(state, side, m), 0);
+  return available >= need;
+}
+
+// ---------------------------------------------------------------- actions ---
+
+function isFusionMaterial(state, side, inst) {
+  return state.sides[side].extra.some((f) => getCard(f.cardId).fusion.includes(inst.cardId));
+}
+
+function actSummon(state, side, action, ctx) {
+  const s = state.sides[side];
+  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
+  const card = cardOf(inst);
+  let need = tributesRequired(card);
+  // Tribute the weakest monsters first, but never eat a live fusion material
+  // while an ordinary body is still available.
+  const cost = (m) => effectiveStats(state, side, m).atk + (isFusionMaterial(state, side, m) ? 10000 : 0);
+  const fodder = monstersOn(state, side).sort((a, b) => cost(a) - cost(b));
+  while (need > 0 && fodder.length) {
+    const victim = fodder.shift();
+    need -= tributeValue(state, side, victim);
+    sendToGraveyard(state, side, victim, ctx, "tribute");
+  }
+  s.normalSummonUsed = true;
+  const position = action.set ? "defense" : (action.position ?? "attack");
+  placeMonster(state, side, inst, ctx, { position, how: action.set ? "set" : "normal" });
+  if (action.set) {
+    const zone = s.monsters.indexOf(inst);
+    s.monsters[zone].faceDown = true;
+    ctx.events[ctx.events.length - 1].faceDown = true;
+  }
+  if (s.virusTurns > 0 && effectiveStats(state, side, inst).atk >= s.virusThreshold) {
+    sendToGraveyard(state, side, inst, ctx, "crushVirus");
+  }
+}
+
+function actSetBackrow(state, side, action, ctx) {
+  const s = state.sides[side];
+  const zone = emptyBackrowZone(state, side);
+  if (zone < 0) return;
+  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
+  inst.faceDown = true;
+  s.backrow[zone] = inst;
+  ctx.events.push({ type: "set", side, kind: cardOf(inst).kind });
+}
+
+function actActivate(state, side, action, ctx) {
+  const s = state.sides[side];
+  const fromHand = s.hand.findIndex((c) => c.uid === action.uid);
+  const inst = fromHand >= 0 ? s.hand.splice(fromHand, 1)[0] : s.backrow.find((c) => c && c.uid === action.uid);
+  if (!inst) return;
+  const card = cardOf(inst);
+  ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text });
+  if (card.sub === "equip") {
+    const zone = fromHand >= 0 ? emptyBackrowZone(state, side) : s.backrow.indexOf(inst);
+    if (zone < 0) return;
+    s.backrow[zone] = inst;
+    inst.faceDown = false;
+    const host = monstersOn(state, side).find((m) => equipFits(state, side, m, card)) ?? monstersOn(state, side)[0];
+    if (host) host.equips.push(inst.uid);
+    return;
+  }
+  applyEffect(state, side, card.effect, { ...ctx, target: action.target ?? ctx.target });
+  if (fromHand >= 0) s.graveyard.push(inst);
+  else if (card.sub !== "continuous") {
+    s.backrow[s.backrow.indexOf(inst)] = null;
+    s.graveyard.push(inst);
+  } else inst.faceDown = false;
+}
+
+function equipFits(state, side, inst, equipCard) {
+  const req = equipCard.effect?.requires;
+  if (!req) return true;
+  const card = cardOf(inst);
+  if (req.attribute) return card.attribute === req.attribute;
+  if (req.type) return card.type === req.type;
+  if (req.name) return card.name === req.name || card.treatedAs === req.name;
+  return true;
+}
+
+function requirementMet(state, side, card) {
+  const req = card.effect?.requires;
+  if (!req || typeof req !== "string") return true;
+  return monstersOn(state, side).some((m) => m.cardId === req && !m.faceDown);
+}
+
+function actPosition(state, side, action, ctx) {
+  const inst = monstersOn(state, side).find((m) => m.uid === action.uid);
+  if (!inst || inst.summonedThisTurn || inst.hasAttacked) return;
+  inst.position = inst.position === "attack" ? "defense" : "attack";
+  inst.faceDown = false;
+  ctx.events.push({ type: "position", side, card: cardOf(inst).name, position: inst.position });
+}
+
+// ----------------------------------------------------------------- battle ---
+
+function canAttack(state, side, inst) {
+  const s = state.sides[side];
+  if (state.phase !== "battle" || state.activeSide !== side) return false;
+  if (inst.hasAttacked || inst.faceDown || inst.position !== "attack" || inst.bound) return false;
+  if (s.lockAttacksTurns > 0) return false;
+  if (state.gravityBindLevel && cardOf(inst).level >= state.gravityBindLevel) return false;
+  return true;
+}
+
+function resolveBattle(state, side, attacker, defender, ctx) {
+  const foe = other(side);
+  const a = effectiveStats(state, side, attacker).atk;
+  if (!defender) {
+    dealDamage(state, foe, a, ctx, "direct");
+    ctx.events.push({ type: "directAttack", side, card: cardOf(attacker).name, damage: a });
+    return;
+  }
+  if (defender.faceDown) {
+    defender.faceDown = false;
+    ctx.events.push({ type: "flip", side: foe, card: cardOf(defender).name });
+  }
+  const d = effectiveStats(state, foe, defender);
+  const wall = defender.position === "attack" ? d.atk : d.def;
+  ctx.events.push({
+    type: "clash", side, attacker: cardOf(attacker).name, defender: cardOf(defender).name,
+    attackerAtk: a, defenderValue: wall, defenderPosition: defender.position,
+  });
+  if (a > wall) {
+    sendToGraveyard(state, foe, defender, ctx, "battle");
+    if (defender.position === "attack") dealDamage(state, foe, a - wall, ctx, "battle");
+  } else if (a < wall) {
+    if (defender.position === "attack") sendToGraveyard(state, side, attacker, ctx, "battle");
+    dealDamage(state, side, wall - a, ctx, "battle");
+    if (cardOf(defender).reflectBattleDamage) dealDamage(state, foe, wall - a, ctx, "amazoness");
+  } else if (defender.position === "attack") {
+    sendToGraveyard(state, foe, defender, ctx, "battle");
+    sendToGraveyard(state, side, attacker, ctx, "battle");
+  }
+}
+
+function actAttack(state, side, action, ctx) {
+  const attacker = monstersOn(state, side).find((m) => m.uid === action.uid);
+  if (!attacker || !canAttack(state, side, attacker)) return;
+  const foe = other(side);
+  const targets = monstersOn(state, foe);
+  const defender = action.targetUid ? targets.find((m) => m.uid === action.targetUid) : (targets[0] ?? null);
+  attacker.hasAttacked = true;
+  ctx.events.push({ type: "declare", side, card: cardOf(attacker).name, target: defender ? cardOf(defender).name : "direct" });
+
+  const window = trapWindow(state, foe, "onAttack");
+  if (window.length && !ctx.skipTrapWindow) {
+    state.pending = {
+      kind: "trapWindow", side: foe, options: window.map((c) => c.uid),
+      resume: { action, attackerUid: attacker.uid, defenderUid: defender?.uid ?? null },
+    };
+    return;
+  }
+  if (state.sides[foe].hats && targets.length) {
+    const hit = ctx.rng() < 1 / state.sides[foe].hats.odds;
+    ctx.events.push({ type: "hats", side: foe, hit });
+    state.sides[foe].hats = null;
+    if (!hit) return;
+  }
+  resolveBattle(state, side, attacker, defender, ctx);
+}
+
+function trapWindow(state, side, trigger) {
+  return state.sides[side].backrow.filter((inst) => {
+    if (!inst || !inst.faceDown) return false;
+    const card = cardOf(inst);
+    return card.kind === "trap" && card.trigger === trigger;
+  });
+}
+
+// ------------------------------------------------------------- turn cycle ---
+
+function endOfTurnCleanup(state, ctx) {
+  for (const side of SIDES) {
+    const s = state.sides[side];
+    for (const inst of monstersOn(state, side)) {
+      if (inst.tempUntilEndOfTurn) { inst.atkMod = 0; inst.defMod = 0; inst.tempUntilEndOfTurn = false; }
+      if (inst.borrowedFrom) {
+        s.monsters[s.monsters.indexOf(inst)] = null;
+        const home = state.sides[inst.borrowedFrom];
+        const zone = home.monsters.indexOf(null);
+        delete inst.borrowedFrom;
+        if (zone >= 0) home.monsters[zone] = inst; else home.graveyard.push(inst);
+      }
+    }
+    while (s.hand.length > 6) sendToGraveyard(state, side, s.hand.pop(), ctx, "handLimit");
+  }
+}
+
+function startTurn(state, ctx) {
+  const side = state.activeSide;
+  const s = state.sides[side];
+  s.normalSummonUsed = false;
+  s.lockAttacksTurns = Math.max(0, s.lockAttacksTurns - 1);
+  s.virusTurns = Math.max(0, s.virusTurns - 1);
+  for (const inst of monstersOn(state, side)) {
+    inst.hasAttacked = false;
+    inst.summonedThisTurn = false;
+    inst.bound = false;
+  }
+  ctx.events.push({ type: "phase", phase: "draw", side, turn: state.turn });
+  const card = drawInto(s);
+  if (!card) { finish(state, other(side), "deckout", ctx); return; }
+  ctx.events.push({ type: "draw", side, card: cardOf(card).name, uid: card.uid });
+  state.phase = "main1";
+}
+
+function finish(state, winner, reason, ctx) {
+  state.winner = winner;
+  state.winReason = reason;
+  ctx.events.push({ type: "win", side: winner, reason });
+}
+
+function checkWin(state, ctx) {
+  if (state.winner) return;
+  for (const side of SIDES) {
+    if (state.sides[side].lp <= 0) finish(state, other(side), "lifePoints", ctx);
+  }
+}
+
+function endTurn(state) {
+  const next = clone(state);
+  const ctx = newCtx(next);
+  endOfTurnCleanup(next, ctx);
+  next.activeSide = other(next.activeSide);
+  next.turn += 1;
+  next.phase = "draw";
+  startTurn(next, ctx);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
+}
+
+function setPhase(state, phase) {
+  if (!PHASES.includes(phase)) throw new Error(`Unknown phase: ${phase}`);
+  const next = clone(state);
+  next.phase = phase;
+  return { state: next, events: [{ type: "phase", phase, side: next.activeSide, turn: next.turn }] };
+}
+
+const HANDLERS = {
+  summon: actSummon, set: actSummon, setBackrow: actSetBackrow,
+  activate: actActivate, position: actPosition, attack: actAttack,
+};
+
+function applyAction(state, action) {
+  const next = clone(state);
+  if (next.winner) return { state: next, events: [] };
+  const ctx = newCtx(next);
+  const handler = HANDLERS[action.type];
+  if (!handler) throw new Error(`Unknown action: ${action.type}`);
+  handler(next, action.side ?? next.activeSide, action, ctx);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
+}
+
+function respondToTrapWindow(state, choiceUid) {
+  const next = clone(state);
+  const pending = next.pending;
+  if (!pending || pending.kind !== "trapWindow") return { state: next, events: [] };
+  next.pending = null;
+  const ctx = newCtx(next);
+  const side = pending.side;
+  const attackerSide = other(side);
+  const attacker = monstersOn(next, attackerSide).find((m) => m.uid === pending.resume.attackerUid);
+  const defender = monstersOn(next, side).find((m) => m.uid === pending.resume.defenderUid) ?? null;
+
+  if (choiceUid) {
+    const inst = next.sides[side].backrow.find((c) => c && c.uid === choiceUid);
+    if (inst) {
+      const card = cardOf(inst);
+      inst.faceDown = false;
+      ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
+      applyEffect(next, side, card.effect, Object.assign(ctx, { target: attacker }));
+      if (card.sub !== "continuous") {
+        next.sides[side].backrow[next.sides[side].backrow.indexOf(inst)] = null;
+        next.sides[side].graveyard.push(inst);
+      }
+    }
+  }
+  if (!ctx.negateAttack && attacker && next.sides[attackerSide].monsters.includes(attacker)) {
+    resolveBattle(next, attackerSide, attacker, defender, ctx);
+  }
+  if (ctx.endBattlePhase) next.phase = "end";
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
+}
+
+// ------------------------------------------------------------ legal moves ---
+
+function legalActions(state, side = state.activeSide) {
+  if (state.winner || state.pending) return [];
+  const s = state.sides[side];
+  const out = [];
+  if (state.phase === "main1") {
+    for (const inst of s.hand) {
+      const card = cardOf(inst);
+      if (card.kind === "monster") {
+        if (canNormalSummon(state, side, inst.uid)) {
+          out.push({ type: "summon", uid: inst.uid, label: `Summon ${card.name}` });
+          out.push({ type: "set", uid: inst.uid, set: true, label: `Set ${card.name}` });
+        }
+      } else if (card.kind === "spell") {
+        if (playableSpell(state, side, inst)) out.push({ type: "activate", uid: inst.uid, label: `Activate ${card.name}` });
+        if (emptyBackrowZone(state, side) >= 0) out.push({ type: "setBackrow", uid: inst.uid, label: `Set ${card.name}` });
+      } else if (emptyBackrowZone(state, side) >= 0) {
+        out.push({ type: "setBackrow", uid: inst.uid, label: `Set ${card.name}` });
+      }
+    }
+    for (const inst of monstersOn(state, side)) {
+      if (!inst.summonedThisTurn) out.push({ type: "position", uid: inst.uid, label: `Switch ${cardOf(inst).name}` });
+    }
+  }
+  if (state.phase === "battle") {
+    const targets = monstersOn(state, other(side));
+    for (const inst of monstersOn(state, side)) {
+      if (!canAttack(state, side, inst)) continue;
+      if (!targets.length) out.push({ type: "attack", uid: inst.uid, label: `${cardOf(inst).name} attacks directly` });
+      for (const target of targets) {
+        out.push({ type: "attack", uid: inst.uid, targetUid: target.uid, label: `${cardOf(inst).name} → ${cardOf(target).name}` });
+      }
+    }
+  }
+  return out;
+}
+
+function playableSpell(state, side, inst) {
+  const card = cardOf(inst);
+  if (!requirementMet(state, side, card)) return false;
+  const s = state.sides[side];
+  if (card.effect.op === "fusionSummon") {
+    const pool = [...s.hand, ...monstersOn(state, side)].filter((c) => cardOf(c).kind === "monster");
+    return Boolean(findFusion(pool.map((c) => c.cardId), s.extra));
+  }
+  if (card.effect.op === "revive") {
+    return [...s.graveyard, ...state.sides[other(side)].graveyard].some((c) => cardOf(c).kind === "monster")
+      && emptyMonsterZone(state, side) >= 0;
+  }
+  if (card.effect.op === "takeControl") return monstersOn(state, other(side)).length > 0 && s.lp > card.effect.cost;
+  if (card.sub === "equip") return monstersOn(state, side).some((m) => equipFits(state, side, m, card));
+  if (card.effect.op === "tokens" || card.effect.op === "summonFromDeck") return emptyMonsterZone(state, side) >= 0;
+  if (card.effect.op === "destroyFoeBackrow") return state.sides[other(side)].backrow.some(Boolean);
+  return true;
+}
+
+Object.assign(__exports, { tributesRequired, canNormalSummon, requirementMet, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToTrapWindow, legalActions, createDuel, SIDES, other, effectiveStats, cardOf });
+});
+
+__def("src/duel-effects.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// Effect op dispatcher. Every Spell/Trap in src/cards resolves through this
+// table, so new cards are data changes rather than engine branches.
+
+const { getCard } = __req("./cards/index.js");
+const { cardOf, drawInto, effectiveStats, emptyMonsterZone, makeInstance, matchesName, monstersOn, other } = __req("./duel-state.js");
+const emit = (ctx, event) => ctx.events.push(event);
+
+function sendToGraveyard(state, side, inst, ctx, cause = "effect") {
+  const s = state.sides[side];
+  const mZone = s.monsters.indexOf(inst);
+  if (mZone >= 0) s.monsters[mZone] = null;
+  const bZone = s.backrow.indexOf(inst);
+  if (bZone >= 0) s.backrow[bZone] = null;
+  s.graveyard.push(inst);
+  emit(ctx, { type: "destroy", side, uid: inst.uid, card: cardOf(inst).name, cause });
+}
+
+function dealDamage(state, side, amount, ctx, cause) {
+  if (amount <= 0) return;
+  const s = state.sides[side];
+  s.lp = Math.max(0, s.lp - amount);
+  emit(ctx, { type: "damage", side, amount, lp: s.lp, cause });
+}
+
+function placeMonster(state, side, inst, ctx, { position = "attack", how = "special" } = {}) {
+  const zone = emptyMonsterZone(state, side);
+  if (zone < 0) return false;
+  inst.position = position;
+  inst.faceDown = false;
+  inst.summonedThisTurn = true;
+  inst.hasAttacked = false;
+  state.sides[side].monsters[zone] = inst;
+  const stats = effectiveStats(state, side, inst);
+  emit(ctx, { type: "summon", side, uid: inst.uid, card: cardOf(inst).name, how, position, ...stats });
+  return true;
+}
+
+function pullFromAnywhere(state, side, uid) {
+  for (const s of [state.sides.player, state.sides.opponent]) {
+    for (const pool of ["hand", "graveyard", "extra"]) {
+      const i = s[pool].findIndex((c) => c.uid === uid);
+      if (i >= 0) return s[pool].splice(i, 1)[0];
+    }
+    const m = s.monsters.findIndex((c) => c && c.uid === uid);
+    if (m >= 0) { const c = s.monsters[m]; s.monsters[m] = null; return c; }
+  }
+  return null;
+}
+
+function findFusion(materialIds, extra) {
+  return extra.find((inst) => {
+    const need = getCard(inst.cardId).fusion.slice();
+    const have = materialIds.slice();
+    return need.every((id) => {
+      const i = have.indexOf(id);
+      if (i < 0) return false;
+      have.splice(i, 1);
+      return true;
+    });
+  }) ?? null;
+}
+
+const OPS = {
+  draw(state, side, effect, ctx) {
+    for (let i = 0; i < effect.count; i += 1) {
+      const card = drawInto(state.sides[side]);
+      if (card) emit(ctx, { type: "draw", side, card: cardOf(card).name });
+    }
+    const toss = effect.discard ?? 0;
+    for (let i = 0; i < toss; i += 1) {
+      const hand = state.sides[side].hand;
+      const worst = hand.reduce((a, b) => (cardOf(a).atk ?? 0) <= (cardOf(b).atk ?? 0) ? a : b, hand[0]);
+      if (worst) sendToGraveyard(state, side, hand.splice(hand.indexOf(worst), 1)[0], ctx, "discard");
+    }
+  },
+
+  destroyAllMonsters(state, side, effect, ctx) {
+    for (const s of ["player", "opponent"]) {
+      for (const inst of monstersOn(state, s)) sendToGraveyard(state, s, inst, ctx, "darkHole");
+    }
+  },
+
+  destroyFoeBackrow(state, side, effect, ctx) {
+    const foe = other(side);
+    let left = effect.limit ?? 99;
+    for (const inst of state.sides[foe].backrow.filter(Boolean)) {
+      if (left <= 0) break;
+      if (effect.only && cardOf(inst).kind !== effect.only) continue;
+      sendToGraveyard(state, foe, inst, ctx, "backrowWipe");
+      left -= 1;
+    }
+  },
+
+  bounceAllBackrow(state, side, effect, ctx) {
+    for (const s of ["player", "opponent"]) {
+      const sd = state.sides[s];
+      sd.backrow.forEach((inst, i) => {
+        if (!inst) return;
+        sd.backrow[i] = null;
+        inst.faceDown = false;
+        sd.hand.push(inst);
+        emit(ctx, { type: "bounce", side: s, card: cardOf(inst).name });
+      });
+    }
+  },
+
+  revive(state, side, effect, ctx) {
+    const pool = [...state.sides[side].graveyard, ...state.sides[other(side)].graveyard]
+      .filter((c) => cardOf(c).kind === "monster");
+    const best = pool.sort((a, b) => cardOf(b).atk - cardOf(a).atk)[0];
+    if (!best) return;
+    placeMonster(state, side, pullFromAnywhere(state, side, best.uid), ctx, { how: "reborn" });
+  },
+
+  tokens(state, side, effect, ctx) {
+    for (let i = 0; i < effect.count; i += 1) {
+      if (emptyMonsterZone(state, side) < 0) break;
+      const token = makeInstance("sheepToken", state.sides[side].duelistId);
+      placeMonster(state, side, token, ctx, { position: "defense", how: "token" });
+    }
+  },
+
+  swapAtkDef(state, side, effect, ctx) {
+    for (const s of ["player", "opponent"]) {
+      for (const inst of monstersOn(state, s)) {
+        const card = cardOf(inst);
+        inst.atkMod += card.def - card.atk;
+        inst.defMod += card.atk - card.def;
+        inst.tempUntilEndOfTurn = true;
+      }
+    }
+    emit(ctx, { type: "fieldShift", side, label: "Shield & Sword" });
+  },
+
+  lockAttacks(state, side, effect, ctx) {
+    state.sides[other(side)].lockAttacksTurns = effect.turns;
+    emit(ctx, { type: "fieldShift", side, label: "Swords of Revealing Light" });
+  },
+
+  gravityBind(state, side, effect, ctx) {
+    state.gravityBindLevel = effect.minLevel;
+    emit(ctx, { type: "fieldShift", side, label: "Gravity Bind" });
+  },
+
+  magicalHats(state, side, effect, ctx) {
+    state.sides[side].hats = { odds: 4 };
+    emit(ctx, { type: "fieldShift", side, label: "Magical Hats" });
+  },
+
+  modifyAtk(state, side, effect, ctx) {
+    const targets = effect.target === "attackers"
+      ? monstersOn(state, other(side)).filter((m) => m.position === "attack")
+      : [ctx.target].filter(Boolean);
+    for (const inst of targets) {
+      const owner = state.sides.player.monsters.includes(inst) ? "player" : "opponent";
+      const { atk } = effectiveStats(state, owner, inst);
+      inst.atkMod -= Math.round(atk * (1 - effect.factor));
+      inst.tempUntilEndOfTurn = true;
+      emit(ctx, { type: "statChange", side: owner, uid: inst.uid, card: cardOf(inst).name });
+    }
+  },
+
+  bindMonster(state, side, effect, ctx) {
+    if (!ctx.target) return;
+    ctx.target.bound = true;
+    ctx.target.atkMod += effect.atk;
+    emit(ctx, { type: "statChange", side: other(side), uid: ctx.target.uid, card: cardOf(ctx.target).name });
+  },
+
+  diceBuff(state, side, effect, ctx) {
+    const roll = 1 + Math.floor(ctx.rng() * 6);
+    const target = effect.side === "self" ? side : other(side);
+    for (const inst of monstersOn(state, target)) {
+      inst.atkMod += roll * effect.per;
+      inst.tempUntilEndOfTurn = true;
+    }
+    emit(ctx, { type: "dice", side, roll, delta: roll * effect.per, target });
+  },
+
+  equip(state, side, effect, ctx) { /* bonus is read from the backrow slot itself */ },
+
+  takeControl(state, side, effect, ctx) {
+    if (effect.cost) dealDamage(state, side, effect.cost, ctx, "cost");
+    const foe = other(side);
+    const prize = monstersOn(state, foe).sort((a, b) => effectiveStats(state, foe, b).atk - effectiveStats(state, foe, a).atk)[0];
+    if (!prize || emptyMonsterZone(state, side) < 0) return;
+    state.sides[foe].monsters[state.sides[foe].monsters.indexOf(prize)] = null;
+    prize.borrowedFrom = foe;
+    placeMonster(state, side, prize, ctx, { how: "control" });
+  },
+
+  summonFromDeck(state, side, effect, ctx) {
+    const deck = state.sides[side].deck;
+    const i = deck.findIndex((c) => c.cardId === effect.cardId);
+    if (i < 0) return;
+    placeMonster(state, side, deck.splice(i, 1)[0], ctx, { how: "special" });
+  },
+
+  summonFromHand(state, side, effect, ctx) {
+    const hand = state.sides[side].hand;
+    let left = effect.count;
+    for (const inst of hand.filter((c) => cardOf(c).type === effect.type).slice(0, effect.count)) {
+      if (left <= 0 || emptyMonsterZone(state, side) < 0) break;
+      hand.splice(hand.indexOf(inst), 1);
+      placeMonster(state, side, inst, ctx, { how: "flute" });
+      left -= 1;
+    }
+  },
+
+  fusionSummon(state, side, effect, ctx) {
+    const s = state.sides[side];
+    const pool = [...s.hand, ...monstersOn(state, side)].filter((c) => cardOf(c).kind === "monster");
+    const target = findFusion(pool.map((c) => c.cardId), s.extra);
+    if (!target) return;
+    for (const id of getCard(target.cardId).fusion) {
+      const inst = pool.find((c) => c.cardId === id && !c.consumed);
+      if (!inst) continue;
+      inst.consumed = true;
+      const hi = s.hand.indexOf(inst);
+      if (hi >= 0) s.hand.splice(hi, 1);
+      sendToGraveyard(state, side, inst, ctx, "fusionMaterial");
+    }
+    s.extra.splice(s.extra.indexOf(target), 1);
+    placeMonster(state, side, target, ctx, { how: "fusion" });
+    emit(ctx, { type: "fusion", side, card: cardOf(target).name });
+  },
+
+  destroyAttackers(state, side, effect, ctx) {
+    for (const inst of monstersOn(state, other(side)).filter((m) => m.position === "attack")) {
+      sendToGraveyard(state, other(side), inst, ctx, "mirrorForce");
+    }
+    ctx.negateAttack = true;
+  },
+
+  reflectAttack(state, side, effect, ctx) {
+    if (!ctx.target) return;
+    const foe = other(side);
+    dealDamage(state, foe, effectiveStats(state, foe, ctx.target).atk, ctx, "magicCylinder");
+    ctx.negateAttack = true;
+  },
+
+  negateBattle(state, side, effect, ctx) {
+    ctx.negateAttack = true;
+    ctx.endBattlePhase = Boolean(effect.endBattlePhase);
+    if (effect.thenEquipAtk) {
+      const mine = monstersOn(state, side)[0];
+      if (mine) mine.atkMod += effect.thenEquipAtk;
+    }
+  },
+
+  ringOfDestruction(state, side, effect, ctx) {
+    const target = ctx.target ?? monstersOn(state, other(side))[0];
+    if (!target) return;
+    const owner = state.sides[side].monsters.includes(target) ? side : other(side);
+    const { atk } = effectiveStats(state, owner, target);
+    sendToGraveyard(state, owner, target, ctx, "ringOfDestruction");
+    dealDamage(state, "player", atk, ctx, "ring");
+    dealDamage(state, "opponent", atk, ctx, "ring");
+    ctx.negateAttack = true;
+  },
+
+  destroySummoned(state, side, effect, ctx) {
+    const target = ctx.target;
+    if (!target) return;
+    const owner = other(side);
+    if (effectiveStats(state, owner, target).atk < effect.minAtk) return;
+    sendToGraveyard(state, owner, target, ctx, "trapHole");
+  },
+
+  crushVirus(state, side, effect, ctx) {
+    const foe = other(side);
+    state.sides[foe].virusTurns = effect.turns;
+    state.sides[foe].virusThreshold = effect.threshold;
+    for (const inst of monstersOn(state, foe)) {
+      if (effectiveStats(state, foe, inst).atk >= effect.threshold) {
+        sendToGraveyard(state, foe, inst, ctx, "crushVirus");
+      }
+    }
+    emit(ctx, { type: "fieldShift", side, label: "Crush Card Virus" });
+  },
+};
+
+function applyEffect(state, side, effect, ctx) {
+  const op = OPS[effect.op];
+  if (!op) throw new Error(`Unimplemented effect op: ${effect.op}`);
+  op(state, side, effect, ctx);
+  return ctx;
+}
+
+const SUPPORTED_OPS = Object.keys(OPS);
+
+Object.assign(__exports, { dealDamage, findFusion, applyEffect, SUPPORTED_OPS, sendToGraveyard, placeMonster });
+});
+
+__def("src/duel-state.js", {"./cards/index.js":"src/cards/index.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// Duel state construction, card instances, and derived stats.
+// Pure data + pure readers -- no mutation of caller-owned state lives here.
+
+const { getCard } = __req("./cards/index.js");
+const { getDuelist, getMatchup } = __req("./duelists.js");
+const SIDES = ["player", "opponent"];
+const other = (side) => (side === "player" ? "opponent" : "player");
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffle(list, rng) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+let uidCounter = 0;
+function makeInstance(cardId, owner) {
+  uidCounter += 1;
+  return {
+    uid: `${cardId}#${uidCounter}`,
+    cardId,
+    owner,
+    faceDown: false,
+    position: "attack",
+    hasAttacked: false,
+    summonedThisTurn: false,
+    bound: false,
+    atkMod: 0,
+    defMod: 0,
+    equips: [],
+  };
+}
+
+function resetUidCounter(value = 0) {
+  uidCounter = value;
+}
+
+function createSide(duelistId, lifePoints, rng) {
+  const duelist = getDuelist(duelistId);
+  const deck = shuffle(duelist.deck, rng).map((id) => makeInstance(id, duelistId));
+  return {
+    duelistId,
+    lp: lifePoints,
+    deck,
+    hand: [],
+    extra: duelist.extra.map((id) => makeInstance(id, duelistId)),
+    monsters: Array(5).fill(null),
+    backrow: Array(5).fill(null),
+    graveyard: [],
+    normalSummonUsed: false,
+    lockAttacksTurns: 0,
+    gravityBind: 0,
+    virusTurns: 0,
+    virusThreshold: 0,
+    hats: null,
+  };
+}
+
+function createDuel(matchupId, { seed = Date.now() } = {}) {
+  const matchup = getMatchup(matchupId);
+  if (!matchup) throw new Error(`Unknown matchup: ${matchupId}`);
+  const rng = mulberry32(seed);
+  const state = {
+    matchupId,
+    seed,
+    turn: 1,
+    phase: "main1",
+    activeSide: "player",
+    winner: null,
+    winReason: null,
+    pending: null,
+    rngCalls: 0,
+    sides: {
+      player: createSide(matchup.player, matchup.lifePoints, rng),
+      opponent: createSide(matchup.opponent, matchup.lifePoints, rng),
+    },
+  };
+  for (const side of SIDES) {
+    for (let i = 0; i < 5; i += 1) drawInto(state.sides[side]);
+  }
+  return state;
+}
+
+function drawInto(sideState) {
+  const card = sideState.deck.shift();
+  if (!card) return null;
+  sideState.hand.push(card);
+  return card;
+}
+
+const cardOf = (inst) => getCard(inst.cardId);
+
+function equipBonus(sideState, inst, key) {
+  return inst.equips.reduce((sum, uid) => {
+    const eq = sideState.backrow.find((s) => s && s.uid === uid);
+    return sum + (eq ? (getCard(eq.cardId).effect?.[key] ?? 0) : 0);
+  }, 0);
+}
+
+function conditionalAtk(state, side, inst) {
+  const card = cardOf(inst);
+  const mine = state.sides[side];
+  const foe = state.sides[other(side)];
+  let bonus = 0;
+  if (card.atkPerFoeType) {
+    const hits = foe.monsters.filter((s) => s && getCard(s.cardId).type === card.atkPerFoeType.type);
+    bonus += hits.length * card.atkPerFoeType.atk;
+  }
+  if (card.atkPerAlly) {
+    const hits = mine.monsters.filter((s) => s && s.uid !== inst.uid && matchesName(s, card.atkPerAlly.name));
+    bonus += hits.length * card.atkPerAlly.atk;
+  }
+  if (card.onSummonBuff) {
+    const hits = [...mine.graveyard, ...foe.graveyard]
+      .filter((g) => card.onSummonBuff.perGraveyard.includes(g.cardId));
+    bonus += hits.length * card.onSummonBuff.atk;
+  }
+  return bonus;
+}
+
+function matchesName(inst, name) {
+  const card = getCard(inst.cardId);
+  return card.name === name || card.treatedAs === name;
+}
+
+function effectiveStats(state, side, inst) {
+  const card = cardOf(inst);
+  const mine = state.sides[side];
+  const atk = Math.max(0, Math.round(
+    card.atk + inst.atkMod + equipBonus(mine, inst, "atk") + conditionalAtk(state, side, inst),
+  ));
+  const def = Math.max(0, Math.round(card.def + inst.defMod + equipBonus(mine, inst, "def")));
+  return { atk, def };
+}
+
+const monstersOn = (state, side) => state.sides[side].monsters.filter(Boolean);
+const emptyMonsterZone = (state, side) => state.sides[side].monsters.indexOf(null);
+const emptyBackrowZone = (state, side) => state.sides[side].backrow.indexOf(null);
+
+Object.assign(__exports, { mulberry32, shuffle, makeInstance, resetUidCounter, createDuel, drawInto, matchesName, effectiveStats, SIDES, other, cardOf, monstersOn, emptyMonsterZone, emptyBackrowZone });
+});
+
+__def("src/duelists.js", {}, function (__exports, __req) {
+// Duelist profiles: deck list, extra deck, AI temperament, and the voice lines
+// the cinema layer speaks. Lines are original paraphrase, not show transcripts.
+
+const x = (id, n) => Array.from({ length: n }, () => id);
+
+const DUELISTS = {
+  yugi: {
+    id: "yugi",
+    name: "Yugi Muto",
+    title: "King of Games",
+    accent: "#f4c531",
+    aura: "linear-gradient(160deg,#3b2a6d,#120a24)",
+    portrait: "a spiky black-and-magenta haired teenage duelist in a blue school jacket with a golden pyramid pendant",
+    ace: "darkMagician",
+    strategy: "control",
+    lines: {
+      open: "My move. I believe in the heart of the cards.",
+      summon: "I summon {card}!",
+      attack: "{card}, attack!",
+      ace: "Dark Magic Attack!",
+      trap: "I was waiting for that. Reveal: {card}!",
+      hurt: "I can still turn this around.",
+      win: "It's over. And the cards never lied.",
+      lose: "You duelled well. I'll be back.",
+    },
+    deck: [
+      ...x("darkMagician", 2), "darkMagicianGirl", ...x("kuriboh", 2), ...x("celticGuardian", 3),
+      ...x("beaverWarrior", 2), "gaia", "curseOfDragon", "summonedSkull", "busterBlader",
+      ...x("bigShieldGardna", 2), "gazelle", "berfomet", "magnetValkyrion",
+      ...x("polymerization", 2), "monsterReborn", "darkHole", "swordsOfRevealingLight",
+      ...x("magicalHats", 2), "brainControl", "potOfGreed", "gracefulCharity", "darkMagicAttack",
+      ...x("mirrorForce", 2), ...x("magicCylinder", 2), ...x("spellbindingCircle", 2),
+      ...x("waboku", 2), "trapHole", "negateAttack",
+    ],
+    extra: ["gaiaDragonChampion", "chimera"],
+  },
+
+  kaiba: {
+    id: "kaiba",
+    name: "Seto Kaiba",
+    title: "CEO of KaibaCorp",
+    accent: "#4fc9f0",
+    aura: "linear-gradient(160deg,#0d3550,#04121c)",
+    portrait: "a tall stern brown-haired duelist in a white high-collared coat with a metal duel gauntlet",
+    ace: "blueEyes",
+    strategy: "aggro",
+    lines: {
+      open: "You're wasting my time. Let's finish this.",
+      summon: "I summon {card}!",
+      attack: "{card}, wipe it out!",
+      ace: "Burst Stream of Destruction!",
+      trap: "Predictable. Activate {card}!",
+      hurt: "A lucky move. It changes nothing.",
+      win: "This is what real duelling looks like.",
+      lose: "Impossible. This isn't finished.",
+    },
+    deck: [
+      ...x("blueEyes", 3), ...x("lordOfD", 2), ...x("battleOx", 3), "saggi",
+      ...x("vorseRaider", 2), ...x("kaiserSeahorse", 2), ...x("laJinn", 2),
+      ...x("rudeKaiser", 2), ...x("ryuKishin", 3),
+      ...x("polymerization", 2), ...x("fluteOfSummoningDragon", 2), "monsterReborn",
+      "darkHole", ...x("shrink", 2), "despell", "potOfGreed",
+      "crushCardVirus", ...x("ringOfDestruction", 2), ...x("negateAttack", 2),
+      ...x("mirrorForce", 2), ...x("trapHole", 2), "waboku",
+    ],
+    extra: ["blueEyesUltimate"],
+  },
+
+  joey: {
+    id: "joey",
+    name: "Joey Wheeler",
+    title: "The Underdog",
+    accent: "#f08a3c",
+    aura: "linear-gradient(160deg,#5c3410,#1c0e04)",
+    portrait: "a scruffy blond teenage duelist in a green jacket and white shirt, grinning",
+    ace: "redEyes",
+    strategy: "swingy",
+    lines: {
+      open: "Alright, let's do this! Joey Wheeler's on the field!",
+      summon: "Get out there, {card}!",
+      attack: "{card}, let 'em have it!",
+      ace: "Inferno Fire Blast!",
+      trap: "Ha! Walked right into it. {card}, go!",
+      hurt: "Ow. Okay. That one hurt.",
+      win: "Who's the underdog now?!",
+      lose: "Aw, come on! One more round!",
+    },
+    deck: [
+      "redEyes", ...x("babyDragon", 2), ...x("timeWizard", 2), ...x("rocketWarrior", 2),
+      ...x("pantherWarrior", 2), ...x("alligatorsSword", 2), ...x("littleWinguard", 2),
+      ...x("gearfried", 2), "axeRaider", ...x("flameManipulator", 2), ...x("masaki", 2),
+      "summonedSkull",
+      ...x("polymerization", 3), ...x("scapegoat", 2), "shieldAndSword", "giantTrunade",
+      ...x("salamandra", 2), "monsterReborn", "potOfGreed",
+      ...x("gracefulDice", 2), ...x("skullDice", 2), ...x("kunaiWithChain", 2), "trapHole", "waboku",
+    ],
+    extra: ["flameSwordsman", "thousandDragon", "blackSkullDragon"],
+  },
+
+  mai: {
+    id: "mai",
+    name: "Mai Valentine",
+    title: "Harpie Queen",
+    accent: "#e05a9c",
+    aura: "linear-gradient(160deg,#5a1440,#1c0616)",
+    portrait: "a confident blonde duelist in a purple jacket with a violet duel disk",
+    ace: "harpiesPetDragon",
+    strategy: "tempo",
+    lines: {
+      open: "Sit tight, hon. This won't take long.",
+      summon: "Say hello to {card}.",
+      attack: "{card}, tear it apart!",
+      ace: "Feel the wings of the Harpie Queen!",
+      trap: "Too slow, sweetheart. {card}!",
+      hurt: "Cute. Try that again.",
+      win: "Told you. Better luck next time.",
+      lose: "You actually got me. Not bad.",
+    },
+    deck: [
+      ...x("harpieLady", 3), ...x("cyberHarpie", 2), "harpieSisters", "harpiesPetDragon",
+      ...x("harpieGirl", 2), ...x("amazonessSwordsWoman", 2), ...x("dunames", 2),
+      ...x("birdface", 3), ...x("littleWinguard", 2),
+      ...x("elegantEgotist", 2), ...x("cyberShield", 2), ...x("roseWhip", 2),
+      "featherDuster", "monsterReborn", "potOfGreed", "gracefulCharity", "darkHole",
+      ...x("mirrorWall", 2), ...x("gravityBind", 2), ...x("dustTornado", 2),
+      ...x("mirrorForce", 2), ...x("negateAttack", 2), "waboku",
+    ],
+    extra: [],
+  },
+};
+
+const MATCHUPS = {
+  "yugi-kaiba": {
+    id: "yugi-kaiba",
+    name: "Duel I — Battle City Finals",
+    player: "yugi",
+    opponent: "kaiba",
+    lifePoints: 8000,
+    arena: "a rain-slicked skyscraper rooftop duel arena at night, city lights below, holographic projectors humming",
+    tagline: "Dark Magician against three Blue-Eyes. The rivalry that defined the game.",
+  },
+  "joey-mai": {
+    id: "joey-mai",
+    name: "Duel II — Duelist Kingdom Semifinal",
+    player: "joey",
+    opponent: "mai",
+    lifePoints: 8000,
+    arena: "a torch-lit stone duel arena on a cliff above the sea at dusk, banners snapping in the wind",
+    tagline: "The underdog's dice against the Harpie Queen's wings.",
+  },
+};
+
+const getDuelist = (id) => DUELISTS[id];
+const getMatchup = (id) => MATCHUPS[id];
+
+Object.assign(__exports, { DUELISTS, MATCHUPS, getDuelist, getMatchup });
+});
+
+__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// Opponent AI. Scores the legal actions the engine offers -- it never reaches
+// into duel state to invent a move the rules would not allow.
+
+const { cardOf, effectiveStats, legalActions, other } = __req("./duel-engine.js");
+const { monstersOn } = __req("./duel-state.js");
+const { getDuelist } = __req("./duelists.js");
+const TEMPERAMENT = {
+  aggro:  { trade: 1.4, board: 0.9, hold: 0.4, trapBias: 0.55 },
+  control:{ trade: 0.9, board: 1.2, hold: 1.0, trapBias: 0.85 },
+  swingy: { trade: 1.2, board: 1.0, hold: 0.6, trapBias: 0.75 },
+  tempo:  { trade: 1.1, board: 1.1, hold: 0.7, trapBias: 0.7 },
+};
+
+const styleOf = (state, side) => TEMPERAMENT[getDuelist(state.sides[side].duelistId).strategy] ?? TEMPERAMENT.tempo;
+
+function scoreAttack(state, side, action, style) {
+  const foe = other(side);
+  const attacker = monstersOn(state, side).find((m) => m.uid === action.uid);
+  const atk = effectiveStats(state, side, attacker).atk;
+  if (!action.targetUid) return 900 + atk / 10;
+  const defender = monstersOn(state, foe).find((m) => m.uid === action.targetUid);
+  const wall = defender.faceDown
+    ? 1500
+    : effectiveStats(state, foe, defender)[defender.position === "attack" ? "atk" : "def"];
+  if (atk > wall) return 600 + (defender.position === "attack" ? (atk - wall) * style.trade : 120);
+  if (atk === wall) return defender.position === "attack" ? 200 : -50;
+  return -400 - (wall - atk);
+}
+
+function scorePlay(state, side, action, style) {
+  const s = state.sides[side];
+  const inst = [...s.hand, ...monstersOn(state, side)].find((c) => c.uid === action.uid);
+  const card = inst ? cardOf(inst) : null;
+  if (!card) return 0;
+  const ace = getDuelist(s.duelistId).ace;
+
+  if (action.type === "summon") {
+    const board = monstersOn(state, side).length;
+    const bias = card.id === ace ? 400 : 0;
+    return 300 + card.atk / 6 + bias + board * style.board * 10;
+  }
+  if (action.type === "set") return 180 + card.def / 8;
+  if (action.type === "activate") {
+    if (card.effect?.op === "fusionSummon") return 700;
+    if (card.effect?.op === "summonFromDeck" || card.effect?.op === "summonFromHand") return 640;
+    if (card.effect?.op === "revive") return 520;
+    if (card.effect?.op === "destroyAllMonsters") {
+      const mine = monstersOn(state, side).length;
+      const theirs = monstersOn(state, other(side)).length;
+      return theirs > mine ? 480 : -100;
+    }
+    if (card.effect?.op === "destroyFoeBackrow") return state.sides[other(side)].backrow.filter(Boolean).length * 90;
+    if (card.sub === "equip") return 260;
+    return 210;
+  }
+  if (action.type === "setBackrow") return 150 * style.trapBias + (card.kind === "trap" ? 60 : 0);
+  if (action.type === "position") {
+    const stats = effectiveStats(state, side, inst);
+    return stats.def > stats.atk && inst.position === "attack" ? 120 : -60;
+  }
+  return 0;
+}
+
+function chooseAction(state, side = state.activeSide, rng = Math.random) {
+  const actions = legalActions(state, side);
+  if (!actions.length) return null;
+  const style = styleOf(state, side);
+  const scored = actions.map((action) => ({
+    action,
+    score: (action.type === "attack" ? scoreAttack : scorePlay)(state, side, action, style)
+      + rng() * 40,
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].score > 0 ? scored[0].action : null;
+}
+
+function chooseTrapResponse(state, rng = Math.random) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "trapWindow") return null;
+  const side = pending.side;
+  const style = styleOf(state, side);
+  const attacker = monstersOn(state, other(side)).find((m) => m.uid === pending.resume.attackerUid);
+  if (!attacker) return null;
+  const incoming = effectiveStats(state, other(side), attacker).atk;
+  const defender = monstersOn(state, side).find((m) => m.uid === pending.resume.defenderUid);
+  const threat = defender
+    ? Math.max(0, incoming - effectiveStats(state, side, defender)[defender.position === "attack" ? "atk" : "def"])
+    : incoming;
+  if (threat < 500 && rng() > style.trapBias / 2) return null;
+  const ranked = pending.options
+    .map((uid) => state.sides[side].backrow.find((c) => c && c.uid === uid))
+    .filter(Boolean)
+    .sort((a, b) => trapValue(cardOf(b), threat) - trapValue(cardOf(a), threat));
+  return ranked[0]?.uid ?? null;
+}
+
+function trapValue(card, threat) {
+  const op = card.effect?.op;
+  if (op === "destroyAttackers") return 1000;
+  if (op === "reflectAttack") return 900 + threat / 10;
+  if (op === "ringOfDestruction") return 700;
+  if (op === "negateBattle") return 500;
+  if (op === "modifyAtk" || op === "bindMonster") return 450;
+  if (op === "diceBuff") return 300;
+  return 200;
+}
+
+Object.assign(__exports, { chooseAction, chooseTrapResponse });
+});
+
+__def("src/cinema/player.js", {"../cards/index.js":"src/cards/index.js","./procedural-stage.js":"src/cinema/procedural-stage.js","./free-video.js":"src/cinema/free-video.js","./realtime-voice.js":"src/cinema/realtime-voice.js"}, function (__exports, __req) {
+// Cinema player: owns the canvas loop, the shot queue, and the hand-off to a
+// higher tier when one arrives in time. Nothing here can change the duel; it
+// only renders what the engine already decided.
+
+const { CARDS } = __req("../cards/index.js");
+const { drawArena, drawBeam, drawImpact, drawMonster, drawScanlines } = __req("./procedural-stage.js");
+const { prefetch, resolve } = __req("./free-video.js");
+const { speak, stopVoice } = __req("./realtime-voice.js");
+const byName = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
+const FACE_DOWN = { id: "facedown", attribute: "DARK", type: "Fiend", name: "?" };
+const card = (name) => byName[name] ?? FACE_DOWN;
+
+// Mirrors the .zones flex row in styles.css so a hologram is projected over the
+// card it belongs to, rather than floating unrelated in the middle of the stage.
+const ZONE_ROW_HEIGHT = 0.15;   // .zones { height: 15% }
+const ZONE_ASPECT = 59 / 86;    // .zone { aspect-ratio: 59 / 86 }
+const ZONE_GAP = 0.008;         // clamp(4px, 0.9vw, 10px), as a fraction of width
+
+const ZONE_COUNT = 5;
+
+// Row centres: opponent monsters sit at top 28%, the player's at bottom 28%.
+const rowY = (side, h) => (side === "player" ? h * 0.645 : h * 0.355);
+
+// `slot` is the real zone index, matching the five zones the DOM always renders.
+function anchor(side, slot, w, h) {
+  const zoneW = h * ZONE_ROW_HEIGHT * ZONE_ASPECT;
+  const gap = w * ZONE_GAP;
+  const rowW = ZONE_COUNT * zoneW + (ZONE_COUNT - 1) * gap;
+  const startX = (w - rowW) / 2;
+  return { x: startX + slot * (zoneW + gap) + zoneW / 2, y: rowY(side, h) };
+}
+
+// Attacks read better staged down the centre line than from a specific zone.
+const centre = (side, w, h) => ({ x: w / 2, y: rowY(side, h) });
+
+const involves = (event, name) =>
+  event.card === name || event.attacker === name || event.defender === name;
+
+function drawBoard(ctx, state, current, t) {
+  const { width: w, height: h } = ctx.canvas;
+  for (const side of ["opponent", "player"]) {
+    state.sides[side].monsters.forEach((inst, slot) => {
+      if (!inst) return;
+      const spot = anchor(side, slot, w, h);
+      const face = CARDS[inst.cardId]?.name ?? "";
+      const focused = current?.shot.event && involves(current.shot.event, face);
+      drawMonster(ctx, inst.faceDown ? FACE_DOWN : card(face), {
+        x: spot.x, y: spot.y, scale: h * (inst.faceDown ? 0.05 : 0.075),
+        flip: side === "opponent", alpha: inst.faceDown ? 0.4 : (focused ? 1 : 0.72), t,
+      });
+    });
+  }
+}
+
+function drawStrike(ctx, shot, p, t, w, h) {
+  const foeSide = shot.side === "player" ? "opponent" : "player";
+  const from = centre(shot.side, w, h);
+  const to = centre(foeSide, w, h);
+  const lunge = Math.min(p * 1.6, 0.34);
+  const palette = drawMonster(ctx, card(shot.event?.attacker ?? shot.event?.card ?? ""), {
+    x: from.x + (to.x - from.x) * lunge, y: from.y + (to.y - from.y) * lunge,
+    scale: h * 0.13, flip: shot.side === "opponent", alpha: 1, t,
+  });
+  if (p > 0.3) drawBeam(ctx, from, to, palette, Math.min(1, (p - 0.3) / 0.4));
+  if (p > 0.62) drawImpact(ctx, to.x, to.y, palette, (p - 0.62) / 0.38);
+}
+
+function drawArrival(ctx, shot, p, t, w, h) {
+  const rise = 1 - (1 - Math.min(p * 1.7, 1)) ** 3;
+  drawMonster(ctx, card(shot.title), {
+    x: w / 2, y: h * 0.5 + (1 - rise) * h * 0.22,
+    scale: h * 0.19 * (0.6 + rise * 0.4), flip: shot.side === "opponent", alpha: rise, t,
+  });
+  if (shot.kind === "fusion" && p < 0.6) {
+    drawImpact(ctx, w / 2, h * 0.55, { glow: "#ffd9b0", core: "#ff8a3c" }, p / 0.6);
+  }
+}
+
+function drawCardFlash(ctx, shot, p, w, h) {
+  const trap = shot.kind === "trap";
+  const palette = { glow: trap ? "#ff9ec4" : "#8fe6ff", core: trap ? "#c2185b" : "#1d5f7a" };
+  drawImpact(ctx, w / 2, h * 0.5, palette, p);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 0.5 - p * 0.5);
+  ctx.fillStyle = palette.glow;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function drawWhiteout(ctx, p, w, h) {
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.45, p * 0.45);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function drawShotFx(ctx, shot, p, t) {
+  const { width: w, height: h } = ctx.canvas;
+  if (shot.kind === "clash" || shot.kind === "direct") drawStrike(ctx, shot, p, t, w, h);
+  else if (shot.kind === "summon" || shot.kind === "fusion") drawArrival(ctx, shot, p, t, w, h);
+  else if (shot.kind === "spell" || shot.kind === "trap") drawCardFlash(ctx, shot, p, w, h);
+  else if (shot.kind === "finish") drawWhiteout(ctx, p, w, h);
+}
+
+// The DOM surface of the stage: the caption block and the two media layers.
+// Split out so the queue closure below only has to own timing and ordering.
+function createStageMedia({ still, video, caption }) {
+  return {
+    showCaption(shot, tierLabel) {
+      if (!caption.root) return;
+      caption.root.hidden = false;
+      caption.kind.textContent = shot.kind.toUpperCase();
+      caption.title.textContent = shot.title ?? "";
+      caption.sub.textContent = shot.subtitle ?? "";
+      caption.tier.textContent = tierLabel;
+    },
+    hideCaption() { if (caption.root) caption.root.hidden = true; },
+    hide() {
+      still.classList.remove("is-live");
+      video.classList.remove("is-live");
+      video.pause?.();
+    },
+    async attach(asset) {
+      const node = asset.tier === "video" ? video : still;
+      const spare = asset.tier === "video" ? still : video;
+      node.hidden = false;
+      node.src = asset.url;
+      if (asset.tier === "video") node.loop = true;
+      node.classList.add("is-live");
+      spare.classList.remove("is-live");
+      if (asset.tier === "video") {
+        try { await node.play(); } catch { /* autoplay blocked; the frame still shows */ }
+      }
+      if (caption.tier) caption.tier.textContent = `${asset.tier} · ${asset.cached ? "cached" : "generated"}`;
+    },
+    showStill(url) {
+      still.hidden = false;
+      still.src = url;
+      still.classList.add("is-live");
+    },
+  };
+}
+
+// A backlog of shots must not become a backlog of waiting. The pace is decided
+// once for a whole turn's worth of shots and applied uniformly: a busy turn
+// plays as one fast sequence rather than accelerating and then dragging on the
+// tail, which is both quicker and easier to read.
+function paceFor(batchSize) {
+  if (batchSize <= 1) return 1;
+  if (batchSize <= 3) return 0.72;
+  if (batchSize <= 5) return 0.5;
+  if (batchSize <= 8) return 0.36;
+  return 0.26;
+}
+
+const MIN_SHOT_MS = 700;
+
+function createCinema({ canvas, still, video, caption, getState, accents, onShot }) {
+  const stage = createStageMedia({ still, video, caption });
+  const ctx = canvas.getContext("2d");
+  const queue = [];
+  let current = null;
+  let startedAt = 0;
+  let raf = 0;
+  let running = false;
+  let muted = false;
+  let tierPref = "video";
+  let idle = null;
+  let drawFailures = 0;
+
+  // A throw in here used to kill the loop permanently, which froze the queue and
+  // with it the whole duel. The loop must always reschedule itself.
+  function frame(now) {
+    try {
+      const state = getState();
+      const [a, b] = accents();
+      drawArena(ctx, canvas.width, canvas.height, { accentA: a, accentB: b, t: now });
+      if (state) drawBoard(ctx, state, current, now);
+      if (current) {
+        const p = Math.min(1, (now - startedAt) / current.durationMs);
+        if (state) drawShotFx(ctx, current.shot, p, now);
+        if (p >= 1) finishShot();
+      }
+      drawScanlines(ctx, canvas.width, canvas.height, now);
+    } catch (error) {
+      drawFailures += 1;
+      if (drawFailures === 1) console.warn("cinema draw failed; continuing", error);
+      if (current) finishShot();
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function finishShot() {
+    current = null;
+    stage.hide();
+    stage.hideCaption();
+    pump();
+  }
+
+  function pump() {
+    if (current) return;
+    if (!queue.length) { showIdle(); return; }
+    const { shot, tier, pace = 1 } = queue.shift();
+    const ms = (shot.seconds ?? 3) * 1000 * pace;
+    current = { shot, durationMs: Math.max(MIN_SHOT_MS, ms) };
+    startedAt = performance.now();
+    stage.showCaption(shot, tier === "procedural" ? "procedural" : `${tier} · generating`);
+    onShot?.(shot);
+    if (shot.voice) speak(shot.voice, getState()?.sides[shot.side]?.duelistId, { muted });
+    // Look ahead so the next real asset is already in flight.
+    for (const next of queue.slice(0, 2)) if (next.tier !== "procedural") prefetch(next.shot, next.tier);
+    if (tier !== "procedural") {
+      resolve(shot, { tier, timeoutMs: current.durationMs * 0.8 })
+        .then((asset) => { if (asset && current?.shot.id === shot.id) stage.attach(asset); });
+    }
+  }
+
+  function showIdle() {
+    if (!idle || tierPref === "procedural") return;
+    const shot = idle;
+    idle = null;
+    resolve(shot, { tier: "still" }).then((asset) => {
+      if (!current && asset) stage.showStill(asset.url);
+    });
+  }
+
+  return {
+    start() { if (!running) { running = true; raf = requestAnimationFrame(frame); } },
+    // Cut the current shot short; with `all`, drop the whole backlog too.
+    skip({ all = false } = {}) {
+      if (all) queue.length = 0;
+      if (current) finishShot();
+      return true;
+    },
+    stop() { running = false; cancelAnimationFrame(raf); stopVoice(); },
+    enqueue(plan) {
+      const pace = paceFor(queue.length + plan.length + (current ? 1 : 0));
+      queue.push(...plan.map((entry) => ({ ...entry, pace })));
+      pump();
+    },
+    setIdle(shot) { idle = shot; },
+    setTier(pref) { tierPref = pref; },
+    setMuted(value) { muted = value; if (value) stopVoice(); },
+    clear() {
+      queue.length = 0; current = null; stage.hide(); stage.hideCaption(); stopVoice();
+    },
+    get busy() { return Boolean(current) || queue.length > 0; },
+    get pendingCount() { return queue.length + (current ? 1 : 0); },
+    get drawFailures() { return drawFailures; },
+  };
+}
+
+Object.assign(__exports, { paceFor, createCinema });
+});
+
+__def("src/cinema/procedural-stage.js", {}, function (__exports, __req) {
+// Tier 0 cinema: a seeded holographic arena drawn entirely on a 2D canvas.
+// No key, no network, no assets -- this is what plays the instant a duel starts
+// and what every higher tier falls back to.
+
+const ATTRIBUTE_PALETTE = {
+  DARK:  { core: "#b96bff", edge: "#4a1d7a", glow: "#e0b8ff" },
+  LIGHT: { core: "#8fe6ff", edge: "#1d5f7a", glow: "#e8fbff" },
+  FIRE:  { core: "#ff8a3c", edge: "#7a2a08", glow: "#ffd9b0" },
+  WIND:  { core: "#7fe6a8", edge: "#1c5c39", glow: "#d6ffe8" },
+  EARTH: { core: "#f0c264", edge: "#6b4a12", glow: "#fff0c8" },
+  WATER: { core: "#5fb2ff", edge: "#14406e", glow: "#cfe8ff" },
+};
+
+const SILHOUETTE = {
+  Dragon: drawDragon,
+  "Winged Beast": drawWinged,
+  Warrior: drawWarrior,
+  "Beast-Warrior": drawWarrior,
+  Spellcaster: drawCaster,
+  Fiend: drawFiend,
+  Beast: drawBeast,
+  Fairy: drawWinged,
+  "Sea Serpent": drawDragon,
+};
+
+function hash(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ------------------------------------------------------------ silhouettes ---
+
+function limb(ctx, x1, y1, x2, y2, w) {
+  ctx.lineWidth = w;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function drawDragon(ctx, s, rng) {
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.1, s * 0.9);
+  ctx.quadraticCurveTo(-s * 0.35, s * 0.1, 0, -s * 0.55);
+  ctx.quadraticCurveTo(s * 0.28, -s * 0.95, s * 0.6, -s * 0.75);
+  ctx.quadraticCurveTo(s * 0.3, -s * 0.55, s * 0.16, -s * 0.42);
+  ctx.quadraticCurveTo(s * 0.5, s * 0.2, s * 0.24, s * 0.9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  for (let i = 0; i < 2; i += 1) {
+    const flip = i ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(flip * s * 0.05, -s * 0.35);
+    ctx.quadraticCurveTo(flip * s * (0.9 + rng() * 0.3), -s * (1.15 + rng() * 0.25), flip * s * 1.15, -s * 0.1);
+    ctx.quadraticCurveTo(flip * s * 0.6, -s * 0.3, flip * s * 0.08, -s * 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+function drawWinged(ctx, s, rng) {
+  ctx.beginPath();
+  ctx.ellipse(0, -s * 0.05, s * 0.2, s * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.68, s * 0.17, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  for (let i = 0; i < 2; i += 1) {
+    const flip = i ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(flip * s * 0.12, -s * 0.35);
+    for (let f = 0; f < 4; f += 1) {
+      const t = (f + 1) / 4;
+      ctx.lineTo(flip * s * (0.3 + t * 0.95), -s * (0.55 + t * 0.5 + rng() * 0.1));
+      ctx.lineTo(flip * s * (0.25 + t * 0.9), -s * (0.2 + t * 0.35));
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  limb(ctx, -s * 0.1, s * 0.42, -s * 0.2, s * 0.9, s * 0.09);
+  limb(ctx, s * 0.1, s * 0.42, s * 0.2, s * 0.9, s * 0.09);
+}
+
+function drawWarrior(ctx, s) {
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.26, -s * 0.35);
+  ctx.lineTo(s * 0.26, -s * 0.35);
+  ctx.lineTo(s * 0.17, s * 0.35);
+  ctx.lineTo(-s * 0.17, s * 0.35);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.55, s * 0.16, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  limb(ctx, -s * 0.24, -s * 0.28, -s * 0.5, s * 0.1, s * 0.1);
+  limb(ctx, s * 0.24, -s * 0.28, s * 0.52, -s * 0.15, s * 0.1);
+  limb(ctx, -s * 0.12, s * 0.35, -s * 0.2, s * 0.92, s * 0.11);
+  limb(ctx, s * 0.12, s * 0.35, s * 0.22, s * 0.92, s * 0.11);
+  ctx.lineWidth = s * 0.06;
+  ctx.beginPath();
+  ctx.moveTo(s * 0.52, -s * 0.15);
+  ctx.lineTo(s * 0.62, -s * 1.0);
+  ctx.stroke();
+}
+
+function drawCaster(ctx, s) {
+  ctx.beginPath();
+  ctx.moveTo(0, -s * 0.5);
+  ctx.quadraticCurveTo(-s * 0.5, s * 0.2, -s * 0.34, s * 0.92);
+  ctx.lineTo(s * 0.34, s * 0.92);
+  ctx.quadraticCurveTo(s * 0.5, s * 0.2, 0, -s * 0.5);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.62, s * 0.15, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.lineWidth = s * 0.055;
+  ctx.beginPath();
+  ctx.moveTo(s * 0.42, s * 0.75);
+  ctx.lineTo(s * 0.5, -s * 0.85);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(s * 0.5, -s * 0.95, s * 0.13, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+}
+
+function drawFiend(ctx, s, rng) {
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.3, s * 0.9);
+  ctx.quadraticCurveTo(-s * 0.42, -s * 0.2, 0, -s * 0.5);
+  ctx.quadraticCurveTo(s * 0.42, -s * 0.2, s * 0.3, s * 0.9);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.66, s * 0.17, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  for (let i = 0; i < 2; i += 1) {
+    const flip = i ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(flip * s * 0.1, -s * 0.78);
+    ctx.quadraticCurveTo(flip * s * 0.42, -s * (1.2 + rng() * 0.2), flip * s * 0.2, -s * 1.25);
+    ctx.quadraticCurveTo(flip * s * 0.2, -s * 0.95, flip * s * 0.05, -s * 0.8);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  limb(ctx, -s * 0.3, -s * 0.25, -s * 0.62, s * 0.25, s * 0.09);
+  limb(ctx, s * 0.3, -s * 0.25, s * 0.62, s * 0.25, s * 0.09);
+}
+
+function drawBeast(ctx, s, rng) {
+  ctx.beginPath();
+  ctx.ellipse(0, s * 0.1, s * 0.55, s * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(-s * 0.55, -s * 0.2, s * 0.22, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  for (let i = 0; i < 4; i += 1) {
+    const x = -s * 0.35 + (i % 2) * s * 0.7;
+    limb(ctx, x, s * 0.3, x + (rng() - 0.5) * s * 0.15, s * 0.92, s * 0.11);
+  }
+  ctx.beginPath();
+  ctx.moveTo(s * 0.5, s * 0.0);
+  ctx.quadraticCurveTo(s * 0.95, -s * 0.35, s * 0.8, -s * 0.6);
+  ctx.lineWidth = s * 0.07;
+  ctx.stroke();
+}
+
+function drawGeneric(ctx, s) {
+  ctx.beginPath();
+  ctx.moveTo(0, -s * 0.85);
+  for (let i = 1; i < 7; i += 1) {
+    const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
+    ctx.lineTo(Math.cos(a) * s * 0.62, Math.sin(a) * s * 0.85);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+// ------------------------------------------------------------- public API ---
+
+function drawMonster(ctx, card, { x, y, scale, flip = false, alpha = 1, t = 0 }) {
+  const palette = ATTRIBUTE_PALETTE[card.attribute] ?? ATTRIBUTE_PALETTE.DARK;
+  const rng = seededRng(hash(card.id));
+  const bob = Math.sin(t * 0.0022 + hash(card.id) % 100) * scale * 0.03;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y + bob);
+  if (flip) ctx.scale(-1, 1);
+  ctx.shadowColor = palette.glow;
+  ctx.shadowBlur = scale * 0.5;
+  const grad = ctx.createLinearGradient(0, -scale, 0, scale);
+  grad.addColorStop(0, palette.glow);
+  grad.addColorStop(0.45, palette.core);
+  grad.addColorStop(1, palette.edge);
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = palette.glow;
+  ctx.lineWidth = scale * 0.035;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  (SILHOUETTE[card.type] ?? drawGeneric)(ctx, scale, rng);
+  ctx.restore();
+  return palette;
+}
+
+function drawFloorGrid(ctx, w, h, horizon, accent, t) {
+  ctx.save();
+  ctx.strokeStyle = `${accent}77`;
+  ctx.lineWidth = 1.4;
+  const drift = (t * 0.02) % 40;
+  for (let i = 0; i < 22; i += 1) {
+    const y = horizon + ((i * 40 + drift) ** 1.35) / 90;
+    if (y > h) break;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  for (let i = -14; i <= 14; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(w / 2 + i * (w / 26), horizon);
+    ctx.lineTo(w / 2 + i * (w / 4), h);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawArena(ctx, w, h, { accentA, accentB, t = 0 }) {
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, "#0a1024");
+  sky.addColorStop(0.5, "#141d3c");
+  sky.addColorStop(1, "#070b1a");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h);
+
+  const horizon = h * 0.62;
+  const halo = ctx.createRadialGradient(w / 2, horizon, 10, w / 2, horizon, w * 0.78);
+  halo.addColorStop(0, `${accentA}77`);
+  halo.addColorStop(0.45, `${accentA}22`);
+  halo.addColorStop(1, "transparent");
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, w, h);
+
+  // A bright band on the horizon line keeps the arena reading as a lit stage
+  // rather than an empty black rectangle.
+  const band = ctx.createLinearGradient(0, horizon - h * 0.09, 0, horizon + h * 0.05);
+  band.addColorStop(0, "transparent");
+  band.addColorStop(0.62, `${accentB}66`);
+  band.addColorStop(1, "transparent");
+  ctx.fillStyle = band;
+  ctx.fillRect(0, horizon - h * 0.09, w, h * 0.14);
+
+  drawFloorGrid(ctx, w, h, horizon, accentB, t);
+  return horizon;
+}
+
+function drawBeam(ctx, from, to, palette, progress) {
+  const x = from.x + (to.x - from.x) * progress;
+  const y = from.y + (to.y - from.y) * progress;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const grad = ctx.createLinearGradient(from.x, from.y, x, y);
+  grad.addColorStop(0, "transparent");
+  grad.addColorStop(1, palette.glow);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 14 + Math.sin(progress * Math.PI) * 22;
+  ctx.lineCap = "round";
+  ctx.shadowColor = palette.core;
+  ctx.shadowBlur = 40;
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawImpact(ctx, x, y, palette, progress) {
+  const r = progress * 190;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0, 1 - progress);
+  ctx.strokeStyle = palette.glow;
+  ctx.lineWidth = 10 * (1 - progress) + 2;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, Math.PI * 2); ctx.stroke();
+  for (let i = 0; i < 12; i += 1) {
+    const a = (i / 12) * Math.PI * 2;
+    const len = r * (0.7 + (i % 3) * 0.22);
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(a) * r * 0.4, y + Math.sin(a) * r * 0.4);
+    ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawScanlines(ctx, w, h, t) {
+  ctx.save();
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = "#9fe8ff";
+  for (let y = (t * 0.05) % 4; y < h; y += 4) ctx.fillRect(0, y, w, 1);
+  ctx.restore();
+}
+
+
+Object.assign(__exports, { drawMonster, drawArena, drawBeam, drawImpact, drawScanlines, ATTRIBUTE_PALETTE });
+});
+
+__def("src/cinema/free-video.js", {}, function (__exports, __req) {
+// Tiered cinema provider. Every tier is free; higher tiers are slower and need
+// a free key, so the runway always falls back rather than stalling the duel.
+//
+//   0 procedural  canvas holograms      no key, no network, instant
+//   1 still       AI key art + camera   no key, ~1-20s
+//   2 video       AI video clip         free key, ~30-120s
+//
+// Tier 2 is prefetched while tier 0/1 is on screen, exactly so the player never
+// waits on a generator.
+
+const TIERS = ["procedural", "still", "video"];
+
+const jobs = new Map();
+let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
+
+function getCapability() {
+  return { ...capability };
+}
+
+async function probeCapability(fetchImpl = fetch) {
+  try {
+    const res = await fetchImpl("/api/capability");
+    if (res.ok) capability = { ...(await res.json()), checked: true };
+  } catch {
+    capability = { still: false, video: false, voice: false, realtime: false, checked: true };
+  }
+  return getCapability();
+}
+
+function highestTier(requested = "video") {
+  const cap = getCapability();
+  const wanted = TIERS.indexOf(requested);
+  let best = 0;
+  if (cap.still && wanted >= 1) best = 1;
+  if (cap.video && wanted >= 2) best = 2;
+  return TIERS[best];
+}
+
+function shotBody(shot, tier) {
+  return {
+    id: shot.id,
+    tier,
+    prompt: shot.prompt,
+    seconds: shot.seconds ?? 6,
+    kind: shot.kind,
+  };
+}
+
+// Kicks off generation without awaiting it, so the caller can keep playing the
+// procedural shot while the network works.
+function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
+  if (tier === "procedural") return null;
+  const key = `${shot.id}:${tier}`;
+  if (jobs.has(key)) return jobs.get(key);
+  const job = fetchImpl("/api/shot", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(shotBody(shot, tier)),
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`shot ${res.status}`);
+      const data = await res.json();
+      if (!data.url) throw new Error("shot returned no url");
+      return { ...data, tier, shotId: shot.id };
+    })
+    .catch((error) => ({ error: String(error), tier, shotId: shot.id }));
+  jobs.set(key, job);
+  return job;
+}
+
+// Resolves as soon as a usable asset exists, or `null` once the budget is spent
+// -- callers treat null as "stay procedural", never as an error.
+async function resolve(shot, { tier = highestTier(), timeoutMs = 0, fetchImpl = fetch } = {}) {
+  if (tier === "procedural") return null;
+  const job = prefetch(shot, tier, fetchImpl);
+  if (!job) return null;
+  if (!timeoutMs) {
+    const result = await job;
+    return result.error ? null : result;
+  }
+  const raced = await Promise.race([
+    job,
+    new Promise((done) => setTimeout(() => done({ timeout: true }), timeoutMs)),
+  ]);
+  if (raced.timeout || raced.error) return null;
+  return raced;
+}
+
+function clearJobs() {
+  jobs.clear();
+}
+
+function jobCount() {
+  return jobs.size;
+}
+
+// A shot is worth spending a slow video generation on only if it is a moment
+// the player will remember. Everything else stays on the fast tiers.
+function deservesVideo(shot) {
+  return shot.kind === "fusion" || shot.kind === "finish" || shot.kind === "direct"
+    || (shot.kind === "clash" && (shot.event?.attackerAtk ?? 0) >= 2000)
+    || (shot.kind === "summon" && (shot.event?.atk ?? 0) >= 2400)
+    || shot.kind === "trap";
+}
+
+function planTiers(shots, { videoBudget = 2 } = {}) {
+  const best = highestTier();
+  let left = best === "video" ? videoBudget : 0;
+  return shots.map((shot) => {
+    if (left > 0 && deservesVideo(shot)) {
+      left -= 1;
+      return { shot, tier: "video" };
+    }
+    return { shot, tier: best === "procedural" ? "procedural" : "still" };
+  });
+}
+
+Object.assign(__exports, { getCapability, probeCapability, highestTier, prefetch, resolve, clearJobs, jobCount, deservesVideo, planTiers, TIERS });
+});
+
+__def("src/cinema/realtime-voice.js", {}, function (__exports, __req) {
+// Duelist voice. Tier 0 is the browser's own speech synthesiser -- free, offline
+// and instant -- so a duel always has a voice even with no key and no network.
+
+const VOICES = {
+  yugi:  { rate: 1.0, pitch: 1.15, match: /(male|daniel|alex|fred)/i },
+  kaiba: { rate: 0.92, pitch: 0.72, match: /(male|daniel|alex|oliver)/i },
+  joey:  { rate: 1.12, pitch: 1.0, match: /(male|fred|alex)/i },
+  mai:   { rate: 1.0, pitch: 1.35, match: /(female|samantha|karen|moira)/i },
+};
+
+let remoteOk = false;
+let audioEl = null;
+
+function enableRemoteVoice(enabled) {
+  remoteOk = Boolean(enabled);
+}
+
+function pickVoice(profile) {
+  const all = globalThis.speechSynthesis?.getVoices?.() ?? [];
+  return all.find((v) => profile.match.test(`${v.name} ${v.voiceURI}`)) ?? all[0] ?? null;
+}
+
+function speakLocal(text, duelistId) {
+  const synth = globalThis.speechSynthesis;
+  if (!synth || !text) return false;
+  const profile = VOICES[duelistId] ?? VOICES.yugi;
+  synth.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = profile.rate;
+  utter.pitch = profile.pitch;
+  const voice = pickVoice(profile);
+  if (voice) utter.voice = voice;
+  synth.speak(utter);
+  return true;
+}
+
+async function speakRemote(text, duelistId, fetchImpl) {
+  const res = await fetchImpl("/api/voice", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text, duelist: duelistId }),
+  });
+  if (!res.ok) throw new Error(`voice ${res.status}`);
+  const blob = await res.blob();
+  audioEl ??= new Audio();
+  audioEl.src = URL.createObjectURL(blob);
+  audioEl.volume = 0.9;
+  await audioEl.play();
+  return true;
+}
+
+async function speak(text, duelistId, { fetchImpl = fetch, muted = false } = {}) {
+  if (muted || !text) return false;
+  if (remoteOk) {
+    try {
+      return await speakRemote(text, duelistId, fetchImpl);
+    } catch {
+      // fall through to the always-available local voice
+    }
+  }
+  return speakLocal(text, duelistId);
+}
+
+function stopVoice() {
+  globalThis.speechSynthesis?.cancel?.();
+  if (audioEl) { audioEl.pause(); audioEl.currentTime = 0; }
+}
+
+Object.assign(__exports, { enableRemoteVoice, speak, stopVoice });
+});
+
+__def("src/render.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// DOM rendering of everything outside the canvas: zones, hand, life points, log.
+// Reads duel state; never writes to it.
+
+const { CARDS, getCard } = __req("./cards/index.js");
+const { effectiveStats } = __req("./duel-engine.js");
+const { ATTRIBUTE_PALETTE } = __req("./cinema/procedural-stage.js");
+const { DUELISTS, getMatchup } = __req("./duelists.js");
+const el = (id) => document.getElementById(id);
+const KIND_LABEL = { monster: "MON", spell: "SPELL", trap: "TRAP" };
+
+function accentFor(card) {
+  if (card.kind === "spell") return "#6ee7a8";
+  if (card.kind === "trap") return "#ff9ec4";
+  return (ATTRIBUTE_PALETTE[card.attribute] ?? ATTRIBUTE_PALETTE.DARK).core;
+}
+
+function renderZones(state, side, container, { onZoneClick, targets = new Set(), ready = new Set(), row = "monsters" }) {
+  container.innerHTML = "";
+  state.sides[side][row].forEach((inst, index) => {
+    const zone = document.createElement("div");
+    zone.className = "zone";
+    zone.dataset.index = String(index);
+    if (inst) {
+      const card = getCard(inst.cardId);
+      zone.classList.add("is-filled");
+      zone.style.setProperty("--slot-accent", accentFor(card));
+      if (inst.faceDown) zone.classList.add("is-facedown");
+      if (row === "monsters" && inst.position === "defense") zone.classList.add("is-defense");
+      if (targets.has(inst.uid)) zone.classList.add("is-target");
+      if (ready.has(inst.uid)) zone.classList.add("is-ready");
+      if (!inst.faceDown) {
+        const name = document.createElement("span");
+        name.className = "zone-name";
+        name.textContent = card.name;
+        zone.append(name);
+        if (row === "monsters") {
+          const stat = document.createElement("span");
+          stat.className = "zone-stat";
+          const s = effectiveStats(state, side, inst);
+          stat.textContent = inst.position === "attack" ? `${s.atk}` : `${s.def}D`;
+          zone.append(stat);
+        }
+      }
+      zone.title = inst.faceDown ? "Face-down card" : `${card.name}${card.kind === "monster" ? ` — ${card.atk}/${card.def}` : ""}`;
+      if (onZoneClick) zone.addEventListener("click", () => onZoneClick(inst, side, row));
+    }
+    container.append(zone);
+  });
+}
+
+function renderHand(state, container, { onPlay, actions }) {
+  container.innerHTML = "";
+  const byUid = new Map();
+  for (const action of actions) {
+    if (!byUid.has(action.uid)) byUid.set(action.uid, []);
+    byUid.get(action.uid).push(action);
+  }
+  for (const inst of state.sides.player.hand) {
+    const card = getCard(inst.cardId);
+    const options = byUid.get(inst.uid) ?? [];
+    const button = document.createElement("button");
+    button.className = "card";
+    button.type = "button";
+    button.disabled = options.length === 0;
+    button.style.setProperty("--card-accent", accentFor(card));
+    button.innerHTML = `
+      <div class="card-top">
+        <span class="card-kind">${KIND_LABEL[card.kind]}</span>
+        ${card.kind === "monster" ? `<span class="card-level">L${card.level}</span>` : ""}
+      </div>
+      <div class="card-name"></div>
+      <div class="card-stats"></div>
+      <div class="card-text"></div>`;
+    button.querySelector(".card-name").textContent = card.name;
+    button.querySelector(".card-stats").textContent = card.kind === "monster"
+      ? `${card.atk} ATK / ${card.def} DEF` : `${card.sub ?? ""}`.toUpperCase();
+    button.querySelector(".card-text").textContent = card.text ?? card.art ?? "";
+    if (options.length) button.addEventListener("click", () => onPlay(inst, options));
+    container.append(button);
+  }
+}
+
+function renderDuelists(state) {
+  const matchup = getMatchup(state.matchupId);
+  el("matchup-name").textContent = matchup.name;
+  for (const [side, prefix] of [["player", "me"], ["opponent", "foe"]]) {
+    const s = state.sides[side];
+    const duelist = DUELISTS[s.duelistId];
+    el(`${prefix}-name`).textContent = duelist.name;
+    el(`${prefix}-title`).textContent = duelist.title;
+    el(`${prefix}-pip`).style.background = duelist.accent;
+    el(`${prefix}-deck`).textContent = `D ${s.deck.length}`;
+    el(`${prefix}-gy`).textContent = `GY ${s.graveyard.length}`;
+    if (prefix === "foe") el("foe-hand").textContent = `H ${s.hand.length}`;
+  }
+  el("me-turn").textContent = `T${state.turn}`;
+}
+
+const lastLp = { player: null, opponent: null };
+function renderLifePoints(state, max = 8000) {
+  for (const [side, prefix] of [["player", "me"], ["opponent", "foe"]]) {
+    const lp = state.sides[side].lp;
+    const fill = el(`${prefix}-lp-fill`);
+    const num = el(`${prefix}-lp`);
+    fill.style.width = `${Math.max(0, (lp / max) * 100)}%`;
+    fill.classList.toggle("is-low", lp <= max * 0.25);
+    num.textContent = String(lp);
+    if (lastLp[side] !== null && lp < lastLp[side]) {
+      num.classList.remove("is-hit");
+      void num.offsetWidth;
+      num.classList.add("is-hit");
+    }
+    lastLp[side] = lp;
+  }
+}
+
+function resetLifePointTracking() {
+  lastLp.player = null;
+  lastLp.opponent = null;
+}
+
+function renderPhase(phase) {
+  for (const node of document.querySelectorAll(".phase")) {
+    node.classList.toggle("is-now", node.dataset.phase === phase);
+  }
+}
+
+const BIG = new Set(["win", "fusion", "directAttack"]);
+
+function logEvent(list, event, state) {
+  const text = describe(event, state);
+  if (!text) return;
+  const li = document.createElement("li");
+  li.textContent = text;
+  li.classList.add(event.side === "player" ? "is-me" : "is-foe");
+  if (BIG.has(event.type)) li.classList.add("is-big");
+  list.prepend(li);
+  while (list.children.length > 60) list.lastChild.remove();
+}
+
+function who(state, side) {
+  return DUELISTS[state.sides[side]?.duelistId]?.name ?? side;
+}
+
+function describe(event, state) {
+  const name = who(state, event.side);
+  switch (event.type) {
+    case "phase": return event.phase === "draw" ? `— Turn ${event.turn}: ${name} —` : null;
+    case "draw": return event.side === "player" ? `${name} draws ${event.card}.` : `${name} draws.`;
+    case "summon": return `${name} ${event.how === "fusion" ? "Fusion Summons" : event.how === "set" ? "sets a monster" : "summons"}${event.how === "set" ? "" : ` ${event.card}`}.`;
+    case "set": return `${name} sets a ${event.kind}.`;
+    case "activate": return `${name} activates ${event.card}.`;
+    case "declare": return `${event.card} attacks ${event.target === "direct" ? "directly" : event.target}.`;
+    case "clash": return `${event.attacker} (${event.attackerAtk}) meets ${event.defender} (${event.defenderValue}).`;
+    case "destroy": return `${event.card} is destroyed.`;
+    case "damage": return `${who(state, event.side)} takes ${event.amount} damage → ${event.lp} LP.`;
+    case "directAttack": return `Direct attack! ${event.damage} damage.`;
+    case "fusion": return `Fusion Summon: ${event.card}!`;
+    case "dice": return `Dice roll: ${event.roll}.`;
+    case "hats": return event.hit ? "The attack finds the real monster." : "The attack hits an empty hat.";
+    case "flip": return `${event.card} is flipped face-up.`;
+    case "position": return `${event.card} switches to ${event.position}.`;
+    case "fieldShift": return `${event.label} takes hold.`;
+    case "bounce": return `${event.card} returns to the hand.`;
+    case "win": return `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
+    default: return null;
+  }
+}
+
+
+Object.assign(__exports, { renderZones, renderHand, renderDuelists, renderLifePoints, resetLifePointTracking, renderPhase, logEvent, describe, el, CARDS });
+});
+
+__def("src/cinema/storyboard.js", {"../cards/index.js":"src/cards/index.js","../duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// Turns rules-engine events into a shot list. The prompt text is rebuilt from
+// battle facts every time, so the cinema can never contradict the duel.
+
+const { CARDS } = __req("../cards/index.js");
+const { DUELISTS, getMatchup } = __req("../duelists.js");
+const STYLE = "cel-shaded late-90s anime, heavy ink outlines, saturated holographic lighting, "
+  + "dramatic low camera angle, 16:9 widescreen, no text, no watermark, no logos";
+
+let nameIndex = null;
+function cardByName(name) {
+  nameIndex ??= Object.fromEntries(Object.values(CARDS).map((card) => [card.name, card]));
+  return nameIndex[name] ?? null;
+}
+
+function monsterArt(name) {
+  const card = cardByName(name);
+  return card?.art ?? `a duel monster called ${name}`;
+}
+
+function shotSeed(shot) {
+  let h = 2166136261;
+  for (const ch of shot.id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return Math.abs(h % 2147483647);
+}
+
+function duelistOf(state, side) {
+  return DUELISTS[state.sides[side].duelistId];
+}
+
+function baseScene(state) {
+  return getMatchup(state.matchupId).arena;
+}
+
+const SHOT_BUILDERS = {
+  summon(event, state, seq) {
+    const duelist = duelistOf(state, event.side);
+    const how = event.how === "fusion" ? "erupts out of a fusion vortex"
+      : event.how === "reborn" ? "claws its way up out of a glowing grave"
+      : event.faceDown ? "materialises as a sealed face-down card" : "slams down onto the field";
+    return {
+      kind: event.how === "fusion" ? "fusion" : "summon",
+      title: event.card,
+      subtitle: `${duelist.name} · ${event.atk ?? "?"} ATK`,
+      seconds: event.how === "fusion" ? 3.4 : 2.4,
+      prompt: `${monsterArt(event.card)}; the monster ${how} in ${baseScene(state)}; ${STYLE}`,
+      voice: duelist.lines[event.how === "fusion" ? "ace" : "summon"].replace("{card}", event.card),
+    };
+  },
+
+  clash(event, state) {
+    const duelist = duelistOf(state, event.side);
+    const outcome = event.attackerAtk > event.defenderValue ? "shattering the defender in a burst of light"
+      : event.attackerAtk < event.defenderValue ? "and is thrown back, cracking apart"
+      : "in a mutual detonation that consumes both";
+    return {
+      kind: "clash",
+      title: `${event.attacker} → ${event.defender}`,
+      subtitle: `${event.attackerAtk} vs ${event.defenderValue}`,
+      seconds: 2.8,
+      prompt: `${monsterArt(event.attacker)} charges ${monsterArt(event.defender)} ${outcome}; `
+        + `${baseScene(state)}; ${STYLE}`,
+      voice: duelist.lines.attack.replace("{card}", event.attacker),
+    };
+  },
+
+  directAttack(event, state) {
+    const duelist = duelistOf(state, event.side);
+    return {
+      kind: "direct",
+      title: `Direct attack — ${event.damage}`,
+      subtitle: `${duelist.name} swings for the throat`,
+      seconds: 2.6,
+      prompt: `${monsterArt(event.card)} tears past an empty field and strikes the opposing duelist's `
+        + `holographic barrier, light exploding outward; ${baseScene(state)}; ${STYLE}`,
+      voice: duelist.lines.attack.replace("{card}", event.card),
+    };
+  },
+
+  activate(event, state) {
+    const duelist = duelistOf(state, event.side);
+    return {
+      kind: event.reveal ? "trap" : "spell",
+      title: event.card,
+      subtitle: event.text ?? "",
+      seconds: 2.2,
+      prompt: `${event.art ?? event.card}; a huge holographic card flips face-up and floods the arena `
+        + `with light; ${baseScene(state)}; ${STYLE}`,
+      voice: event.reveal ? duelist.lines.trap.replace("{card}", event.card) : null,
+    };
+  },
+
+  win(event, state) {
+    const duelist = duelistOf(state, event.side);
+    const loser = duelistOf(state, event.side === "player" ? "opponent" : "player");
+    return {
+      kind: "finish",
+      title: `${duelist.name} wins`,
+      subtitle: event.reason === "deckout" ? "Deck out" : "Life Points depleted",
+      seconds: 5,
+      prompt: `${duelist.portrait} stands victorious as the holograms fade; `
+        + `${baseScene(state)}; ${STYLE}`,
+      voice: duelist.lines.win,
+      loserVoice: loser.lines.lose,
+    };
+  },
+};
+
+const CINEMATIC = new Set(["summon", "clash", "directAttack", "activate", "win"]);
+
+function buildStoryboard(events, state, { turn = state.turn } = {}) {
+  const shots = [];
+  events.forEach((event, i) => {
+    if (!CINEMATIC.has(event.type)) return;
+    if (event.type === "summon" && event.how === "token") return;
+    const built = SHOT_BUILDERS[event.type](event, state, i);
+    shots.push({
+      ...built,
+      id: `t${turn}-${i}-${built.kind}-${(built.title ?? "").replace(/\W+/g, "").slice(0, 24)}`,
+      side: event.side,
+      turn,
+      event,
+    });
+  });
+  return shots;
+}
+
+function idleShot(state) {
+  const player = duelistOf(state, "player");
+  const foe = duelistOf(state, "opponent");
+  return {
+    id: `idle-${state.matchupId}`,
+    kind: "idle",
+    title: "Standoff",
+    subtitle: `${player.name} vs ${foe.name}`,
+    seconds: 4,
+    side: "player",
+    turn: state.turn,
+    prompt: `${player.portrait} facing off against ${foe.portrait} across ${baseScene(state)}, `
+      + `duel disks lit, holograms idling; ${STYLE}`,
+    voice: null,
+  };
+}
+
+Object.assign(__exports, { shotSeed, buildStoryboard, idleShot });
+});
+
+__def("src/banter.js", {"./banter-lines.js":"src/banter-lines.js","./cards/index.js":"src/cards/index.js","./duelists.js":"src/duelists.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// Banter director. Reads what the engine actually did and picks a line for it,
+// plus — sometimes — a retort from the other duelist, so exchanges read like a
+// conversation rather than two people narrating in parallel.
+
+const { BANTER, REPLY_FOR } = __req("./banter-lines.js");
+const { CARDS } = __req("./cards/index.js");
+const { DUELISTS } = __req("./duelists.js");
+const { other } = __req("./duel-state.js");
+const BIG_ATK = 2400;
+const BIG_HIT = 1500;
+const LOW_LIFE = 2000;
+const LEAD = 3000;
+
+const pick = (list, rng) => list[Math.floor(rng() * list.length)];
+
+// The moment a single event represents, if any. Returns null for the ordinary
+// beats that would make the duelists chatter over nothing.
+function situationFor(event, state) {
+  const side = event.side;
+  if (!side || !state.sides[side]) return null;
+  const ace = DUELISTS[state.sides[side].duelistId].ace;
+
+  if (event.type === "summon") {
+    if (event.how === "token" || event.how === "set" || event.faceDown) return null;
+    if (event.how === "fusion") return "fusion";
+    const cardId = idFor(event.card);
+    if (cardId === ace) return "ace";
+    if ((event.atk ?? 0) >= BIG_ATK) return "bigSummon";
+    return null;
+  }
+  if (event.type === "activate" && event.reveal) return "trap";
+  if (event.type === "directAttack") return "direct";
+  if (event.type === "damage" && event.amount >= BIG_HIT) return "hurt";
+  if (event.type === "draw" && idFor(event.card) === ace) return "topdeck";
+  return null;
+}
+
+let nameToId = null;
+function idFor(name) {
+  nameToId ??= Object.fromEntries(Object.entries(CARDS).map(([id, card]) => [card.name, id]));
+  return nameToId[name] ?? null;
+}
+
+function moodLine(state, side, rng) {
+  const mine = state.sides[side].lp;
+  const theirs = state.sides[other(side)].lp;
+  if (mine <= LOW_LIFE) return "low";
+  if (mine - theirs >= LEAD) return "winning";
+  if (theirs - mine >= LEAD) return "losing";
+  return null;
+}
+
+const linesFor = (duelistId, bucket, situation) => BANTER[duelistId]?.[bucket]?.[situation] ?? null;
+
+/**
+ * Turn one turn's events into a short exchange. At most two lines per call, so
+ * the duelists punctuate the action instead of talking over it.
+ */
+function directBanter(events, state, rng = Math.random, { moodChance = 0.22 } = {}) {
+  for (const event of events) {
+    const situation = situationFor(event, state);
+    if (!situation) continue;
+    const side = event.side;
+    const duelistId = state.sides[side].duelistId;
+    const found = linesFor(duelistId, "say", situation);
+    if (!found) continue;
+
+    const out = [{
+      side,
+      duelistId,
+      situation,
+      text: pick(found, rng).replace("{card}", event.card ?? ""),
+    }];
+
+    const replyKey = REPLY_FOR[situation];
+    const foeSide = other(side);
+    const foeId = state.sides[foeSide].duelistId;
+    const reply = replyKey ? linesFor(foeId, "reply", replyKey) : null;
+    if (reply && rng() < 0.55) {
+      out.push({ side: foeSide, duelistId: foeId, situation: replyKey, text: pick(reply, rng) });
+    }
+    return out;
+  }
+
+  // Nothing dramatic happened. Occasionally let whoever is ahead or behind speak.
+  if (rng() > moodChance) return [];
+  const side = state.activeSide;
+  const mood = moodLine(state, side, rng);
+  if (!mood) return [];
+  const duelistId = state.sides[side].duelistId;
+  const found = linesFor(duelistId, "say", mood);
+  return found ? [{ side, duelistId, situation: mood, text: pick(found, rng) }] : [];
+}
+
+function openingExchange(state, rng = Math.random) {
+  return ["player", "opponent"].map((side) => {
+    const duelist = DUELISTS[state.sides[side].duelistId];
+    return { side, duelistId: duelist.id, situation: "open", text: duelist.lines.open };
+  });
+}
+
+function closingExchange(state) {
+  if (!state.winner) return [];
+  const loser = other(state.winner);
+  return [
+    { side: state.winner, duelistId: state.sides[state.winner].duelistId, situation: "win", text: DUELISTS[state.sides[state.winner].duelistId].lines.win },
+    { side: loser, duelistId: state.sides[loser].duelistId, situation: "lose", text: DUELISTS[state.sides[loser].duelistId].lines.lose },
+  ];
+}
+
+Object.assign(__exports, { situationFor, directBanter, openingExchange, closingExchange });
+});
+
+__def("src/banter-lines.js", {}, function (__exports, __req) {
+// Duelist banter. Original lines written in each character's voice — not show
+// transcripts. `say` fires on your own moments, `reply` on your opponent's.
+
+const BANTER = {
+  yugi: {
+    say: {
+      ace: [
+        "Dark Magician — I've been waiting for you.",
+        "My most trusted friend answers the call!",
+        "This card and I have been through everything together.",
+      ],
+      bigSummon: [
+        "The cards are with me. {card}, take the field!",
+        "You'll need more than raw power to beat {card}.",
+      ],
+      fusion: [
+        "Two monsters, one will — {card} rises!",
+        "Fusion Summon! This is the bond you keep underestimating.",
+      ],
+      trap: [
+        "I set this three turns ago. Reveal — {card}!",
+        "Every move you made led here. {card}, activate!",
+      ],
+      bigHit: [
+        "That's what conviction looks like.",
+        "Feel that? That's my deck fighting back.",
+      ],
+      direct: ["Straight through! Nothing between us now.", "No monsters, no shield — this one's yours."],
+      hurt: ["Ngh — I felt that one.", "You hit hard. But I'm still standing."],
+      low: [
+        "I'm not out. As long as I have one card left, I have a chance.",
+        "My life points are low — my resolve isn't.",
+      ],
+      winning: ["Don't give up. You still have a move.", "The duel isn't over until the last card is drawn."],
+      losing: ["I just need one card. And I trust my deck to give it to me.", "Come on… heart of the cards."],
+      topdeck: ["I drew exactly what I needed. That's not luck — that's trust.", "There you are. Right on time."],
+    },
+    reply: {
+      vsAce: ["So that's your ace. I'm not afraid of it.", "Impressive. But power alone has never beaten me."],
+      vsFusion: ["A fusion? Then I'll answer it.", "You brought your best. Good — so did I."],
+      vsTrap: ["A trap. I should have seen it.", "Clever. I won't fall for that twice."],
+      vsBigHit: ["That hurt — but it woke me up.", "Is that all? Then it's my turn."],
+      vsDirect: ["Ugh! Straight through my defences.", "I left myself open. That won't happen again."],
+    },
+  },
+
+  kaiba: {
+    say: {
+      ace: [
+        "Behold the ultimate creature — Blue-Eyes White Dragon!",
+        "You're staring at perfection. Try not to blink.",
+        "My dragon doesn't need luck. It needs a target.",
+      ],
+      bigSummon: ["{card}. Consider it a formality.", "I don't summon monsters. I deploy weapons."],
+      fusion: ["Three dragons, one apex. {card}!", "This is the card your entire deck was built to lose to."],
+      trap: ["You walked straight into it, like every amateur before you. {card}!", "Predictable. {card}, activate."],
+      bigHit: ["That's the difference between us.", "Was that supposed to be a strategy?"],
+      direct: ["Nothing left to hide behind.", "Wide open. How disappointing."],
+      hurt: ["Tch. A scratch.", "Enjoy that. It won't happen again."],
+      low: [
+        "Low life points don't frighten me. Losing does — and I don't lose.",
+        "You've done nothing but delay the inevitable.",
+      ],
+      winning: ["This duel ended the moment you sat down.", "Concede. You'll save us both the time."],
+      losing: ["No. I refuse to lose to you again.", "My deck is flawless. The error is temporary."],
+      topdeck: ["Exactly the card I designed this deck to draw.", "That's not chance. That's engineering."],
+    },
+    reply: {
+      vsAce: ["That relic? My dragon eats worse before breakfast.", "Your ace is a footnote."],
+      vsFusion: ["A fusion. How quaint.", "You needed two cards to reach what I do with one."],
+      vsTrap: ["A trap card. The last refuge of a weak deck.", "Hiding behind face-downs. Pathetic."],
+      vsBigHit: ["Luck. Nothing more.", "Take your points. I'm taking the duel."],
+      vsDirect: ["A direct hit. Don't get comfortable.", "You'll pay for that in full."],
+    },
+  },
+
+  joey: {
+    say: {
+      ace: [
+        "Red-Eyes Black Dragon — let's light this place up!",
+        "Here comes my main man! Red-Eyes, get out here!",
+        "You wanted my best? You're lookin' at him.",
+      ],
+      bigSummon: ["{card}'s on the field, and he ain't happy!", "Check it out — {card}! Who's laughin' now?"],
+      fusion: ["Polymerization! Say hello to {card}!", "Two of mine make one of him. {card}, let's go!"],
+      trap: ["Ha! Gotcha! {card}, do your thing!", "Bet you didn't see that comin'. {card}!"],
+      bigHit: ["Boom! How'd that taste?", "That's for every time you called me a rookie!"],
+      direct: ["Nothin' in my way — this one's goin' straight through!", "Wide open! Sorry not sorry!"],
+      hurt: ["Ow! Okay, okay, that one stung.", "Alright, that was a good shot. I'll give ya that."],
+      low: [
+        "I've been down worse than this. Don't count me out!",
+        "Low on life points, high on nerve. Let's go!",
+      ],
+      winning: ["Who's the underdog now, huh?", "I'm actually winnin'! Nobody tell me, I'll jinx it."],
+      losing: ["I ain't done. Not even close.", "One good draw. That's all I need. Come on…"],
+      topdeck: ["Yes! Exactly what I needed! Told ya I'm lucky!", "Ha! The deck's got my back!"],
+    },
+    reply: {
+      vsAce: ["So that's the big scary one? Doesn't look so tough.", "Nice monster. Shame about what's gonna happen to it."],
+      vsFusion: ["Aw come on, a fusion? Now you're just showin' off.", "Two monsters? That's cheatin'! ...it's not, but still!"],
+      vsTrap: ["A trap?! Oh, you gotta be kiddin' me!", "Every time! Every single time!"],
+      vsBigHit: ["Agh! Alright, that one hurt.", "Lucky shot! Won't happen twice!"],
+      vsDirect: ["Straight to the face! Not cool!", "Okay, ow. Message received."],
+    },
+  },
+
+  mai: {
+    say: {
+      ace: [
+        "Meet my Harpie's Pet Dragon, hon. She doesn't share the spotlight.",
+        "Time to show you what real elegance looks like.",
+        "My girls have been waiting for this.",
+      ],
+      bigSummon: ["{card}. Try to keep up, sweetheart.", "Say hello to {card}. Say goodbye to your board."],
+      fusion: ["{card}. Beauty and power — I don't compromise.", "Watch closely. {card} takes the field."],
+      trap: ["Too slow, hon. {card}!", "Did you really think I'd leave that zone empty? {card}!"],
+      bigHit: ["Was that too much? I'd apologise, but I won't.", "That's what happens when you underestimate me."],
+      direct: ["Nothing in the way. How careless of you.", "Straight through, darling."],
+      hurt: ["Ugh. You'll pay for that one.", "Cute. Do it again and I'll get annoyed."],
+      low: ["Low life points look good on me. Watch.", "Don't celebrate yet, hon. I duel best cornered."],
+      winning: ["This is almost too easy.", "I'd offer you a rematch, but let's finish this one first."],
+      losing: ["No. I'm not losing to you.", "Fine. You want a real duel? You've got one."],
+      topdeck: ["Perfect draw. Of course it was.", "The deck knows what I need. It always does."],
+    },
+    reply: {
+      vsAce: ["So that's your prize card. It's… fine, I guess.", "Big monster. Big target."],
+      vsFusion: ["A fusion? Someone's been practising.", "Cute trick. My girls have seen worse."],
+      vsTrap: ["A face-down. And here I thought you were bluffing.", "Nice one. I'll remember that."],
+      vsBigHit: ["Ow — okay, that one actually landed.", "Don't look so pleased with yourself."],
+      vsDirect: ["Straight through! You little—", "Fine. Point taken. Now it's my turn."],
+    },
+  },
+};
+
+const SITUATIONS = [
+  "ace", "bigSummon", "fusion", "trap", "bigHit", "direct",
+  "hurt", "low", "winning", "losing", "topdeck",
+];
+
+const REPLY_FOR = {
+  ace: "vsAce", fusion: "vsFusion", trap: "vsTrap", bigHit: "vsBigHit", direct: "vsDirect",
+};
+
+Object.assign(__exports, { BANTER, SITUATIONS, REPLY_FOR });
+});
+
+__make("src/app.js");
+</script>
+  </body>
+</html>

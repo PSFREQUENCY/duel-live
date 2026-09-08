@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="Rule-driven Yu-Gi-Oh style duels rendered as AI cinema on a zero-cost provider stack. Yugi vs Kaiba, Joey vs Mai." />
+    <title>Duel Live</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <p class="eyebrow">DUEL LIVE</p>
+          <h1 id="matchup-name">Duel I — Battle City Finals</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <label class="control" for="matchup-select">
+          <span>Duel</span>
+          <select id="matchup-select">
+            <option value="yugi-kaiba">Yugi vs Kaiba</option>
+            <option value="joey-mai">Joey vs Mai Valentine</option>
+          </select>
+        </label>
+        <label class="control" for="tier-select">
+          <span>Cinema</span>
+          <select id="tier-select">
+            <option value="video">Auto (best free tier)</option>
+            <option value="still">AI stills only</option>
+            <option value="procedural">Procedural only</option>
+          </select>
+        </label>
+        <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
+        <button class="btn" id="rules-btn" type="button">Rules</button>
+        <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
+      </div>
+    </header>
+
+    <main class="arena-wrap">
+      <section class="arena" aria-label="Duel arena">
+        <canvas id="stage" class="stage-canvas" width="1280" height="720"></canvas>
+        <img id="stage-still" class="stage-media" alt="" hidden />
+        <video id="stage-video" class="stage-media" muted playsinline preload="auto" hidden></video>
+        <div class="stage-vignette" aria-hidden="true"></div>
+
+        <div class="duelist-bar duelist-bar--foe">
+          <div class="duelist-id">
+            <span class="pip" id="foe-pip"></span>
+            <div><strong id="foe-name">Seto Kaiba</strong><small id="foe-title">CEO of KaibaCorp</small></div>
+          </div>
+          <div class="lp-block">
+            <div class="lp-track"><i id="foe-lp-fill"></i></div>
+            <span class="lp-num" id="foe-lp">8000</span>
+          </div>
+          <div class="counts"><span id="foe-hand">H 5</span><span id="foe-deck">D 35</span><span id="foe-gy">GY 0</span></div>
+        </div>
+
+        <div class="zones zones--foe" id="foe-backrow" aria-label="Opponent spell and trap zones"></div>
+        <div class="zones zones--foe-monsters" id="foe-monsters" aria-label="Opponent monster zones"></div>
+
+        <div class="shot-caption" id="shot-caption" hidden>
+          <span class="shot-kind" id="shot-kind">SUMMON</span>
+          <strong id="shot-title"></strong>
+          <small id="shot-sub"></small>
+          <span class="shot-tier" id="shot-tier"></span>
+        </div>
+
+        <div class="zones zones--me-monsters" id="my-monsters" aria-label="Your monster zones"></div>
+        <div class="zones zones--me" id="my-backrow" aria-label="Your spell and trap zones"></div>
+
+        <div class="banter" id="banter" hidden>
+          <span class="banter-who" id="banter-who"></span>
+          <p class="banter-text" id="banter-text"></p>
+        </div>
+
+        <div class="duelist-bar duelist-bar--me">
+          <div class="duelist-id">
+            <span class="pip" id="me-pip"></span>
+            <div><strong id="me-name">Yugi Muto</strong><small id="me-title">King of Games</small></div>
+          </div>
+          <div class="lp-block">
+            <div class="lp-track"><i id="me-lp-fill"></i></div>
+            <span class="lp-num" id="me-lp">8000</span>
+          </div>
+          <div class="counts"><span id="me-deck">D 35</span><span id="me-gy">GY 0</span><span id="me-turn">T1</span></div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="phase-rail" id="phase-rail" role="group" aria-label="Phase">
+          <span class="phase" data-phase="draw">Draw</span>
+          <span class="phase" data-phase="main1">Main</span>
+          <span class="phase" data-phase="battle">Battle</span>
+          <span class="phase" data-phase="end">End</span>
+        </div>
+        <button class="btn btn-wide" id="advance-btn" type="button">To Battle Phase</button>
+        <div class="recovery">
+          <button class="btn btn-ghost" id="skip-btn" type="button" hidden>Skip scene ⏭</button>
+          <button class="btn btn-warn" id="resume-btn" type="button" hidden>Resume duel</button>
+        </div>
+        <div class="prompt" id="prompt" hidden>
+          <p id="prompt-text"></p>
+          <div class="prompt-actions" id="prompt-actions"></div>
+        </div>
+        <h2 class="side-heading">Duel log</h2>
+        <ol class="log" id="log"></ol>
+      </aside>
+    </main>
+
+    <section class="hand-rail" aria-label="Your hand">
+      <div class="hand-head"><h2>Hand</h2><span id="hand-hint">Click a card to play it</span></div>
+      <div class="hand" id="hand"></div>
+    </section>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h2 id="modal-title">How this duel works</h2>
+        <div class="modal-body" id="modal-body"></div>
+        <button class="btn btn-accent" id="modal-close" type="button">Close</button>
+      </div>
+    </div>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>

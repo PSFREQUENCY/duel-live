@@ -1,0 +1,17 @@
+{
+  "name": "duel-live",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Rule-driven Yu-Gi-Oh style duels rendered as AI cinema on a zero-cost provider stack.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env.local server.mjs",
+    "test": "node --test --test-timeout=60000 tests/*.test.js",
+    "smoke": "node scripts/boot-check.mjs",
+    "selfplay": "node scripts/selfplay.mjs 200",
+    "keycheck": "node scripts/check-free-tier.mjs",
+    "build": "node scripts/build-single-file.mjs",
+    "key": "node scripts/add-key.mjs"
+  }
+}
