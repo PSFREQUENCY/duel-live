@@ -76,16 +76,17 @@ Then earn a starting balance. These are the live quest rewards, cheapest first:
 | Pollen | How |
 | ---: | :--- |
 | 0.25 | Create your first API key |
-| 0.25 ×3 | One text, one image, one audio request — `npm run keycheck` does these for you |
+| 0.25 ×3 | One text, one image, one audio request — `npm run keycheck` makes all three |
 | 0.25 | Log in to any app in the Pollinations app directory |
 | 1.00 | Connect Discord and join their server |
 | 3.00 | Sign in with a GitHub account at least two years old — automatic |
 | 5.00 | Get a pull request merged into the Pollinations repo |
 | 3–30 | Close a `POLLEN-QUEST` bounty issue |
 
-**~5 Pollen is reachable in a few minutes**, and at 0.08 Pollen per second of video that is
-roughly **60 seconds — about 10 clips**. If your GitHub account is over two years old you
-get most of it for simply signing in.
+`amazon/nova-reel-v1` has a **6-second minimum** and bills 0.08 Pollen per second, so **one
+clip costs 0.48 Pollen** — there is no cheaper test. Budget at least that before expecting
+tier 2 to do anything. If your GitHub account is over two years old, signing in alone covers
+six clips.
 
 Then add it in one command:
 

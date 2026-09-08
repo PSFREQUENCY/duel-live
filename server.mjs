@@ -64,10 +64,19 @@ function authHeaders() {
 
 // ------------------------------------------------------------- generation ---
 
+// amazon/nova-reel-v1 advertises min_duration 6 / max_duration 120 and bills per
+// second, so a shorter request is rejected rather than being cheaper.
+const VIDEO_MIN_SECONDS = 6;
+const VIDEO_MAX_SECONDS = 10;
+
+function clampSeconds(seconds) {
+  return Math.min(VIDEO_MAX_SECONDS, Math.max(VIDEO_MIN_SECONDS, Math.round(seconds)));
+}
+
 function videoUrl(prompt, seconds, seed) {
   const q = new URLSearchParams({
     model: CFG.video, width: String(CFG.width), height: String(CFG.height),
-    seed: String(seed), duration: String(Math.min(seconds, 10)), aspectRatio: "16:9",
+    seed: String(seed), duration: String(clampSeconds(seconds)), aspectRatio: "16:9",
   });
   return `${GEN}/video/${encodeURIComponent(prompt)}?${q}`;
 }
@@ -148,7 +157,7 @@ async function handleShot(req, res) {
   const { prompt, tier = "still", seconds = CFG.seconds, id = "" } = body;
   if (!prompt || typeof prompt !== "string") return json(res, 400, { error: "prompt required" });
   if (tier === "video" && !KEY) return json(res, 402, { error: "video tier needs a free key" });
-  if (tier === "video" && !affordsVideo(await pollenBalance(), seconds)) {
+  if (tier === "video" && !affordsVideo(await pollenBalance(), clampSeconds(seconds))) {
     return json(res, 402, { error: "not enough free pollen for a video clip", pollen: balanceCache.pollen });
   }
 
@@ -219,11 +228,11 @@ async function serveStatic(req, res, pathname) {
 const ROUTES = {
   "GET /api/capability": async (req, res) => {
     const pollen = await pollenBalance();
-    const canVideo = Boolean(KEY) && affordsVideo(pollen, CFG.seconds);
+    const canVideo = Boolean(KEY) && affordsVideo(pollen, clampSeconds(CFG.seconds));
     json(res, 200, {
       still: true, video: canVideo, voice: Boolean(KEY), realtime: Boolean(KEY),
       keyPresent: Boolean(KEY), pollen,
-      videoClipsLeft: pollen === null ? null : Math.floor(pollen / (CFG.seconds * VIDEO_POLLEN_PER_SECOND)),
+      videoClipsLeft: pollen === null ? null : Math.floor(pollen / (clampSeconds(CFG.seconds) * VIDEO_POLLEN_PER_SECOND)),
       models: { video: CFG.video, image: CFG.image, realtime: CFG.realtime },
     });
   },

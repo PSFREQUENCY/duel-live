@@ -43,7 +43,9 @@ async function probe(label, run, { ms = 60000 } = {}) {
 }
 
 async function expectBinary(url, kind, signal, init = {}) {
-  const res = await fetch(url, { headers: { ...auth, ...(init.headers ?? {}) }, ...init, signal });
+  // `headers` must be merged after `init` is spread, or a caller-supplied
+  // headers object silently replaces the whole thing and drops the auth token.
+  const res = await fetch(url, { ...init, headers: { ...auth, ...(init.headers ?? {}) }, signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const bytes = (await res.arrayBuffer()).byteLength;
   if (bytes < 512) throw new Error("empty response");
