@@ -141,7 +141,9 @@ test("the library covers every duel and stays small enough to prewarm", () => {
   }
   for (const entry of library) {
     assert.ok(entry.prompt.length > 60, `${entry.key} has a thin prompt`);
-    assert.match(entry.prompt, /no text, no watermark/, `${entry.key} is missing the house style`);
+    assert.match(entry.prompt, /no text, no subtitles/, `${entry.key} is missing the house style`);
+    assert.match(entry.prompt, /Duel Disk clamped to their left forearm/,
+      `${entry.key} is missing the world block — a generator reads "arena" as a sports stadium without it`);
   }
 });
 

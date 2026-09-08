@@ -13,6 +13,8 @@
     "keycheck": "node --env-file-if-exists=.env.local scripts/check-free-tier.mjs",
     "build": "node scripts/build-single-file.mjs",
     "key": "node scripts/add-key.mjs",
-    "prewarm": "node --env-file-if-exists=.env.local scripts/prewarm-library.mjs"
+    "prewarm": "node --env-file-if-exists=.env.local scripts/prewarm-library.mjs",
+    "shotlist": "node scripts/build-shot-list.mjs",
+    "clips": "node scripts/check-clips.mjs"
   }
 }

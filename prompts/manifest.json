@@ -1,0 +1,672 @@
+{
+  "generated": "2026-09-08",
+  "total": 78,
+  "style": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark",
+  "world": "A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges",
+  "shots": [
+    {
+      "key": "arena-cliff",
+      "category": "arena",
+      "label": "Establishing — cliff arena",
+      "priority": 1,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slow push in across a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below, empty, torches guttering, ready for a duel."
+    },
+    {
+      "key": "arena-rooftop",
+      "category": "arena",
+      "label": "Establishing — rooftop arena",
+      "priority": 1,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slow push in across a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges, empty, projector pylons pulsing, ready for a duel."
+    },
+    {
+      "key": "open-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Duel start",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed raises their left arm and the Duel Disk snaps open, card slots swinging out and igniting one after another, light washing up across their face; they lock eyes with an unseen opponent across a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "open-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Duel start",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists raises their left arm and the Duel Disk snaps open, card slots swinging out and igniting one after another, light washing up across their face; they lock eyes with an unseen opponent across a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "open-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Duel start",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked raises their left arm and the Duel Disk snaps open, card slots swinging out and igniting one after another, light washing up across their face; they lock eyes with an unseen opponent across a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "open-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Duel start",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck raises their left arm and the Duel Disk snaps open, card slots swinging out and igniting one after another, light washing up across their face; they lock eyes with an unseen opponent across a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "play-activate-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Activate a Spell or Trap",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, throwing their arm up as a huge holographic card flips face-up in front of them, its frame blazing, flooding the arena with light; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "play-activate-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Activate a Spell or Trap",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, throwing their arm up as a huge holographic card flips face-up in front of them, its frame blazing, flooding the arena with light; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "play-activate-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Activate a Spell or Trap",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, throwing their arm up as a huge holographic card flips face-up in front of them, its frame blazing, flooding the arena with light; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "play-activate-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Activate a Spell or Trap",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, throwing their arm up as a huge holographic card flips face-up in front of them, its frame blazing, flooding the arena with light; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "play-summon-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Normal Summon",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, slamming a card down into a Duel Disk slot and thrusting their arm forward; a column of light erupts from the disk as a monster hologram begins to form above it; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "play-summon-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Normal Summon",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, slamming a card down into a Duel Disk slot and thrusting their arm forward; a column of light erupts from the disk as a monster hologram begins to form above it; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "play-summon-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Normal Summon",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, slamming a card down into a Duel Disk slot and thrusting their arm forward; a column of light erupts from the disk as a monster hologram begins to form above it; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "play-summon-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Normal Summon",
+      "priority": 1,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, slamming a card down into a Duel Disk slot and thrusting their arm forward; a column of light erupts from the disk as a monster hologram begins to form above it; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "react-confident-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Reaction — confident taunt",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, smirking with absolute certainty, head tilted, holographic light flickering across their face as they speak; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "react-confident-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Reaction — confident taunt",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, smirking with absolute certainty, head tilted, holographic light flickering across their face as they speak; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "react-confident-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Reaction — confident taunt",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, smirking with absolute certainty, head tilted, holographic light flickering across their face as they speak; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "react-confident-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Reaction — confident taunt",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, smirking with absolute certainty, head tilted, holographic light flickering across their face as they speak; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "react-shocked-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Reaction — taking a big hit",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, recoiling and throwing an arm up to shield their face as a shockwave of light blasts past them, coat and hair whipping back; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "react-shocked-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Reaction — taking a big hit",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, recoiling and throwing an arm up to shield their face as a shockwave of light blasts past them, coat and hair whipping back; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "react-shocked-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Reaction — taking a big hit",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, recoiling and throwing an arm up to shield their face as a shockwave of light blasts past them, coat and hair whipping back; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "react-shocked-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Reaction — taking a big hit",
+      "priority": 1,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, recoiling and throwing an arm up to shield their face as a shockwave of light blasts past them, coat and hair whipping back; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "win-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Victory",
+      "priority": 1,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, standing tall as the last holograms break apart and dissolve around them, Duel Disk powering down, wind pulling at their clothes; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "win-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Victory",
+      "priority": 1,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, standing tall as the last holograms break apart and dissolve around them, Duel Disk powering down, wind pulling at their clothes; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "win-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Victory",
+      "priority": 1,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, standing tall as the last holograms break apart and dissolve around them, Duel Disk powering down, wind pulling at their clothes; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "win-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Victory",
+      "priority": 1,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, standing tall as the last holograms break apart and dissolve around them, Duel Disk powering down, wind pulling at their clothes; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "lp-damage",
+      "category": "arena",
+      "label": "Life points dropping",
+      "priority": 2,
+      "seconds": 3,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. extreme close-up of the round life-point counter set into a forearm Duel Disk, the glowing number spinning downward as the housing flashes red and sparks."
+    },
+    {
+      "key": "draw-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Draw — topdeck moment",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close on a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, drawing a single card from the Duel Disk deck holder and turning it over, eyes widening as light catches the card face; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "draw-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Draw — topdeck moment",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close on a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, drawing a single card from the Duel Disk deck holder and turning it over, eyes widening as light catches the card face; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "draw-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Draw — topdeck moment",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close on a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, drawing a single card from the Duel Disk deck holder and turning it over, eyes widening as light catches the card face; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "draw-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Draw — topdeck moment",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close on a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, drawing a single card from the Duel Disk deck holder and turning it over, eyes widening as light catches the card face; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "lose-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Defeat",
+      "priority": 2,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, staggering back a step as their life-point counter hits zero and every hologram in front of them shatters into fading light; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "lose-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Defeat",
+      "priority": 2,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, staggering back a step as their life-point counter hits zero and every hologram in front of them shatters into fading light; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "lose-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Defeat",
+      "priority": 2,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, staggering back a step as their life-point counter hits zero and every hologram in front of them shatters into fading light; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "lose-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Defeat",
+      "priority": 2,
+      "seconds": 5,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, staggering back a step as their life-point counter hits zero and every hologram in front of them shatters into fading light; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "play-set-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Set a card face-down",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, sliding a card face-down into a Duel Disk slot with a flick of the wrist; a flat translucent brown card-back hologram materialises horizontally in front of them and hangs there; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "play-set-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Set a card face-down",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, sliding a card face-down into a Duel Disk slot with a flick of the wrist; a flat translucent brown card-back hologram materialises horizontally in front of them and hangs there; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "play-set-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Set a card face-down",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, sliding a card face-down into a Duel Disk slot with a flick of the wrist; a flat translucent brown card-back hologram materialises horizontally in front of them and hangs there; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "play-set-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Set a card face-down",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, sliding a card face-down into a Duel Disk slot with a flick of the wrist; a flat translucent brown card-back hologram materialises horizontally in front of them and hangs there; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "react-determined-joey",
+      "category": "duelist",
+      "duelist": "Joey Wheeler",
+      "label": "Joey Wheeler — Reaction — low life points",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a scruffy blond teenage boy with shaggy hair falling into his eyes, wearing an unzipped green jacket over a white shirt, restless and loose-limbed, breathing hard, jaw set, refusing to look away, the life-point counter on their Duel Disk glowing red beside them; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "react-determined-kaiba",
+      "category": "duelist",
+      "duelist": "Seto Kaiba",
+      "label": "Seto Kaiba — Reaction — low life points",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a tall, sharp-featured young man with short dark brown hair and cold pale blue eyes, wearing a long white high-collared coat whose collar flares up past his jaw, sleeves buckled at the wrists, breathing hard, jaw set, refusing to look away, the life-point counter on their Duel Disk glowing red beside them; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "react-determined-mai",
+      "category": "duelist",
+      "duelist": "Mai Valentine",
+      "label": "Mai Valentine — Reaction — low life points",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a confident blonde woman with long wavy hair past her shoulders, wearing a sleeveless violet jacket and long fingerless gloves, one hip cocked, breathing hard, jaw set, refusing to look away, the life-point counter on their Duel Disk glowing red beside them; a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below."
+    },
+    {
+      "key": "react-determined-yugi",
+      "category": "duelist",
+      "duelist": "Yugi Muto",
+      "label": "Yugi Muto — Reaction — low life points",
+      "priority": 2,
+      "seconds": 4,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. close-up of a slight teenage boy with dramatic star-shaped black hair tipped with magenta and blond bangs falling over his forehead, wearing a dark blue school jacket with a high collar and a large golden inverted-pyramid pendant on a chain around his neck, breathing hard, jaw set, refusing to look away, the life-point counter on their Duel Disk glowing red beside them; a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges."
+    },
+    {
+      "key": "clash-DARK",
+      "category": "monster",
+      "label": "clash · DARK",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two enormous monster holograms collide head-on in a shockwave of deep violet and black energy, purple rim light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "clash-EARTH",
+      "category": "monster",
+      "label": "clash · EARTH",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two enormous monster holograms collide head-on in a shockwave of amber and bronze earth energy, dust and stone, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "clash-FIRE",
+      "category": "monster",
+      "label": "clash · FIRE",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two enormous monster holograms collide head-on in a shockwave of orange and red flame, embers streaming, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "clash-LIGHT",
+      "category": "monster",
+      "label": "clash · LIGHT",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two enormous monster holograms collide head-on in a shockwave of brilliant white and cyan energy, blinding highlights, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "clash-WIND",
+      "category": "monster",
+      "label": "clash · WIND",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two enormous monster holograms collide head-on in a shockwave of green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-DARK-dragon",
+      "category": "monster",
+      "label": "summon · DARK · dragon",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an enormous armoured dragon, wings spread, jaws wide, erupting upward as a giant hologram from a duelist's forearm Duel Disk, deep violet and black energy, purple rim light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-DARK-fiend",
+      "category": "monster",
+      "label": "summon · DARK · fiend",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a horned demonic creature wreathed in crackling shadow, erupting upward as a giant hologram from a duelist's forearm Duel Disk, deep violet and black energy, purple rim light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-DARK-spellcaster",
+      "category": "monster",
+      "label": "summon · DARK · spellcaster",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a robed sorcerer channelling energy through a raised staff, erupting upward as a giant hologram from a duelist's forearm Duel Disk, deep violet and black energy, purple rim light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-DARK-warrior",
+      "category": "monster",
+      "label": "summon · DARK · warrior",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an armoured warrior in a heavy battle stance, weapon raised, erupting upward as a giant hologram from a duelist's forearm Duel Disk, deep violet and black energy, purple rim light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-EARTH-beast",
+      "category": "monster",
+      "label": "summon · EARTH · beast",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a huge four-legged beast mid-pounce, muscles bunched, erupting upward as a giant hologram from a duelist's forearm Duel Disk, amber and bronze earth energy, dust and stone, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-EARTH-warrior",
+      "category": "monster",
+      "label": "summon · EARTH · warrior",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an armoured warrior in a heavy battle stance, weapon raised, erupting upward as a giant hologram from a duelist's forearm Duel Disk, amber and bronze earth energy, dust and stone, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-FIRE-spellcaster",
+      "category": "monster",
+      "label": "summon · FIRE · spellcaster",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a robed sorcerer channelling energy through a raised staff, erupting upward as a giant hologram from a duelist's forearm Duel Disk, orange and red flame, embers streaming, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-FIRE-warrior",
+      "category": "monster",
+      "label": "summon · FIRE · warrior",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an armoured warrior in a heavy battle stance, weapon raised, erupting upward as a giant hologram from a duelist's forearm Duel Disk, orange and red flame, embers streaming, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-LIGHT-dragon",
+      "category": "monster",
+      "label": "summon · LIGHT · dragon",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an enormous armoured dragon, wings spread, jaws wide, erupting upward as a giant hologram from a duelist's forearm Duel Disk, brilliant white and cyan energy, blinding highlights, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-LIGHT-winged",
+      "category": "monster",
+      "label": "summon · LIGHT · winged",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a winged humanoid creature banking hard, feathers flaring, erupting upward as a giant hologram from a duelist's forearm Duel Disk, brilliant white and cyan energy, blinding highlights, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-WIND-beast",
+      "category": "monster",
+      "label": "summon · WIND · beast",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a huge four-legged beast mid-pounce, muscles bunched, erupting upward as a giant hologram from a duelist's forearm Duel Disk, green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-WIND-dragon",
+      "category": "monster",
+      "label": "summon · WIND · dragon",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an enormous armoured dragon, wings spread, jaws wide, erupting upward as a giant hologram from a duelist's forearm Duel Disk, green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-WIND-spellcaster",
+      "category": "monster",
+      "label": "summon · WIND · spellcaster",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a robed sorcerer channelling energy through a raised staff, erupting upward as a giant hologram from a duelist's forearm Duel Disk, green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-WIND-warrior",
+      "category": "monster",
+      "label": "summon · WIND · warrior",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. an armoured warrior in a heavy battle stance, weapon raised, erupting upward as a giant hologram from a duelist's forearm Duel Disk, green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "summon-WIND-winged",
+      "category": "monster",
+      "label": "summon · WIND · winged",
+      "priority": 2,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a winged humanoid creature banking hard, feathers flaring, erupting upward as a giant hologram from a duelist's forearm Duel Disk, green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "standoff-cliff",
+      "category": "arena",
+      "label": "Standoff loop — cliff",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two duelists faced off at opposite ends of a torch-lit stone duel arena on a sea cliff at dusk, banners snapping in the wind, waves breaking far below, Duel Disks lit, monsters idling as holograms between them, banners snapping."
+    },
+    {
+      "key": "standoff-rooftop",
+      "category": "arena",
+      "label": "Standoff loop — rooftop",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two duelists faced off at opposite ends of a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges, Duel Disks lit, monsters idling as holograms between them, nothing moving but the rain."
+    },
+    {
+      "key": "direct-DARK",
+      "category": "monster",
+      "label": "direct · DARK",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a monster hologram charges past an empty field and slams into a duelist's holographic barrier, deep violet and black energy, purple rim light exploding outward, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "direct-EARTH",
+      "category": "monster",
+      "label": "direct · EARTH",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a monster hologram charges past an empty field and slams into a duelist's holographic barrier, amber and bronze earth energy, dust and stone exploding outward, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "direct-FIRE",
+      "category": "monster",
+      "label": "direct · FIRE",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a monster hologram charges past an empty field and slams into a duelist's holographic barrier, orange and red flame, embers streaming exploding outward, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "direct-LIGHT",
+      "category": "monster",
+      "label": "direct · LIGHT",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a monster hologram charges past an empty field and slams into a duelist's holographic barrier, brilliant white and cyan energy, blinding highlights exploding outward, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "direct-WIND",
+      "category": "monster",
+      "label": "direct · WIND",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a monster hologram charges past an empty field and slams into a duelist's holographic barrier, green and white air currents, swirling gusts exploding outward, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "finish",
+      "category": "monster",
+      "label": "finish",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. the holograms collapse and the arena lights fall as a duel ends, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "fusion-DARK",
+      "category": "monster",
+      "label": "fusion · DARK",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two monster holograms spiral together into a blazing fusion vortex and a single larger creature erupts from it, deep violet and black energy, purple rim light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "fusion-EARTH",
+      "category": "monster",
+      "label": "fusion · EARTH",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two monster holograms spiral together into a blazing fusion vortex and a single larger creature erupts from it, amber and bronze earth energy, dust and stone, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "fusion-FIRE",
+      "category": "monster",
+      "label": "fusion · FIRE",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two monster holograms spiral together into a blazing fusion vortex and a single larger creature erupts from it, orange and red flame, embers streaming, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "fusion-LIGHT",
+      "category": "monster",
+      "label": "fusion · LIGHT",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two monster holograms spiral together into a blazing fusion vortex and a single larger creature erupts from it, brilliant white and cyan energy, blinding highlights, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "fusion-WIND",
+      "category": "monster",
+      "label": "fusion · WIND",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two monster holograms spiral together into a blazing fusion vortex and a single larger creature erupts from it, green and white air currents, swirling gusts, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "spell",
+      "category": "monster",
+      "label": "spell",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a huge holographic spell card flips face-up and washes the arena in green light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    },
+    {
+      "key": "trap",
+      "category": "monster",
+      "label": "trap",
+      "priority": 3,
+      "seconds": 6,
+      "prompt": "late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. a huge holographic trap card flips face-up and floods the arena with hostile red light, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond."
+    }
+  ]
+}

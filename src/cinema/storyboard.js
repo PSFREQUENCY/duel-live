@@ -118,6 +118,7 @@ export function buildStoryboard(events, state, { turn = state.turn } = {}) {
       ...built,
       id: `t${turn}-${i}-${built.kind}-${(built.title ?? "").replace(/\W+/g, "").slice(0, 24)}`,
       side: event.side,
+      duelistId: state.sides[event.side]?.duelistId ?? null,
       turn,
       event,
     });
@@ -131,6 +132,7 @@ export function idleShot(state) {
   return {
     id: `idle-${state.matchupId}`,
     kind: "idle",
+    duelistId: player.id,
     title: "Standoff",
     subtitle: `${player.name} vs ${foe.name}`,
     seconds: 4,

@@ -14,6 +14,9 @@ import { availableProviders, generateVideo } from "./src/providers.mjs";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const MEDIA_DIR = join(ROOT, ".local", "media");
+// Hand-made clips live here. They are checked before anything is generated, so
+// dropping files in this folder gives you video with no API key at all.
+const CLIPS_DIR = join(ROOT, "clips");
 const PORT = Number(process.env.PORT ?? 4174);
 const KEY = (process.env.POLLINATIONS_API_KEY ?? "").trim();
 
@@ -130,6 +133,15 @@ async function pollenBalance() {
 const affordsVideo = (pollen, seconds) =>
   pollen === null || pollen >= seconds * VIDEO_POLLEN_PER_SECOND;
 
+async function countClips() {
+  try {
+    const { readdir } = await import("node:fs/promises");
+    return (await readdir(CLIPS_DIR)).filter((f) => f.endsWith(".mp4")).length;
+  } catch {
+    return 0;
+  }
+}
+
 const inflight = new Map();
 function once(key, work) {
   if (!inflight.has(key)) {
@@ -168,8 +180,12 @@ async function handleShot(req, res) {
   const seed = parseInt(digest([identity]).slice(0, 8), 16) % 2147483647;
 
   if (tier === "video") {
+    // A hand-made clip always wins: it is free, instant, and better art.
+    if (reuseKey && await exists(join(CLIPS_DIR, `${reuseKey}.mp4`))) {
+      return json(res, 200, { url: `/clips/${reuseKey}.mp4`, tier, cached: true, provider: "handmade", reuseKey });
+    }
     if (!availableProviders().length) {
-      return json(res, 402, { error: "no video provider is configured" });
+      return json(res, 402, { error: "no video provider is configured", reuseKey: reuseKey || null });
     }
     const name = `${reuseKey ? `clip-${reuseKey}` : digest(["video", identity])}.mp4`;
     try {
@@ -224,7 +240,9 @@ async function handleVoice(req, res) {
 async function serveStatic(req, res, pathname) {
   const rel = normalize(pathname === "/" ? "/index.html" : pathname);
   // Generated media lives outside the source tree, under .local/media.
-  const file = rel.startsWith("/media/") ? join(MEDIA_DIR, rel.slice("/media/".length)) : join(ROOT, rel);
+  const file = rel.startsWith("/media/") ? join(MEDIA_DIR, rel.slice("/media/".length))
+    : rel.startsWith("/clips/") ? join(CLIPS_DIR, rel.slice("/clips/".length))
+      : join(ROOT, rel);
   if (!file.startsWith(ROOT)) return json(res, 403, { error: "forbidden" });
   try {
     const info = await stat(file);
@@ -232,7 +250,7 @@ async function serveStatic(req, res, pathname) {
     res.writeHead(200, {
       "content-type": MIME[extname(file)] ?? "application/octet-stream",
       "content-length": info.size,
-      "cache-control": rel.startsWith("/media/") ? "public, max-age=604800" : "no-cache",
+      "cache-control": /^\/(media|clips)\//.test(rel) ? "public, max-age=604800" : "no-cache",
     });
     createReadStream(file).pipe(res);
   } catch {
@@ -243,14 +261,17 @@ async function serveStatic(req, res, pathname) {
 const ROUTES = {
   "GET /api/capability": async (req, res) => {
     const providers = availableProviders();
+    const handmade = await countClips();
     const pollen = await pollenBalance();
     const onlyPollinations = providers.length === 1 && providers[0].id === "pollinations";
-    const canVideo = providers.length > 0
-      && (!onlyPollinations || affordsVideo(pollen, 6));
+    // Hand-made clips make video available even with no provider at all.
+    const canVideo = handmade > 0
+      || (providers.length > 0 && (!onlyPollinations || affordsVideo(pollen, 6)));
     json(res, 200, {
       still: true, video: canVideo, voice: Boolean(KEY), realtime: Boolean(KEY),
       keyPresent: Boolean(KEY), pollen,
       providers: providers.map((p) => ({ id: p.id, label: p.label })),
+      handmadeClips: handmade,
       quality: CFG.quality,
       videoClipsLeft: onlyPollinations && pollen !== null
         ? Math.floor(pollen / (6 * VIDEO_POLLEN_PER_SECOND))
@@ -282,7 +303,10 @@ server.listen(PORT, () => {
   const providers = availableProviders();
   console.log(`Duel Live  →  http://localhost:${PORT}/`);
   console.log(`Tiers   procedural + still${KEY ? " + voice" : ""}${providers.length ? " + video" : ""}`);
-  console.log(providers.length
-    ? `Video   ${providers.map((p) => p.label).join(" → ")}  at ${CFG.quality}p`
-    : `Video   no provider configured — see .env.example`);
+  countClips().then((clips) => {
+    const sources = [clips ? `${clips} hand-made clips in clips/` : null,
+      providers.length ? `${providers.map((p) => p.label).join(" → ")} at ${CFG.quality}p` : null,
+    ].filter(Boolean);
+    console.log(`Video   ${sources.join("  ·  ") || "none — add clips/ or a provider key"}`);
+  });
 });
