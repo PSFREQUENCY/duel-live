@@ -8,7 +8,7 @@ import {
 import { chooseAction, chooseTrapResponse } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
 import { createCinema } from "./cinema/player.js";
-import { clearJobs, getCapability, hasClip, planTiers, probeCapability, setReuseMode } from "./cinema/free-video.js";
+import { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } from "./cinema/free-video.js";
 import { enableRemoteVoice, speak } from "./cinema/realtime-voice.js";
 import {
   el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones,
@@ -159,9 +159,9 @@ function videoBudget() {
   const pref = el("tier-select").value;
   if (pref !== "video") return 0;
   if (!getCapability().video) return 0;
-  // Reused clips cost nothing after the first generation, so there is no reason
-  // to ration them the way a per-shot generation has to be rationed.
-  return el("reuse-select").value === "archetype" ? 4 : 2;
+  // A library clip costs nothing after the first generation, so there is no
+  // reason to ration it the way a per-shot generation has to be rationed.
+  return el("clip-mode-select").value === "library" ? 4 : 2;
 }
 
 async function run(mutator) {
@@ -491,7 +491,7 @@ function bind() {
   el("restart-btn").addEventListener("click", () => startDuel(el("matchup-select").value));
   el("matchup-select").addEventListener("change", (e) => startDuel(e.target.value));
   el("tier-select").addEventListener("change", (e) => cinema.setTier(e.target.value));
-  el("reuse-select").addEventListener("change", (e) => { setReuseMode(e.target.value); clearJobs(); });
+  el("clip-mode-select").addEventListener("change", (e) => { setClipMode(e.target.value); clearJobs(); });
   el("sound-btn").addEventListener("click", (e) => {
     muted = !muted;
     cinema.setMuted(muted);
@@ -551,7 +551,7 @@ async function boot() {
   startDuel(el("matchup-select").value);
   const cap = await probeCapability();
   enableRemoteVoice(cap.voice);
-  setReuseMode(el("reuse-select").value);
+  setClipMode(el("clip-mode-select").value);
   if (cap.providers?.length) {
     el("provider-note").textContent = `${cap.providers.map((p) => p.label).join(" → ")} · ${cap.quality}p`;
     el("provider-note").hidden = false;

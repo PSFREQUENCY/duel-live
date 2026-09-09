@@ -426,11 +426,11 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
             <option value="procedural">Procedural only</option>
           </select>
         </label>
-        <label class="control" for="reuse-select">
+        <label class="control" for="clip-mode-select">
           <span>Clips</span>
-          <select id="reuse-select">
-            <option value="archetype">Reuse library (33 clips)</option>
-            <option value="exact">Generate every shot</option>
+          <select id="clip-mode-select">
+            <option value="library">Action library</option>
+            <option value="generative">Generative</option>
           </select>
         </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
@@ -568,7 +568,7 @@ const { applyAction, createDuel, endTurn, legalActions, respondToTrapWindow, set
 const { chooseAction, chooseTrapResponse } = __req("./duel-ai.js");
 const { DUELISTS, getMatchup, MATCHUPS } = __req("./duelists.js");
 const { createCinema } = __req("./cinema/player.js");
-const { clearJobs, getCapability, hasClip, planTiers, probeCapability, setReuseMode } = __req("./cinema/free-video.js");
+const { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } = __req("./cinema/free-video.js");
 const { enableRemoteVoice, speak } = __req("./cinema/realtime-voice.js");
 const { el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones, resetLifePointTracking } = __req("./render.js");
 const { reactionKeyFor } = __req("./cinema/archetypes.js");
@@ -715,9 +715,9 @@ function videoBudget() {
   const pref = el("tier-select").value;
   if (pref !== "video") return 0;
   if (!getCapability().video) return 0;
-  // Reused clips cost nothing after the first generation, so there is no reason
-  // to ration them the way a per-shot generation has to be rationed.
-  return el("reuse-select").value === "archetype" ? 4 : 2;
+  // A library clip costs nothing after the first generation, so there is no
+  // reason to ration it the way a per-shot generation has to be rationed.
+  return el("clip-mode-select").value === "library" ? 4 : 2;
 }
 
 async function run(mutator) {
@@ -1047,7 +1047,7 @@ function bind() {
   el("restart-btn").addEventListener("click", () => startDuel(el("matchup-select").value));
   el("matchup-select").addEventListener("change", (e) => startDuel(e.target.value));
   el("tier-select").addEventListener("change", (e) => cinema.setTier(e.target.value));
-  el("reuse-select").addEventListener("change", (e) => { setReuseMode(e.target.value); clearJobs(); });
+  el("clip-mode-select").addEventListener("change", (e) => { setClipMode(e.target.value); clearJobs(); });
   el("sound-btn").addEventListener("click", (e) => {
     muted = !muted;
     cinema.setMuted(muted);
@@ -1107,7 +1107,7 @@ async function boot() {
   startDuel(el("matchup-select").value);
   const cap = await probeCapability();
   enableRemoteVoice(cap.voice);
-  setReuseMode(el("reuse-select").value);
+  setClipMode(el("clip-mode-select").value);
   if (cap.providers?.length) {
     el("provider-note").textContent = `${cap.providers.map((p) => p.label).join(" → ")} · ${cap.quality}p`;
     el("provider-note").hidden = false;
@@ -2733,7 +2733,7 @@ function createStageMedia({ still, video, caption }) {
       if (asset.tier === "video") {
         try { await node.play(); } catch { /* autoplay blocked; the frame still shows */ }
       }
-      if (caption.tier) caption.tier.textContent = `${asset.tier} · ${asset.cached ? "cached" : "generated"}`;
+      if (caption.tier) caption.tier.textContent = asset.tier;
     },
     showStill(url) {
       still.hidden = false;
@@ -2806,7 +2806,7 @@ function createCinema({ canvas, still, video, caption, getState, accents, onShot
     const ms = (shot.seconds ?? 3) * 1000 * pace;
     current = { shot, durationMs: Math.max(MIN_SHOT_MS, ms) };
     startedAt = performance.now();
-    stage.showCaption(shot, tier === "procedural" ? "procedural" : `${tier} · generating`);
+    stage.showCaption(shot, tier);
     onShot?.(shot);
     if (shot.voice) speak(shot.voice, getState()?.sides[shot.side]?.duelistId, { muted });
     // Look ahead so the next real asset is already in flight.
@@ -3181,13 +3181,13 @@ __def("src/cinema/free-video.js", {"./archetypes.js":"src/cinema/archetypes.js"}
 const { archetypeFor } = __req("./archetypes.js");
 const TIERS = ["procedural", "still", "video"];
 
-// "archetype" reuses one clip across every shot that reads the same way, so a
-// fixed library covers the whole game. "exact" generates per shot -- better
-// fidelity, but nothing is ever reused.
-const REUSE_MODES = ["archetype", "exact"];
-let reuseMode = "archetype";
-const setReuseMode = (mode) => { reuseMode = REUSE_MODES.includes(mode) ? mode : "archetype"; };
-const getReuseMode = () => reuseMode;
+// "library" plays one clip for every shot that reads the same way, so a fixed
+// set of clips covers the whole game. "generative" makes a new clip per shot --
+// better fidelity, but nothing is ever reused.
+const CLIP_MODES = ["library", "generative"];
+let clipMode = "library";
+const setClipMode = (mode) => { clipMode = CLIP_MODES.includes(mode) ? mode : "library"; };
+const getClipMode = () => clipMode;
 
 const jobs = new Map();
 let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
@@ -3227,7 +3227,7 @@ function highestTier(requested = "video") {
 
 function shotBody(shot, tier) {
   // Stills are cheap and unique per shot; only video is worth generalising.
-  const archetype = tier === "video" && reuseMode === "archetype"
+  const archetype = tier === "video" && clipMode === "library"
     ? archetypeFor(shot, { hasClip })
     : null;
   return {
@@ -3245,7 +3245,7 @@ function shotBody(shot, tier) {
 function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
   // Shots sharing an archetype share a job, so a reused clip is fetched once.
-  const archetype = tier === "video" && reuseMode === "archetype"
+  const archetype = tier === "video" && clipMode === "library"
     ? archetypeFor(shot, { hasClip })
     : null;
   const key = `${archetype?.key ?? shot.id}:${tier}`;
@@ -3314,7 +3314,7 @@ function planTiers(shots, { videoBudget = 2 } = {}) {
   });
 }
 
-Object.assign(__exports, { getCapability, probeCapability, highestTier, prefetch, resolve, clearJobs, jobCount, deservesVideo, planTiers, TIERS, REUSE_MODES, setReuseMode, getReuseMode, hasClip });
+Object.assign(__exports, { getCapability, probeCapability, highestTier, prefetch, resolve, clearJobs, jobCount, deservesVideo, planTiers, TIERS, CLIP_MODES, setClipMode, getClipMode, hasClip });
 });
 
 __def("src/cinema/archetypes.js", {"../cards/index.js":"src/cards/index.js","./world.js":"src/cinema/world.js"}, function (__exports, __req) {

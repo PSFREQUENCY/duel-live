@@ -9,14 +9,20 @@ const manifest = JSON.parse(
   await import("node:fs").then((fs) => fs.promises.readFile(join(ROOT, "prompts", "manifest.json"), "utf8")),
 );
 
-const { clipKeys, normaliseClipKey } = await import("../src/clip-library.mjs");
-const present = new Set(await clipKeys(join(ROOT, "clips")));
-const has = (key) => present.has(normaliseClipKey(key));
+const { clipKeys, clipWordSet, clipWordSets, normaliseClipKey } =
+  await import("../src/clip-library.mjs");
+const dir = join(ROOT, "clips");
+const present = new Set(await clipKeys(dir));
+const presentWords = new Set(await clipWordSets(dir));
+// A transposed filename still counts as covered; the index resolves it.
+const has = (key) => present.has(normaliseClipKey(key)) || presentWords.has(clipWordSet(key));
 
 const shots = manifest.shots;
 const have = shots.filter((s) => has(s.key));
 const missing = shots.filter((s) => !has(s.key));
-const stray = [...present].filter((k) => !shots.some((s) => normaliseClipKey(s.key) === k));
+const stray = [...present].filter(
+  (k) => !shots.some((s) => normaliseClipKey(s.key) === k || clipWordSet(s.key) === clipWordSet(k)),
+);
 
 const bar = (n, total) => {
   const filled = total ? Math.round((n / total) * 24) : 0;

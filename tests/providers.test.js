@@ -279,3 +279,29 @@ test("stills default to the free host, so holding a key never costs more", async
   const env = readFileSync(new URL("../.env.example", import.meta.url), "utf8");
   assert.match(env, /DUEL_BILL_STILLS=0/, "the example env must ship with billing off");
 });
+
+test("no two clip keys share a word set, so order-insensitive matching is safe", async () => {
+  const { clipWordSet } = await import("../src/clip-library.mjs");
+  const { readFileSync } = await import("node:fs");
+  const manifest = JSON.parse(
+    readFileSync(new URL("../prompts/manifest.json", import.meta.url), "utf8"),
+  );
+  const seen = new Map();
+  for (const shot of manifest.shots) {
+    const words = clipWordSet(shot.key);
+    const previous = seen.get(words);
+    assert.equal(previous, undefined,
+      `${shot.key} and ${previous} share a word set — a transposed filename could match either`);
+    seen.set(words, shot.key);
+  }
+});
+
+test("a transposed or untidy filename still finds its clip", async () => {
+  const { normaliseClipKey, clipWordSet } = await import("../src/clip-library.mjs");
+  // Exact form after normalising.
+  assert.equal(normaliseClipKey(" Play Yugi Activate.mp4"), "play-yugi-activate");
+  // ...and the same words in the manifest's order resolve to one another.
+  assert.equal(clipWordSet("play yugi activate.mp4"), clipWordSet("play-activate-yugi"));
+  assert.equal(clipWordSet("open_Kaiba.MOV"), clipWordSet("open-kaiba"));
+  assert.notEqual(clipWordSet("play-summon-mai"), clipWordSet("play-activate-mai"));
+});

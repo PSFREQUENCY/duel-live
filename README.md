@@ -95,7 +95,13 @@ summon*. That collapses both duels onto a fixed library:
 summon 15 · fusion 5 · clash 5 · direct 5 · trap 1 · spell 1 · finish 1  =  33 clips
 ```
 
-Build it once:
+Name a clip whatever your generator called it. Matching normalises spaces,
+underscores, case and word order, so `play yugi activate.mp4`,
+`Play_Activate_Yugi.MOV` and `play-activate-yugi.webm` all resolve to the same
+key. A test asserts no two keys share a word set, so that fallback can never
+match the wrong clip.
+
+Build the rest once:
 
 ```bash
 npm run prewarm              # generates all 33; re-run to retry only what failed
@@ -103,9 +109,10 @@ npm run prewarm summon       # or just one family
 npm run prewarm --limit=3    # or a taster
 ```
 
-After that every duel plays on cached video at no further cost, forever. Switch
-the **Clips** control to *Generate every shot* for per-shot fidelity when you
-have budget to spend.
+After that every duel plays without further cost, forever. The **Clips** control
+picks between **Action library** — one clip for every shot that reads the same
+way — and **Generative**, which makes a new clip per shot for more fidelity when
+you have budget to spend.
 
 ### Pollen, if you use Pollinations
 

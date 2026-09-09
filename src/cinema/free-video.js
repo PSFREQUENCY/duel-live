@@ -12,13 +12,13 @@ import { archetypeFor } from "./archetypes.js";
 
 export const TIERS = ["procedural", "still", "video"];
 
-// "archetype" reuses one clip across every shot that reads the same way, so a
-// fixed library covers the whole game. "exact" generates per shot -- better
-// fidelity, but nothing is ever reused.
-export const REUSE_MODES = ["archetype", "exact"];
-let reuseMode = "archetype";
-export const setReuseMode = (mode) => { reuseMode = REUSE_MODES.includes(mode) ? mode : "archetype"; };
-export const getReuseMode = () => reuseMode;
+// "library" plays one clip for every shot that reads the same way, so a fixed
+// set of clips covers the whole game. "generative" makes a new clip per shot --
+// better fidelity, but nothing is ever reused.
+export const CLIP_MODES = ["library", "generative"];
+let clipMode = "library";
+export const setClipMode = (mode) => { clipMode = CLIP_MODES.includes(mode) ? mode : "library"; };
+export const getClipMode = () => clipMode;
 
 const jobs = new Map();
 let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
@@ -58,7 +58,7 @@ export function highestTier(requested = "video") {
 
 function shotBody(shot, tier) {
   // Stills are cheap and unique per shot; only video is worth generalising.
-  const archetype = tier === "video" && reuseMode === "archetype"
+  const archetype = tier === "video" && clipMode === "library"
     ? archetypeFor(shot, { hasClip })
     : null;
   return {
@@ -76,7 +76,7 @@ function shotBody(shot, tier) {
 export function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
   // Shots sharing an archetype share a job, so a reused clip is fetched once.
-  const archetype = tier === "video" && reuseMode === "archetype"
+  const archetype = tier === "video" && clipMode === "library"
     ? archetypeFor(shot, { hasClip })
     : null;
   const key = `${archetype?.key ?? shot.id}:${tier}`;

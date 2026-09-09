@@ -57,6 +57,21 @@ test("the example env file documents the key as optional", () => {
   assert.match(env, /amazon\/nova-reel-v1/, "the free video model must be the default");
 });
 
+test("the clip control is named for what the player picks", () => {
+  const options = [...html.matchAll(/<option value="(library|generative|archetype|exact)">([^<]*)</g)];
+  assert.equal(options.length, 2, "there should be exactly two clip modes");
+  assert.deepEqual(options.map((m) => m[1]), ["library", "generative"],
+    "modes are named for the player's choice, not the implementation");
+  assert.deepEqual(options.map((m) => m[2]), ["Action library", "Generative"]);
+  assert.ok(htmlIds.has("clip-mode-select"));
+});
+
+test("a shot caption reports the tier, not internal bookkeeping", () => {
+  const player = read("src/cinema/player.js");
+  assert.doesNotMatch(player, /cached\s*\?\s*"cached"/, "cache state is not player-facing copy");
+  assert.doesNotMatch(player, /· generating/, "the caption should not narrate the pipeline");
+});
+
 test("phase rail markup covers every phase the engine can report", () => {
   const phases = [...html.matchAll(/data-phase="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(phases, ["draw", "main1", "battle", "end"]);

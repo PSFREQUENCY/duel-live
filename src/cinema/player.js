@@ -133,7 +133,7 @@ function createStageMedia({ still, video, caption }) {
       if (asset.tier === "video") {
         try { await node.play(); } catch { /* autoplay blocked; the frame still shows */ }
       }
-      if (caption.tier) caption.tier.textContent = `${asset.tier} · ${asset.cached ? "cached" : "generated"}`;
+      if (caption.tier) caption.tier.textContent = asset.tier;
     },
     showStill(url) {
       still.hidden = false;
@@ -206,7 +206,7 @@ export function createCinema({ canvas, still, video, caption, getState, accents,
     const ms = (shot.seconds ?? 3) * 1000 * pace;
     current = { shot, durationMs: Math.max(MIN_SHOT_MS, ms) };
     startedAt = performance.now();
-    stage.showCaption(shot, tier === "procedural" ? "procedural" : `${tier} · generating`);
+    stage.showCaption(shot, tier);
     onShot?.(shot);
     if (shot.voice) speak(shot.voice, getState()?.sides[shot.side]?.duelistId, { muted });
     // Look ahead so the next real asset is already in flight.
