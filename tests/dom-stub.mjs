@@ -113,6 +113,12 @@ export function installGlobals({
   };
   globalThis.cancelAnimationFrame = (id) => { clearTimeout(frames.get(id)); frames.delete(id); };
   globalThis.speechSynthesis = { cancel() {}, speak() {}, getVoices: () => [] };
+  // The app reads ?duel= to load a shared replay, so the stub needs a location.
+  globalThis.location = {
+    origin: "http://localhost:4174", pathname: "/", search: "", href: "http://localhost:4174/",
+  };
+  globalThis.navigator ??= { clipboard: { writeText: async () => {} } };
+  globalThis.URLSearchParams ??= URLSearchParams;
   globalThis.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
   globalThis.fetch = async (url) => {
     if (String(url).includes("/api/capability")) return { ok: true, json: async () => capability };

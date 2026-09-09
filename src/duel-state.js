@@ -48,6 +48,9 @@ export function resetUidCounter(value = 0) {
   uidCounter = value;
 }
 
+/** Read the counter, so a speculative branch can put it back where it found it. */
+export const uidCounterValue = () => uidCounter;
+
 function createSide(duelistId, lifePoints, rng) {
   const duelist = getDuelist(duelistId);
   const deck = shuffle(duelist.deck, rng).map((id) => makeInstance(id, duelistId));

@@ -708,6 +708,7 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
           <button class="btn btn-accent" id="share-send" type="button" hidden>Share…</button>
           <button class="btn" id="share-copy" type="button">Copy image</button>
           <button class="btn" id="share-copy-text" type="button">Copy text</button>
+          <button class="btn" id="share-replay" type="button">Copy replay link</button>
           <button class="btn" id="share-download" type="button">Save PNG</button>
           <button class="btn" id="share-close" type="button">Close</button>
         </div>
@@ -738,7 +739,7 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
@@ -756,6 +757,7 @@ const { reactionKeyFor } = __req("./cinema/archetypes.js");
 const { buildStoryboard, duelistShot, idleShot, titleShot } = __req("./cinema/storyboard.js");
 const { closingExchange, directBanter, openingExchange } = __req("./banter.js");
 const { createHoverPanel, showGraveyard } = __req("./inspect.js");
+const { decodeReplay, encodeReplay, record, replay } = __req("./duel-replay.js");
 const { activeEffects } = __req("./duel-effects-active.js");
 const { summariseDuel } = __req("./duel-stats.js");
 const { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } = __req("./share-card.js");
@@ -778,6 +780,8 @@ let tributePicks = [];
 let stalledTicks = 0;
 let introShown = false;
 let duelEvents = [];
+let duelSteps = [];
+let duelSeed = 0;
 let cardFormat = DEFAULT_FORMAT;
 
 const hover = createHoverPanel();
@@ -1022,6 +1026,12 @@ function videoBudget() {
   return el("clip-mode-select").value === "library" ? 4 : 2;
 }
 
+// A duel is its seed plus the choices made. Recording them as they happen is
+// what turns a shared card into something someone can actually watch.
+function step(kind, payload) {
+  duelSteps.push(record(kind, payload));
+}
+
 async function run(mutator) {
   if (busy) return;
   busy = true;
@@ -1079,6 +1089,7 @@ async function maybePending() {
     const uids = state.pending.side === "player"
       ? await askDiscard(state.pending)
       : state.sides[state.pending.side].hand.slice(0, state.pending.need).map((c) => c.uid);
+    step("discard", uids);
     const result = respondToDiscard(state, uids);
     state = result.state;
     present(result.events);
@@ -1088,6 +1099,7 @@ async function maybePending() {
     const answer = state.pending.side === "player"
       ? await askTargets(state.pending)
       : { uids: chooseTargets(state), position: "attack" };
+    step("target", { uids: answer.uids, position: answer.position });
     const result = respondToTarget(state, answer.uids, { position: answer.position });
     state = result.state;
     present(result.events);
@@ -1096,11 +1108,14 @@ async function maybePending() {
   while (state.pending?.kind === "tribute") {
     if (state.pending.side === "player") {
       const uids = await askTributes(state.pending);
+      step("tribute", uids);
       const result = respondToTribute(state, uids);
       state = result.state;
       present(result.events);
     } else {
-      const result = respondToTribute(state, chooseTributes(state));
+      const auto = chooseTributes(state);
+      step("tribute", auto);
+      const result = respondToTribute(state, auto);
       state = result.state;
       present(result.events);
     }
@@ -1117,6 +1132,7 @@ async function maybeTrapWindow() {
     const choice = state.pending.side === "player"
       ? await askChainResponse(state)
       : chooseChainResponse(state, Math.random);
+    step("chain", choice);
     const result = respondToChain(state, choice);
     state = result.state;
     present(result.events);
@@ -1208,7 +1224,10 @@ function resume() {
   run(() => ({ state, events: [] }));
 }
 
+const recordTurn = () => duelSteps.push(record("turn", null));
+
 function advance(phase) {
+  duelSteps.push(record("phase", phase));
   const result = setPhase(state, phase);
   state = result.state;
   present(result.events);
@@ -1273,6 +1292,24 @@ async function copyImage() {
     shareNote("Image copied — paste it anywhere.");
   } catch {
     shareNote("This browser blocks image copying. Right-click the card to save it.", true);
+  }
+}
+
+function replayHref() {
+  if (!duelSteps.length) return null;
+  const encoded = encodeReplay({ seed: duelSeed, matchup: state.matchupId, steps: duelSteps });
+  const base = `${location.origin}${location.pathname}`;
+  return `${base}?duel=${encoded}`;
+}
+
+async function copyReplayLink() {
+  const href = replayHref();
+  if (!href) { shareNote("Nothing to replay yet.", true); return; }
+  try {
+    await navigator.clipboard.writeText(href);
+    shareNote(`Link copied — ${(href.length / 1024).toFixed(1)} KB, plays the whole duel.`);
+  } catch {
+    shareNote("Copying was blocked by the browser.", true);
   }
 }
 
@@ -1348,7 +1385,10 @@ function announceWinner() {
 
 function onPlayCard(inst, options) {
   if (busy || !myTurn()) return;
-  if (options.length === 1) return void run(() => applyAction(state, options[0]));
+  if (options.length === 1) {
+    step("action", options[0]);
+    return void run(() => applyAction(state, options[0]));
+  }
   askChoice(`${getCard(inst.cardId).name} — how do you want to play it?`, options.map((action) => ({
     label: action.label, value: action,
   }))).then((action) => { if (action) run(() => applyAction(state, action)); });
@@ -1367,7 +1407,7 @@ function onMyMonster(inst) {
   // only way to turn a set monster face-up so it can attack.
   if (state.phase === "main1") {
     const change = actions.find((a) => a.type === "position" && a.uid === inst.uid);
-    if (change) { run(() => applyAction(state, change)); return; }
+    if (change) { step("action", change); run(() => applyAction(state, change)); return; }
     const why = positionBlockedBecause(inst);
     if (why) flashTemporaryMessage(`Can't change position — ${why}.`);
     return;
@@ -1378,7 +1418,7 @@ function onMyMonster(inst) {
   if (!options.length) return;
   if (attackFrom === inst.uid) { attackFrom = null; renderAll(); return; }
   const direct = options.find((a) => !a.targetUid);
-  if (direct) return void run(() => applyAction(state, direct));
+  if (direct) { step("action", direct); return void run(() => applyAction(state, direct)); }
   attackFrom = inst.uid;
   renderAll();
 }
@@ -1387,7 +1427,7 @@ function onMyBackrow(inst) {
   if (busy || !myTurn()) return;
   const action = legalActions(state, "player")
     .find((a) => a.type === "activate" && a.uid === inst.uid);
-  if (action) { run(() => applyAction(state, action)); return; }
+  if (action) { step("action", action); run(() => applyAction(state, action)); return; }
   // Say why rather than doing nothing, which is what made this look broken.
   const card = getCard(inst.cardId);
   if (card.kind === "trap") {
@@ -1406,7 +1446,7 @@ function onFoeMonster(inst) {
   const action = legalActions(state, "player")
     .find((a) => a.type === "attack" && a.uid === attackFrom && a.targetUid === inst.uid);
   attackFrom = null;
-  if (action) run(() => applyAction(state, action));
+  if (action) { step("action", action); run(() => applyAction(state, action)); }
   else renderAll();
 }
 
@@ -1592,8 +1632,10 @@ function startDuel(requested) {
   ui.log.innerHTML = "";
   ui.prompt.hidden = true;
   duelEvents = [];
+  duelSteps = [];
   ui.share.hidden = true;
-  state = createDuel(matchupId, { seed: Date.now() });
+  duelSeed = Date.now() % 2147483647;
+  state = createDuel(matchupId, { seed: duelSeed });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
   // Intro plays once per session; the versus plate opens every duel.
@@ -1619,10 +1661,10 @@ function bind() {
     const step = nextStep();
     if (!step) return;
     attackFrom = null;
-    if (step.endsTurn) { run(() => endTurn(state)); return; }
+    if (step.endsTurn) { recordTurn(); run(() => endTurn(state)); return; }
     // Moving through phases is not a turn action, so it does not run the
     // opponent -- except entering the End Phase, which hands the turn over.
-    if (step.to === "end") { advance("end"); run(() => endTurn(state)); return; }
+    if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
     advance(step.to);
     renderAll();
   });
@@ -1642,6 +1684,7 @@ function bind() {
   el("share-send").addEventListener("click", sendShare);
   el("share-copy").addEventListener("click", copyImage);
   el("share-copy-text").addEventListener("click", copyCardText);
+  el("share-replay").addEventListener("click", copyReplayLink);
   el("share-download").addEventListener("click", downloadCard);
   el("share-close").addEventListener("click", () => { ui.shareModal.hidden = true; });
   el("format-landscape").addEventListener("click", () => setFormat("landscape"));
@@ -1702,11 +1745,33 @@ function showRules() {
   ui.modal.hidden = false;
 }
 
+function recordingFromUrl() {
+  const encoded = new URLSearchParams(location.search).get("duel");
+  return encoded ? decodeReplay(encoded) : null;
+}
+
+/** Play a shared duel back to its end, then show the result. */
+function loadReplay(recording) {
+  startDuel(recording.matchup);
+  const played = replay(recording);
+  state = played.state;
+  duelSteps = recording.steps;
+  duelSeed = recording.seed;
+  duelEvents = played.events;
+  cinema.clear();
+  for (const event of played.events) logEvent(ui.log, event, state);
+  renderAll();
+  if (state.winner) announceWinner();
+  ui.hint.textContent = "Replay of a shared duel. Start a new duel to play.";
+}
+
 async function boot() {
   bind();
   cinema.start();
   startWatchdog();
-  startDuel(el("matchup-select").value);
+  const shared = recordingFromUrl();
+  if (shared) loadReplay(shared);
+  else startDuel(el("matchup-select").value);
   const cap = await probeCapability();
   enableRemoteVoice(cap.voice);
   setClipMode(el("clip-mode-select").value);
@@ -3335,6 +3400,9 @@ function resetUidCounter(value = 0) {
   uidCounter = value;
 }
 
+/** Read the counter, so a speculative branch can put it back where it found it. */
+const uidCounterValue = () => uidCounter;
+
 function createSide(duelistId, lifePoints, rng) {
   const duelist = getDuelist(duelistId);
   const deck = shuffle(duelist.deck, rng).map((id) => makeInstance(id, duelistId));
@@ -3445,7 +3513,7 @@ const monstersOn = (state, side) => state.sides[side].monsters.filter(Boolean);
 const emptyMonsterZone = (state, side) => state.sides[side].monsters.indexOf(null);
 const emptyBackrowZone = (state, side) => state.sides[side].backrow.indexOf(null);
 
-Object.assign(__exports, { mulberry32, shuffle, makeInstance, resetUidCounter, createDuel, drawInto, matchesName, effectiveStats, SIDES, other, cardOf, monstersOn, emptyMonsterZone, emptyBackrowZone });
+Object.assign(__exports, { mulberry32, shuffle, makeInstance, resetUidCounter, createDuel, drawInto, matchesName, effectiveStats, SIDES, other, uidCounterValue, cardOf, monstersOn, emptyMonsterZone, emptyBackrowZone });
 });
 
 __def("src/duelists.js", {}, function (__exports, __req) {
@@ -4249,7 +4317,7 @@ __def("src/duel-eval.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state
 // tree.
 
 const { cardOf, effectiveStats, legalActions, other } = __req("./duel-engine.js");
-const { monstersOn } = __req("./duel-state.js");
+const { monstersOn, resetUidCounter, uidCounterValue } = __req("./duel-state.js");
 const { getDuelist } = __req("./duelists.js");
 /**
  * Temperament as weights on the terms, not as a script. An aggressive duelist
@@ -4296,6 +4364,18 @@ function evaluate(state, side, weights = weightsFor(state, side)) {
  * cheap enough to run inside a turn.
  */
 function lookahead(state, side, action, apply, { replies = 6 } = {}) {
+  // Searching must leave no trace. Effects that create cards -- Scapegoat's
+  // tokens -- draw ids from a shared counter, and a hypothetical branch that
+  // burned ids made the real duel unreproducible from its seed.
+  const uidMark = uidCounterValue();
+  try {
+    return search(state, side, action, apply, replies);
+  } finally {
+    resetUidCounter(uidMark);
+  }
+}
+
+function search(state, side, action, apply, replies) {
   let after;
   try {
     after = apply(state, action).state;
@@ -6313,6 +6393,115 @@ function rebornTarget(state) {
 }
 
 Object.assign(__exports, { describeCard, rebornTarget });
+});
+
+__def("src/duel-replay.js", {"./duel-engine.js":"src/duel-engine.js"}, function (__exports, __req) {
+// Replay.
+//
+// The engine is deterministic from a seed and every decision passes through one
+// of a handful of entry points, so a duel is fully described by its seed and the
+// list of choices made. That fits in a URL fragment.
+
+const { applyAction, createDuel, endTurn, respondToChain, respondToDiscard, respondToTarget, respondToTribute, setPhase } = __req("./duel-engine.js");
+const REPLAY_VERSION = 1;
+
+// Short keys keep the fragment small; a replay is meant to fit in a link.
+const KINDS = { a: "action", p: "phase", t: "turn", c: "chain", g: "target", r: "tribute", d: "discard" };
+const SHORT = Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [v, k]));
+
+// An action carries a human label for the interface; a replay does not need it.
+// Keeping it made a duel five kilobytes instead of a few hundred bytes.
+function slim(kind, payload) {
+  if (kind !== "action" || !payload) return payload ?? null;
+  const { type, uid, targetUid, targets, set, position } = payload;
+  const out = { type };
+  if (uid !== undefined) out.uid = uid;
+  if (targetUid !== undefined) out.targetUid = targetUid;
+  if (targets !== undefined) out.targets = targets;
+  if (set) out.set = true;
+  if (position !== undefined) out.position = position;
+  return out;
+}
+
+const record = (kind, payload) => ({ k: SHORT[kind] ?? kind, v: slim(kind, payload) });
+
+// On the wire a step is a pair, not an object with two named fields. Over a few
+// hundred steps the key names alone were a fifth of the payload.
+const pack = (step) => (step.v === null || step.v === undefined ? [step.k] : [step.k, step.v]);
+const unpack = ([k, v]) => ({ k, v: v ?? null });
+
+/** Apply one recorded step. Returns the new state and its events. */
+function applyStep(state, step) {
+  const kind = KINDS[step.k] ?? step.k;
+  switch (kind) {
+    case "action": return applyAction(state, step.v);
+    case "phase": return setPhase(state, step.v);
+    case "turn": return endTurn(state);
+    case "chain": return respondToChain(state, step.v);
+    case "target": return respondToTarget(state, step.v?.uids ?? step.v, { position: step.v?.position });
+    case "tribute": return respondToTribute(state, step.v);
+    case "discard": return respondToDiscard(state, step.v);
+    default: return { state, events: [] };
+  }
+}
+
+/** Replay a recording from its seed. Returns the final state and every event. */
+function replay({ seed, matchup, steps }) {
+  let state = createDuel(matchup, { seed });
+  const events = [];
+  for (const step of steps) {
+    const result = applyStep(state, step);
+    state = result.state;
+    events.push(...result.events);
+  }
+  return { state, events };
+}
+
+/** Where each turn begins in the event list, so a scrubber has something to scrub. */
+function turnMarkers(events) {
+  const marks = [];
+  events.forEach((event, index) => {
+    if (event.type === "phase" && event.phase === "draw") {
+      marks.push({ turn: event.turn, at: index, side: event.side });
+    }
+  });
+  return marks;
+}
+
+// ------------------------------------------------------------- encoding ---
+
+const toBase64 = (text) => (typeof btoa === "function"
+  ? btoa(unescape(encodeURIComponent(text)))
+  : Buffer.from(text, "utf8").toString("base64"));
+
+const fromBase64 = (text) => (typeof atob === "function"
+  ? decodeURIComponent(escape(atob(text)))
+  : Buffer.from(text, "base64").toString("utf8"));
+
+const urlSafe = (b64) => b64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+const unUrlSafe = (text) => text.replaceAll("-", "+").replaceAll("_", "/");
+
+function encodeReplay({ seed, matchup, steps }) {
+  return urlSafe(toBase64(JSON.stringify({
+    v: REPLAY_VERSION, s: seed, m: matchup, x: steps.map(pack),
+  })));
+}
+
+/** Decode a replay, or null when the text is not one. */
+function decodeReplay(encoded) {
+  try {
+    const body = JSON.parse(fromBase64(unUrlSafe(String(encoded))));
+    if (body.v !== REPLAY_VERSION || !body.m || !Array.isArray(body.x)) return null;
+    return { seed: body.s, matchup: body.m, steps: body.x.map(unpack) };
+  } catch {
+    return null;
+  }
+}
+
+const replayLink = (recording, base = "") =>
+  `${base}?duel=${encodeReplay(recording)}`;
+
+Object.assign(__exports, { applyStep, replay, turnMarkers, encodeReplay, decodeReplay, REPLAY_VERSION, record, replayLink });
 });
 
 __def("src/duel-effects-active.js", {"./duelists.js":"src/duelists.js","./duel-engine.js":"src/duel-engine.js"}, function (__exports, __req) {

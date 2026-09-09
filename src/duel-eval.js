@@ -6,7 +6,7 @@
 // tree.
 
 import { cardOf, effectiveStats, legalActions, other } from "./duel-engine.js";
-import { monstersOn } from "./duel-state.js";
+import { monstersOn, resetUidCounter, uidCounterValue } from "./duel-state.js";
 import { getDuelist } from "./duelists.js";
 
 /**
@@ -54,6 +54,18 @@ export function evaluate(state, side, weights = weightsFor(state, side)) {
  * cheap enough to run inside a turn.
  */
 export function lookahead(state, side, action, apply, { replies = 6 } = {}) {
+  // Searching must leave no trace. Effects that create cards -- Scapegoat's
+  // tokens -- draw ids from a shared counter, and a hypothetical branch that
+  // burned ids made the real duel unreproducible from its seed.
+  const uidMark = uidCounterValue();
+  try {
+    return search(state, side, action, apply, replies);
+  } finally {
+    resetUidCounter(uidMark);
+  }
+}
+
+function search(state, side, action, apply, replies) {
   let after;
   try {
     after = apply(state, action).state;

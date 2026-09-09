@@ -93,3 +93,30 @@ test("turn markers give a scrubber something to scrub", () => {
     "marks must run in turn order");
   assert.ok(marks.at(-1).turn <= state.turn);
 });
+
+test("the app records the same shape it can replay", async () => {
+  const { readFileSync } = await import("node:fs");
+  const app = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  // Every decision path must record, or a shared duel replays as a different one.
+  for (const kind of ["action", "chain", "target", "tribute", "discard", "phase", "turn"]) {
+    assert.ok(app.includes(`record("${kind}"`) || app.includes(`step("${kind}"`),
+      `${kind} decisions are never recorded, so a replay would diverge`);
+  }
+  assert.match(app, /decodeReplay/, "the app must be able to load a shared duel");
+  assert.match(app, /\?duel=/, "and hand out a link to one");
+});
+
+test("a speculative search leaves the card counter where it found it", async () => {
+  const { uidCounterValue } = await import("../src/duel-state.js");
+  const { lookahead } = await import("../src/duel-eval.js");
+  const { applyAction, createDuel, legalActions } = await import("../src/duel-engine.js");
+  const { makeInstance } = await import("../src/duel-state.js");
+
+  const state = createDuel("joey-mai", { seed: 3 });
+  const goat = makeInstance("scapegoat", "joey");   // creates four tokens when it resolves
+  state.sides.player.hand = [goat];
+  const before = uidCounterValue();
+  lookahead(state, "player", { type: "activate", uid: goat.uid }, applyAction);
+  assert.equal(uidCounterValue(), before,
+    "a hypothetical that burns card ids makes the real duel unreproducible from its seed");
+});

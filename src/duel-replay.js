@@ -15,7 +15,26 @@ export const REPLAY_VERSION = 1;
 const KINDS = { a: "action", p: "phase", t: "turn", c: "chain", g: "target", r: "tribute", d: "discard" };
 const SHORT = Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [v, k]));
 
-export const record = (kind, payload) => ({ k: SHORT[kind] ?? kind, v: payload ?? null });
+// An action carries a human label for the interface; a replay does not need it.
+// Keeping it made a duel five kilobytes instead of a few hundred bytes.
+function slim(kind, payload) {
+  if (kind !== "action" || !payload) return payload ?? null;
+  const { type, uid, targetUid, targets, set, position } = payload;
+  const out = { type };
+  if (uid !== undefined) out.uid = uid;
+  if (targetUid !== undefined) out.targetUid = targetUid;
+  if (targets !== undefined) out.targets = targets;
+  if (set) out.set = true;
+  if (position !== undefined) out.position = position;
+  return out;
+}
+
+export const record = (kind, payload) => ({ k: SHORT[kind] ?? kind, v: slim(kind, payload) });
+
+// On the wire a step is a pair, not an object with two named fields. Over a few
+// hundred steps the key names alone were a fifth of the payload.
+const pack = (step) => (step.v === null || step.v === undefined ? [step.k] : [step.k, step.v]);
+const unpack = ([k, v]) => ({ k, v: v ?? null });
 
 /** Apply one recorded step. Returns the new state and its events. */
 export function applyStep(state, step) {
@@ -69,7 +88,9 @@ const urlSafe = (b64) => b64.replaceAll("+", "-").replaceAll("/", "_").replace(/
 const unUrlSafe = (text) => text.replaceAll("-", "+").replaceAll("_", "/");
 
 export function encodeReplay({ seed, matchup, steps }) {
-  return urlSafe(toBase64(JSON.stringify({ v: REPLAY_VERSION, s: seed, m: matchup, x: steps })));
+  return urlSafe(toBase64(JSON.stringify({
+    v: REPLAY_VERSION, s: seed, m: matchup, x: steps.map(pack),
+  })));
 }
 
 /** Decode a replay, or null when the text is not one. */
@@ -77,7 +98,7 @@ export function decodeReplay(encoded) {
   try {
     const body = JSON.parse(fromBase64(unUrlSafe(String(encoded))));
     if (body.v !== REPLAY_VERSION || !body.m || !Array.isArray(body.x)) return null;
-    return { seed: body.s, matchup: body.m, steps: body.x };
+    return { seed: body.s, matchup: body.m, steps: body.x.map(unpack) };
   } catch {
     return null;
   }

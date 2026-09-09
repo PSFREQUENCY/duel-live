@@ -22,6 +22,7 @@ import { reactionKeyFor } from "./cinema/archetypes.js";
 import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
 import { createHoverPanel, showGraveyard } from "./inspect.js";
+import { decodeReplay, encodeReplay, record, replay } from "./duel-replay.js";
 import { activeEffects } from "./duel-effects-active.js";
 import { summariseDuel } from "./duel-stats.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
@@ -45,6 +46,8 @@ let tributePicks = [];
 let stalledTicks = 0;
 let introShown = false;
 let duelEvents = [];
+let duelSteps = [];
+let duelSeed = 0;
 let cardFormat = DEFAULT_FORMAT;
 
 const hover = createHoverPanel();
@@ -289,6 +292,12 @@ function videoBudget() {
   return el("clip-mode-select").value === "library" ? 4 : 2;
 }
 
+// A duel is its seed plus the choices made. Recording them as they happen is
+// what turns a shared card into something someone can actually watch.
+function step(kind, payload) {
+  duelSteps.push(record(kind, payload));
+}
+
 async function run(mutator) {
   if (busy) return;
   busy = true;
@@ -346,6 +355,7 @@ async function maybePending() {
     const uids = state.pending.side === "player"
       ? await askDiscard(state.pending)
       : state.sides[state.pending.side].hand.slice(0, state.pending.need).map((c) => c.uid);
+    step("discard", uids);
     const result = respondToDiscard(state, uids);
     state = result.state;
     present(result.events);
@@ -355,6 +365,7 @@ async function maybePending() {
     const answer = state.pending.side === "player"
       ? await askTargets(state.pending)
       : { uids: chooseTargets(state), position: "attack" };
+    step("target", { uids: answer.uids, position: answer.position });
     const result = respondToTarget(state, answer.uids, { position: answer.position });
     state = result.state;
     present(result.events);
@@ -363,11 +374,14 @@ async function maybePending() {
   while (state.pending?.kind === "tribute") {
     if (state.pending.side === "player") {
       const uids = await askTributes(state.pending);
+      step("tribute", uids);
       const result = respondToTribute(state, uids);
       state = result.state;
       present(result.events);
     } else {
-      const result = respondToTribute(state, chooseTributes(state));
+      const auto = chooseTributes(state);
+      step("tribute", auto);
+      const result = respondToTribute(state, auto);
       state = result.state;
       present(result.events);
     }
@@ -384,6 +398,7 @@ async function maybeTrapWindow() {
     const choice = state.pending.side === "player"
       ? await askChainResponse(state)
       : chooseChainResponse(state, Math.random);
+    step("chain", choice);
     const result = respondToChain(state, choice);
     state = result.state;
     present(result.events);
@@ -475,7 +490,10 @@ function resume() {
   run(() => ({ state, events: [] }));
 }
 
+const recordTurn = () => duelSteps.push(record("turn", null));
+
 function advance(phase) {
+  duelSteps.push(record("phase", phase));
   const result = setPhase(state, phase);
   state = result.state;
   present(result.events);
@@ -540,6 +558,24 @@ async function copyImage() {
     shareNote("Image copied — paste it anywhere.");
   } catch {
     shareNote("This browser blocks image copying. Right-click the card to save it.", true);
+  }
+}
+
+function replayHref() {
+  if (!duelSteps.length) return null;
+  const encoded = encodeReplay({ seed: duelSeed, matchup: state.matchupId, steps: duelSteps });
+  const base = `${location.origin}${location.pathname}`;
+  return `${base}?duel=${encoded}`;
+}
+
+async function copyReplayLink() {
+  const href = replayHref();
+  if (!href) { shareNote("Nothing to replay yet.", true); return; }
+  try {
+    await navigator.clipboard.writeText(href);
+    shareNote(`Link copied — ${(href.length / 1024).toFixed(1)} KB, plays the whole duel.`);
+  } catch {
+    shareNote("Copying was blocked by the browser.", true);
   }
 }
 
@@ -615,7 +651,10 @@ function announceWinner() {
 
 function onPlayCard(inst, options) {
   if (busy || !myTurn()) return;
-  if (options.length === 1) return void run(() => applyAction(state, options[0]));
+  if (options.length === 1) {
+    step("action", options[0]);
+    return void run(() => applyAction(state, options[0]));
+  }
   askChoice(`${getCard(inst.cardId).name} — how do you want to play it?`, options.map((action) => ({
     label: action.label, value: action,
   }))).then((action) => { if (action) run(() => applyAction(state, action)); });
@@ -634,7 +673,7 @@ function onMyMonster(inst) {
   // only way to turn a set monster face-up so it can attack.
   if (state.phase === "main1") {
     const change = actions.find((a) => a.type === "position" && a.uid === inst.uid);
-    if (change) { run(() => applyAction(state, change)); return; }
+    if (change) { step("action", change); run(() => applyAction(state, change)); return; }
     const why = positionBlockedBecause(inst);
     if (why) flashTemporaryMessage(`Can't change position — ${why}.`);
     return;
@@ -645,7 +684,7 @@ function onMyMonster(inst) {
   if (!options.length) return;
   if (attackFrom === inst.uid) { attackFrom = null; renderAll(); return; }
   const direct = options.find((a) => !a.targetUid);
-  if (direct) return void run(() => applyAction(state, direct));
+  if (direct) { step("action", direct); return void run(() => applyAction(state, direct)); }
   attackFrom = inst.uid;
   renderAll();
 }
@@ -654,7 +693,7 @@ function onMyBackrow(inst) {
   if (busy || !myTurn()) return;
   const action = legalActions(state, "player")
     .find((a) => a.type === "activate" && a.uid === inst.uid);
-  if (action) { run(() => applyAction(state, action)); return; }
+  if (action) { step("action", action); run(() => applyAction(state, action)); return; }
   // Say why rather than doing nothing, which is what made this look broken.
   const card = getCard(inst.cardId);
   if (card.kind === "trap") {
@@ -673,7 +712,7 @@ function onFoeMonster(inst) {
   const action = legalActions(state, "player")
     .find((a) => a.type === "attack" && a.uid === attackFrom && a.targetUid === inst.uid);
   attackFrom = null;
-  if (action) run(() => applyAction(state, action));
+  if (action) { step("action", action); run(() => applyAction(state, action)); }
   else renderAll();
 }
 
@@ -859,8 +898,10 @@ function startDuel(requested) {
   ui.log.innerHTML = "";
   ui.prompt.hidden = true;
   duelEvents = [];
+  duelSteps = [];
   ui.share.hidden = true;
-  state = createDuel(matchupId, { seed: Date.now() });
+  duelSeed = Date.now() % 2147483647;
+  state = createDuel(matchupId, { seed: duelSeed });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
   // Intro plays once per session; the versus plate opens every duel.
@@ -886,10 +927,10 @@ function bind() {
     const step = nextStep();
     if (!step) return;
     attackFrom = null;
-    if (step.endsTurn) { run(() => endTurn(state)); return; }
+    if (step.endsTurn) { recordTurn(); run(() => endTurn(state)); return; }
     // Moving through phases is not a turn action, so it does not run the
     // opponent -- except entering the End Phase, which hands the turn over.
-    if (step.to === "end") { advance("end"); run(() => endTurn(state)); return; }
+    if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
     advance(step.to);
     renderAll();
   });
@@ -909,6 +950,7 @@ function bind() {
   el("share-send").addEventListener("click", sendShare);
   el("share-copy").addEventListener("click", copyImage);
   el("share-copy-text").addEventListener("click", copyCardText);
+  el("share-replay").addEventListener("click", copyReplayLink);
   el("share-download").addEventListener("click", downloadCard);
   el("share-close").addEventListener("click", () => { ui.shareModal.hidden = true; });
   el("format-landscape").addEventListener("click", () => setFormat("landscape"));
@@ -969,11 +1011,33 @@ function showRules() {
   ui.modal.hidden = false;
 }
 
+function recordingFromUrl() {
+  const encoded = new URLSearchParams(location.search).get("duel");
+  return encoded ? decodeReplay(encoded) : null;
+}
+
+/** Play a shared duel back to its end, then show the result. */
+function loadReplay(recording) {
+  startDuel(recording.matchup);
+  const played = replay(recording);
+  state = played.state;
+  duelSteps = recording.steps;
+  duelSeed = recording.seed;
+  duelEvents = played.events;
+  cinema.clear();
+  for (const event of played.events) logEvent(ui.log, event, state);
+  renderAll();
+  if (state.winner) announceWinner();
+  ui.hint.textContent = "Replay of a shared duel. Start a new duel to play.";
+}
+
 async function boot() {
   bind();
   cinema.start();
   startWatchdog();
-  startDuel(el("matchup-select").value);
+  const shared = recordingFromUrl();
+  if (shared) loadReplay(shared);
+  else startDuel(el("matchup-select").value);
   const cap = await probeCapability();
   enableRemoteVoice(cap.voice);
   setClipMode(el("clip-mode-select").value);
