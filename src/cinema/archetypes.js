@@ -92,6 +92,16 @@ export function archetypeFor(shot, { hasClip } = {}) {
   const look = (a) => ATTRIBUTE_LOOK[a] ?? ATTRIBUTE_LOOK.DARK;
   const where = `in ${NEUTRAL_ARENA}`;
 
+  // Chain shots are about the stack, not about any one card, so they key on
+  // the kind alone and stay a fixed handful of clips.
+  if (shot.kind === "chain_build" || shot.kind === "chain_resolve") {
+    return {
+      key: shot.kind.replace("_", "-"),
+      prompt: shot.prompt,
+      seconds: shot.seconds,
+    };
+  }
+
   if (!MONSTER_KINDS.has(shot.kind)) {
     const character = duelistKeyFor(shot);
     if (character && (!hasClip || hasClip(character))) {
@@ -147,6 +157,13 @@ export function archetypeFor(shot, { hasClip } = {}) {
   };
 }
 
+const chainPrompt = (kind) => assemble(kind === "chain_build"
+  ? `several huge holographic cards flip face-up one after another and hang stacked in the air, `
+    + `each lit brighter than the last, in ${NEUTRAL_ARENA}`
+  : `one card in a stack of holographic cards flares and discharges its effect across `
+    + `${NEUTRAL_ARENA}`);
+
+
 /** Every archetype the four decks can actually produce — the whole clip library. */
 export function libraryFor(duelists) {
   const keys = new Map();
@@ -164,5 +181,8 @@ export function libraryFor(duelists) {
     }
   }
   for (const kind of ["trap", "spell", "finish"]) add(archetypeFor({ kind, seconds: 6 }));
+  for (const kind of ["chain_build", "chain_resolve"]) {
+    add(archetypeFor({ kind, seconds: 6, prompt: chainPrompt(kind) }));
+  }
   return [...keys.values()];
 }

@@ -1,6 +1,6 @@
 # Duel Live — every prompt
 
-82 clips. Generate at **16:9**, **480p is enough**, durations as noted.
+84 clips. Generate at **16:9**, **480p is enough**, durations as noted.
 Save each file as the filename in its heading and drop it in `clips/`.
 
 The first two sentences of every prompt are identical on purpose — that shared
@@ -563,6 +563,22 @@ late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film
 
 ```
 late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. two duelists faced off at opposite ends of a rain-slicked skyscraper rooftop duel arena at night, city lights far below, holographic projector pylons humming at the edges, Duel Disks lit, monsters idling as holograms between them, nothing moving but the rain.
+```
+
+### `chain-build.mp4` — chain · build
+
+*6s · 16:9 · 480p is fine*
+
+```
+late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. several huge holographic cards flip face-up one after another and hang stacked in the air, each lit brighter than the last, in a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond.
+```
+
+### `chain-resolve.mp4` — chain · resolve
+
+*6s · 16:9 · 480p is fine*
+
+```
+late-1990s cel-shaded anime, hand-inked outlines, saturated colour, visible film grain, dramatic low camera angle, shallow depth of field, 16:9 widescreen, no text, no subtitles, no captions, no logos, no watermark. A holographic trading-card duel. Each duelist wears a metal Duel Disk clamped to their left forearm: a curved silver-and-grey blade with five illuminated card slots swung out into a wide arc, and a round glowing life-point counter set into the housing. Cards are slotted in by hand. Monsters appear as huge translucent light-emitting holograms projected upward from the disk, with visible scan lines and flickering edges. one card in a stack of holographic cards flares and discharges its effect across a floodlit open-air duel arena at night, holographic projector pylons at its edges, empty stands beyond.
 ```
 
 ### `direct-DARK.mp4` — direct · DARK

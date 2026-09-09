@@ -82,6 +82,19 @@ const SHOT_BUILDERS = {
 
   activate(event, state) {
     const duelist = duelistOf(state, event.side);
+    // A card revealed as part of a chain reads as a link resolving, not as a
+    // standalone flip, so the exchange keeps its rhythm.
+    if (event.reveal && event.chainLink > 1) {
+      return {
+        kind: "chain_resolve",
+        title: event.card,
+        subtitle: `Chain Link ${event.chainLink}`,
+        seconds: 2.2,
+        prompt: assemble(`${event.art ?? event.card}; one card in a stack of holographic cards `
+          + `flares and discharges its effect across ${NEUTRAL_ARENA_TEXT}`),
+        voice: duelist.lines.trap.replace("{card}", event.card),
+      };
+    }
     return {
       kind: event.reveal ? "trap" : "spell",
       title: event.card,
@@ -117,14 +130,34 @@ const SHOT_BUILDERS = {
   },
 };
 
-const CINEMATIC = new Set(["summon", "clash", "directAttack", "activate", "win"]);
+// A chain is an exchange, so it reads as several beats rather than one shot.
+const SHOT_BUILDERS_CHAIN = {
+  chainStart(event, state) {
+    return {
+      kind: "chain_build",
+      title: event.links > 1 ? `Chain — ${event.links} links` : "Chain",
+      subtitle: event.links > 1 ? "Resolving last to first" : "",
+      seconds: event.links > 1 ? 2.4 : 1.6,
+      prompt: assemble(`several huge holographic cards flip face-up one after another and hang `
+        + `stacked in the air above ${NEUTRAL_ARENA_TEXT}, each one lit brighter than the last`),
+      voice: null,
+    };
+  },
+};
+
+const NEUTRAL_ARENA_TEXT = "a floodlit open-air duel arena at night";
+
+const CINEMATIC = new Set([
+  "summon", "clash", "directAttack", "activate", "win", "chainStart",
+]);
 
 export function buildStoryboard(events, state, { turn = state.turn } = {}) {
   const shots = [];
   events.forEach((event, i) => {
     if (!CINEMATIC.has(event.type)) return;
     if (event.type === "summon" && event.how === "token") return;
-    const built = SHOT_BUILDERS[event.type](event, state, i);
+    const build = SHOT_BUILDERS[event.type] ?? SHOT_BUILDERS_CHAIN[event.type];
+    const built = build(event, state, i);
     shots.push({
       ...built,
       id: `t${turn}-${i}-${built.kind}-${(built.title ?? "").replace(/\W+/g, "").slice(0, 24)}`,

@@ -115,6 +115,26 @@ export async function resolve(shot, { tier = highestTier(), timeoutMs = 0, fetch
   return raced;
 }
 
+/**
+ * Warm the clips a likely response would need.
+ *
+ * The trap flip is the most dramatic moment in the game and, being the one
+ * nobody sees coming, the one most likely to fall back a tier. At a response
+ * window we already know the shortlist, so the wait can start before the choice.
+ */
+export function prefetchResponses(shots, { limit = 2, fetchImpl = fetch } = {}) {
+  const tier = highestTier();
+  if (tier === "procedural") return 0;
+  let started = 0;
+  for (const shot of shots) {
+    if (started >= limit) break;
+    if (!shot?.prompt) continue;
+    prefetch(shot, tier, fetchImpl);
+    started += 1;
+  }
+  return started;
+}
+
 export function clearJobs() {
   jobs.clear();
 }

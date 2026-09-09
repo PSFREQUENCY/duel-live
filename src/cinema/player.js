@@ -96,11 +96,22 @@ function drawWhiteout(ctx, p, w, h) {
   ctx.restore();
 }
 
+// The shot kinds the canvas can draw unaided. A kind that is in neither this
+// set nor the clip library would play as a blank beat, which the coverage
+// check refuses at build time.
+export const PROCEDURAL_KINDS = new Set([
+  "clash", "direct", "summon", "fusion", "spell", "trap", "finish",
+  "chain_build", "chain_resolve", "open", "reaction", "versus", "intro", "outro", "idle",
+]);
+
 function drawShotFx(ctx, shot, p, t) {
   const { width: w, height: h } = ctx.canvas;
   if (shot.kind === "clash" || shot.kind === "direct") drawStrike(ctx, shot, p, t, w, h);
   else if (shot.kind === "summon" || shot.kind === "fusion") drawArrival(ctx, shot, p, t, w, h);
-  else if (shot.kind === "spell" || shot.kind === "trap") drawCardFlash(ctx, shot, p, w, h);
+  else if (shot.kind === "spell" || shot.kind === "trap"
+    || shot.kind === "chain_build" || shot.kind === "chain_resolve") {
+    drawCardFlash(ctx, shot, p, w, h);
+  }
   else if (shot.kind === "finish") drawWhiteout(ctx, p, w, h);
 }
 

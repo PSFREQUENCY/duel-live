@@ -76,10 +76,12 @@ actually in `clips/`.
 - [ ] `summon-WIND-warrior.mp4` — summon · WIND · warrior (6s)
 - [ ] `summon-WIND-winged.mp4` — summon · WIND · winged (6s)
 
-## Priority 3 — 15 clips
+## Priority 3 — 17 clips
 
 - [ ] `standoff-cliff.mp4` — Standoff loop — cliff (6s)
 - [ ] `standoff-rooftop.mp4` — Standoff loop — rooftop (6s)
+- [ ] `chain-build.mp4` — chain · build (6s)
+- [ ] `chain-resolve.mp4` — chain · resolve (6s)
 - [ ] `direct-DARK.mp4` — direct · DARK (6s)
 - [ ] `direct-EARTH.mp4` — direct · EARTH (6s)
 - [ ] `direct-FIRE.mp4` — direct · FIRE (6s)

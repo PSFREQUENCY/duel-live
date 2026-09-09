@@ -241,6 +241,22 @@ Defence positions with face-down sets · Fusion Summoning from hand and field ·
 (normal, continuous, quick-play, equip) · Traps that open a real response window when you
 are attacked · direct attacks · a six-card hand limit · deck-out.
 
+### Replay
+
+A duel is its seed plus the choices made, so a finished duel fits in a link. The
+share panel hands one out and `?duel=` plays it back. Recorded duels replay to a
+byte-identical final state — which is only true because card ids are reproducible
+per duel and the opponent's search restores the id counter it borrows.
+
+### Card packs
+
+`packs/duel-live-classic.json` is the shipped card set expressed in a loadable
+format: cards with their effects, spell speeds and activation timings, plus the
+four decks. Adding a card is editing JSON, deck legality (40–60 main, 15 extra,
+three copies) is enforced by `validateDeck`, and a deck builder is a small UI
+over this shape. `npm run pack` regenerates it and refuses to write a pack that
+does not validate.
+
 ### Chains
 
 Cards do not resolve when they are activated. They stack as chain links, the
@@ -287,6 +303,9 @@ npm run clips    # coverage report for clips/
 npm run clips:preview  # filmstrip every clip so you can see what is in it
 npm run shotlist # regenerate prompts/ from the game's own data
 npm run build    # regenerate duel-live.html
+npm run coverage # every shot kind has a clip or a procedural fallback
+npm run pack     # export the card set as a loadable pack
+npm run record   # record a duel and print a replay link
 ```
 
 `npm test` includes an integration test that runs `src/app.js` itself against a stubbed

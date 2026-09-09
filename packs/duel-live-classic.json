@@ -1,0 +1,1421 @@
+{
+  "version": 1,
+  "packId": "duel-live-classic",
+  "name": "Duel Live — Classic",
+  "cards": [
+    {
+      "id": "darkMagician",
+      "name": "Dark Magician",
+      "type": "monster",
+      "shotKey": "summon.dark.spellcaster",
+      "level": 7,
+      "atk": 2500,
+      "def": 2100,
+      "attribute": "DARK",
+      "family": "Spellcaster"
+    },
+    {
+      "id": "darkMagicianGirl",
+      "name": "Dark Magician Girl",
+      "type": "monster",
+      "shotKey": "summon.dark.spellcaster",
+      "level": 6,
+      "atk": 2000,
+      "def": 1700,
+      "attribute": "DARK",
+      "family": "Spellcaster"
+    },
+    {
+      "id": "kuriboh",
+      "name": "Kuriboh",
+      "type": "monster",
+      "shotKey": "summon.dark.fiend",
+      "level": 1,
+      "atk": 300,
+      "def": 200,
+      "attribute": "DARK",
+      "family": "Fiend"
+    },
+    {
+      "id": "celticGuardian",
+      "name": "Celtic Guardian",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1400,
+      "def": 1200,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "beaverWarrior",
+      "name": "Beaver Warrior",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1200,
+      "def": 1500,
+      "attribute": "EARTH",
+      "family": "Beast-Warrior"
+    },
+    {
+      "id": "gaia",
+      "name": "Gaia The Fierce Knight",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 7,
+      "atk": 2300,
+      "def": 2100,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "curseOfDragon",
+      "name": "Curse of Dragon",
+      "type": "monster",
+      "shotKey": "summon.dark.dragon",
+      "level": 5,
+      "atk": 2000,
+      "def": 1500,
+      "attribute": "DARK",
+      "family": "Dragon"
+    },
+    {
+      "id": "summonedSkull",
+      "name": "Summoned Skull",
+      "type": "monster",
+      "shotKey": "summon.dark.fiend",
+      "level": 6,
+      "atk": 2500,
+      "def": 1200,
+      "attribute": "DARK",
+      "family": "Fiend"
+    },
+    {
+      "id": "busterBlader",
+      "name": "Buster Blader",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 7,
+      "atk": 2600,
+      "def": 2300,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "bigShieldGardna",
+      "name": "Big Shield Gardna",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 100,
+      "def": 2600,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "gazelle",
+      "name": "Gazelle the King of Mythical Beasts",
+      "type": "monster",
+      "shotKey": "summon.earth.beast",
+      "level": 4,
+      "atk": 1500,
+      "def": 1200,
+      "attribute": "EARTH",
+      "family": "Beast"
+    },
+    {
+      "id": "berfomet",
+      "name": "Berfomet",
+      "type": "monster",
+      "shotKey": "summon.dark.fiend",
+      "level": 4,
+      "atk": 1400,
+      "def": 1800,
+      "attribute": "DARK",
+      "family": "Fiend"
+    },
+    {
+      "id": "magnetValkyrion",
+      "name": "Berserk Gorilla",
+      "type": "monster",
+      "shotKey": "summon.earth.beast",
+      "level": 4,
+      "atk": 2000,
+      "def": 1000,
+      "attribute": "EARTH",
+      "family": "Beast"
+    },
+    {
+      "id": "blueEyes",
+      "name": "Blue-Eyes White Dragon",
+      "type": "monster",
+      "shotKey": "summon.light.dragon",
+      "level": 8,
+      "atk": 3000,
+      "def": 2500,
+      "attribute": "LIGHT",
+      "family": "Dragon"
+    },
+    {
+      "id": "lordOfD",
+      "name": "Lord of D.",
+      "type": "monster",
+      "shotKey": "summon.dark.spellcaster",
+      "level": 4,
+      "atk": 1200,
+      "def": 1100,
+      "attribute": "DARK",
+      "family": "Spellcaster"
+    },
+    {
+      "id": "battleOx",
+      "name": "Battle Ox",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1700,
+      "def": 1000,
+      "attribute": "EARTH",
+      "family": "Beast-Warrior"
+    },
+    {
+      "id": "saggi",
+      "name": "Saggi the Dark Clown",
+      "type": "monster",
+      "shotKey": "summon.dark.fiend",
+      "level": 3,
+      "atk": 600,
+      "def": 1500,
+      "attribute": "DARK",
+      "family": "Fiend"
+    },
+    {
+      "id": "vorseRaider",
+      "name": "Vorse Raider",
+      "type": "monster",
+      "shotKey": "summon.dark.warrior",
+      "level": 4,
+      "atk": 1900,
+      "def": 1200,
+      "attribute": "DARK",
+      "family": "Beast-Warrior"
+    },
+    {
+      "id": "kaiserSeahorse",
+      "name": "Kaiser Sea Horse",
+      "type": "monster",
+      "shotKey": "summon.light.dragon",
+      "level": 4,
+      "atk": 1700,
+      "def": 1650,
+      "attribute": "LIGHT",
+      "family": "Sea Serpent"
+    },
+    {
+      "id": "laJinn",
+      "name": "La Jinn the Mystical Genie of the Lamp",
+      "type": "monster",
+      "shotKey": "summon.dark.fiend",
+      "level": 4,
+      "atk": 1800,
+      "def": 1000,
+      "attribute": "DARK",
+      "family": "Fiend"
+    },
+    {
+      "id": "rudeKaiser",
+      "name": "Rude Kaiser",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1800,
+      "def": 1600,
+      "attribute": "EARTH",
+      "family": "Beast-Warrior"
+    },
+    {
+      "id": "ryuKishin",
+      "name": "Ryu-Kishin Powered",
+      "type": "monster",
+      "shotKey": "summon.dark.fiend",
+      "level": 4,
+      "atk": 1600,
+      "def": 1200,
+      "attribute": "DARK",
+      "family": "Fiend"
+    },
+    {
+      "id": "redEyes",
+      "name": "Red-Eyes Black Dragon",
+      "type": "monster",
+      "shotKey": "summon.dark.dragon",
+      "level": 7,
+      "atk": 2400,
+      "def": 2000,
+      "attribute": "DARK",
+      "family": "Dragon"
+    },
+    {
+      "id": "babyDragon",
+      "name": "Baby Dragon",
+      "type": "monster",
+      "shotKey": "summon.wind.dragon",
+      "level": 3,
+      "atk": 1200,
+      "def": 700,
+      "attribute": "WIND",
+      "family": "Dragon"
+    },
+    {
+      "id": "timeWizard",
+      "name": "Time Wizard",
+      "type": "monster",
+      "shotKey": "summon.wind.spellcaster",
+      "level": 2,
+      "atk": 500,
+      "def": 400,
+      "attribute": "WIND",
+      "family": "Spellcaster"
+    },
+    {
+      "id": "rocketWarrior",
+      "name": "Rocket Warrior",
+      "type": "monster",
+      "shotKey": "summon.wind.warrior",
+      "level": 4,
+      "atk": 1500,
+      "def": 1300,
+      "attribute": "WIND",
+      "family": "Warrior"
+    },
+    {
+      "id": "pantherWarrior",
+      "name": "Panther Warrior",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 2000,
+      "def": 1600,
+      "attribute": "EARTH",
+      "family": "Beast-Warrior"
+    },
+    {
+      "id": "alligatorsSword",
+      "name": "Alligator's Sword",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1500,
+      "def": 1200,
+      "attribute": "EARTH",
+      "family": "Beast-Warrior"
+    },
+    {
+      "id": "littleWinguard",
+      "name": "Little-Winguard",
+      "type": "monster",
+      "shotKey": "summon.wind.warrior",
+      "level": 4,
+      "atk": 1400,
+      "def": 1800,
+      "attribute": "WIND",
+      "family": "Warrior"
+    },
+    {
+      "id": "gearfried",
+      "name": "Gearfried the Iron Knight",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1800,
+      "def": 1600,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "axeRaider",
+      "name": "Axe Raider",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1700,
+      "def": 1150,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "flameManipulator",
+      "name": "Flame Manipulator",
+      "type": "monster",
+      "shotKey": "summon.fire.spellcaster",
+      "level": 3,
+      "atk": 900,
+      "def": 1000,
+      "attribute": "FIRE",
+      "family": "Spellcaster"
+    },
+    {
+      "id": "masaki",
+      "name": "Masaki the Legendary Swordsman",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1100,
+      "def": 1100,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "harpieLady",
+      "name": "Harpie Lady",
+      "type": "monster",
+      "shotKey": "summon.wind.winged",
+      "level": 4,
+      "atk": 1300,
+      "def": 1400,
+      "attribute": "WIND",
+      "family": "Winged Beast"
+    },
+    {
+      "id": "cyberHarpie",
+      "name": "Cyber Harpie Lady",
+      "type": "monster",
+      "shotKey": "summon.wind.winged",
+      "level": 4,
+      "atk": 1800,
+      "def": 1300,
+      "attribute": "WIND",
+      "family": "Winged Beast"
+    },
+    {
+      "id": "harpieSisters",
+      "name": "Harpie Lady Sisters",
+      "type": "monster",
+      "shotKey": "summon.wind.winged",
+      "level": 6,
+      "atk": 1950,
+      "def": 2100,
+      "attribute": "WIND",
+      "family": "Winged Beast"
+    },
+    {
+      "id": "harpiesPetDragon",
+      "name": "Harpie's Pet Dragon",
+      "type": "monster",
+      "shotKey": "summon.wind.dragon",
+      "level": 7,
+      "atk": 2000,
+      "def": 2500,
+      "attribute": "WIND",
+      "family": "Dragon"
+    },
+    {
+      "id": "harpieGirl",
+      "name": "Harpie Girl",
+      "type": "monster",
+      "shotKey": "summon.wind.winged",
+      "level": 2,
+      "atk": 500,
+      "def": 500,
+      "attribute": "WIND",
+      "family": "Winged Beast"
+    },
+    {
+      "id": "amazonessSwordsWoman",
+      "name": "Amazoness Swords Woman",
+      "type": "monster",
+      "shotKey": "summon.earth.warrior",
+      "level": 4,
+      "atk": 1500,
+      "def": 1600,
+      "attribute": "EARTH",
+      "family": "Warrior"
+    },
+    {
+      "id": "dunames",
+      "name": "Dunames Dark Witch",
+      "type": "monster",
+      "shotKey": "summon.light.winged",
+      "level": 4,
+      "atk": 1800,
+      "def": 1050,
+      "attribute": "LIGHT",
+      "family": "Fairy"
+    },
+    {
+      "id": "birdface",
+      "name": "Birdface",
+      "type": "monster",
+      "shotKey": "summon.wind.winged",
+      "level": 4,
+      "atk": 1600,
+      "def": 1600,
+      "attribute": "WIND",
+      "family": "Winged Beast"
+    },
+    {
+      "id": "blueEyesUltimate",
+      "name": "Blue-Eyes Ultimate Dragon",
+      "type": "monster",
+      "shotKey": "summon.light.dragon",
+      "level": 12,
+      "atk": 4500,
+      "def": 3800,
+      "attribute": "LIGHT",
+      "family": "Dragon",
+      "fusion": [
+        "blueEyes",
+        "blueEyes",
+        "blueEyes"
+      ]
+    },
+    {
+      "id": "gaiaDragonChampion",
+      "name": "Gaia the Dragon Champion",
+      "type": "monster",
+      "shotKey": "summon.wind.dragon",
+      "level": 7,
+      "atk": 2600,
+      "def": 2100,
+      "attribute": "WIND",
+      "family": "Dragon",
+      "fusion": [
+        "gaia",
+        "curseOfDragon"
+      ]
+    },
+    {
+      "id": "chimera",
+      "name": "Chimera the Flying Mythical Beast",
+      "type": "monster",
+      "shotKey": "summon.wind.beast",
+      "level": 6,
+      "atk": 2100,
+      "def": 1800,
+      "attribute": "WIND",
+      "family": "Beast",
+      "fusion": [
+        "gazelle",
+        "berfomet"
+      ]
+    },
+    {
+      "id": "flameSwordsman",
+      "name": "Flame Swordsman",
+      "type": "monster",
+      "shotKey": "summon.fire.warrior",
+      "level": 5,
+      "atk": 1800,
+      "def": 1600,
+      "attribute": "FIRE",
+      "family": "Warrior",
+      "fusion": [
+        "flameManipulator",
+        "masaki"
+      ]
+    },
+    {
+      "id": "thousandDragon",
+      "name": "Thousand Dragon",
+      "type": "monster",
+      "shotKey": "summon.wind.dragon",
+      "level": 7,
+      "atk": 2400,
+      "def": 2000,
+      "attribute": "WIND",
+      "family": "Dragon",
+      "fusion": [
+        "babyDragon",
+        "timeWizard"
+      ]
+    },
+    {
+      "id": "blackSkullDragon",
+      "name": "Black Skull Dragon",
+      "type": "monster",
+      "shotKey": "summon.dark.dragon",
+      "level": 9,
+      "atk": 3200,
+      "def": 2500,
+      "attribute": "DARK",
+      "family": "Dragon",
+      "fusion": [
+        "summonedSkull",
+        "redEyes"
+      ]
+    },
+    {
+      "id": "polymerization",
+      "name": "Polymerization",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Fusion Summon 1 Fusion Monster using materials from your hand or field.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "fusionSummon"
+      }
+    },
+    {
+      "id": "monsterReborn",
+      "name": "Monster Reborn",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Special Summon 1 monster from either Graveyard.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "revive",
+        "from": "either"
+      }
+    },
+    {
+      "id": "darkHole",
+      "name": "Dark Hole",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Destroy all monsters on the field.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "destroyAllMonsters"
+      }
+    },
+    {
+      "id": "swordsOfRevealingLight",
+      "name": "Swords of Revealing Light",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "continuous",
+      "text": "Your opponent cannot declare attacks for 3 turns.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "lockAttacks",
+        "turns": 3
+      }
+    },
+    {
+      "id": "magicalHats",
+      "name": "Magical Hats",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "quick",
+      "text": "Hide your monster among four hats; the next attack has a 1-in-4 chance to hit.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "magicalHats"
+      }
+    },
+    {
+      "id": "brainControl",
+      "name": "Brain Control",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Pay 800 LP; take control of 1 face-up opponent monster until end of turn.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "takeControl",
+        "cost": 800
+      }
+    },
+    {
+      "id": "potOfGreed",
+      "name": "Pot of Greed",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Draw 2 cards.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "draw",
+        "count": 2
+      }
+    },
+    {
+      "id": "gracefulCharity",
+      "name": "Graceful Charity",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Draw 3 cards, then discard 2.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "draw",
+        "count": 3,
+        "discard": 2
+      }
+    },
+    {
+      "id": "darkMagicAttack",
+      "name": "Dark Magic Attack",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "If you control Dark Magician: destroy all Spells and Traps your opponent controls.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "destroyFoeBackrow",
+        "requires": "darkMagician"
+      }
+    },
+    {
+      "id": "fluteOfSummoningDragon",
+      "name": "The Flute of Summoning Dragon",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "If you control Lord of D.: Special Summon up to 2 Dragons from your hand.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "summonFromHand",
+        "type": "Dragon",
+        "count": 2,
+        "requires": "lordOfD"
+      }
+    },
+    {
+      "id": "shrink",
+      "name": "Shrink",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "quick",
+      "text": "Halve the ATK of 1 face-up monster until the end of this turn.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "modifyAtk",
+        "factor": 0.5,
+        "target": "any"
+      }
+    },
+    {
+      "id": "despell",
+      "name": "De-Spell",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Destroy 1 Spell your opponent controls.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "destroyFoeBackrow",
+        "limit": 1,
+        "only": "spell"
+      }
+    },
+    {
+      "id": "scapegoat",
+      "name": "Scapegoat",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "quick",
+      "text": "Special Summon 4 Sheep Tokens in Defence Position.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "tokens",
+        "count": 4,
+        "name": "Sheep Token",
+        "atk": 0,
+        "def": 0
+      }
+    },
+    {
+      "id": "shieldAndSword",
+      "name": "Shield & Sword",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Swap the ATK and DEF of all face-up monsters until the end of this turn.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "swapAtkDef"
+      }
+    },
+    {
+      "id": "giantTrunade",
+      "name": "Giant Trunade",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Return all Spells and Traps on the field to their owners' hands.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "bounceAllBackrow"
+      }
+    },
+    {
+      "id": "salamandra",
+      "name": "Salamandra",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "equip",
+      "text": "Equipped FIRE monster gains 700 ATK.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "equip",
+        "atk": 700,
+        "requires": {
+          "attribute": "FIRE"
+        }
+      }
+    },
+    {
+      "id": "elegantEgotist",
+      "name": "Elegant Egotist",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "If you control a Harpie Lady: Special Summon Harpie Lady Sisters from your Deck.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "summonFromDeck",
+        "cardId": "harpieSisters",
+        "requires": "harpieLady"
+      }
+    },
+    {
+      "id": "cyberShield",
+      "name": "Cyber Shield",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "equip",
+      "text": "Equipped Harpie Lady gains 500 ATK.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "equip",
+        "atk": 500,
+        "requires": {
+          "name": "Harpie Lady"
+        }
+      }
+    },
+    {
+      "id": "roseWhip",
+      "name": "Rose Whip",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "equip",
+      "text": "Equipped Winged Beast gains 300 ATK and 200 DEF.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "equip",
+        "atk": 300,
+        "def": 200,
+        "requires": {
+          "type": "Winged Beast"
+        }
+      }
+    },
+    {
+      "id": "featherDuster",
+      "name": "Harpie's Feather Duster",
+      "type": "spell",
+      "shotKey": "spell",
+      "sub": "normal",
+      "text": "Destroy all Spells and Traps your opponent controls.",
+      "spellSpeed": 1,
+      "timings": [
+        "main1",
+        "main2"
+      ],
+      "effect": {
+        "op": "destroyFoeBackrow"
+      }
+    },
+    {
+      "id": "mirrorForce",
+      "name": "Mirror Force",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Destroy all Attack Position monsters your opponent controls.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "destroyAttackers"
+      }
+    },
+    {
+      "id": "magicCylinder",
+      "name": "Magic Cylinder",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Negate the attack and inflict damage equal to the attacking monster's ATK.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "reflectAttack"
+      }
+    },
+    {
+      "id": "spellbindingCircle",
+      "name": "Spellbinding Circle",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "continuous",
+      "text": "The attacking monster cannot attack and loses 700 ATK.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "bindMonster",
+        "atk": -700
+      }
+    },
+    {
+      "id": "waboku",
+      "name": "Waboku",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Take no battle damage this turn; your monsters are not destroyed by battle.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "negateBattle"
+      }
+    },
+    {
+      "id": "crushCardVirus",
+      "name": "Crush Card Virus",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Tribute a DARK monster with 1000 or less ATK: destroy every monster with 1500 or more ATK your opponent controls or draws for 3 turns.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onSummon",
+      "effect": {
+        "op": "crushVirus",
+        "threshold": 1500,
+        "turns": 3
+      }
+    },
+    {
+      "id": "ringOfDestruction",
+      "name": "Ring of Destruction",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Destroy 1 face-up monster and inflict its ATK as damage to both players.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "ringOfDestruction"
+      }
+    },
+    {
+      "id": "negateAttack",
+      "name": "Negate Attack",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "counter",
+      "text": "Negate the attack and end the Battle Phase.",
+      "spellSpeed": 3,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "negateBattle",
+        "endBattlePhase": true
+      }
+    },
+    {
+      "id": "gracefulDice",
+      "name": "Graceful Dice",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Roll a die: your monsters gain ATK equal to the result x 100 this turn.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "diceBuff",
+        "side": "self",
+        "per": 100
+      }
+    },
+    {
+      "id": "skullDice",
+      "name": "Skull Dice",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Roll a die: your opponent's monsters lose ATK equal to the result x 100 this turn.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "diceBuff",
+        "side": "foe",
+        "per": -100
+      }
+    },
+    {
+      "id": "kunaiWithChain",
+      "name": "Kunai with Chain",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Negate the attack, then equip to a monster you control which gains 500 ATK.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "negateBattle",
+        "thenEquipAtk": 500
+      }
+    },
+    {
+      "id": "trapHole",
+      "name": "Trap Hole",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Destroy 1 Normal Summoned monster with 1000 or more ATK.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onSummon",
+      "effect": {
+        "op": "destroySummoned",
+        "minAtk": 1000
+      }
+    },
+    {
+      "id": "mirrorWall",
+      "name": "Mirror Wall",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "continuous",
+      "text": "Halve the ATK of every attacking monster.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onAttack",
+      "effect": {
+        "op": "modifyAtk",
+        "factor": 0.5,
+        "target": "attackers"
+      }
+    },
+    {
+      "id": "gravityBind",
+      "name": "Gravity Bind",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "continuous",
+      "text": "Level 4 or higher monsters cannot attack.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onSummon",
+      "effect": {
+        "op": "gravityBind",
+        "minLevel": 4
+      }
+    },
+    {
+      "id": "dustTornado",
+      "name": "Dust Tornado",
+      "type": "trap",
+      "shotKey": "trap",
+      "sub": "normal",
+      "text": "Destroy 1 Spell or Trap your opponent controls.",
+      "spellSpeed": 2,
+      "timings": [
+        "battle_step",
+        "ds_start",
+        "ds_before_damage",
+        "ds_calculation",
+        "main1",
+        "main2"
+      ],
+      "trigger": "onSummon",
+      "effect": {
+        "op": "destroyFoeBackrow",
+        "limit": 1
+      }
+    }
+  ],
+  "decks": [
+    {
+      "name": "Yugi Muto",
+      "duelistId": "yugi",
+      "main": [
+        "darkMagician",
+        "darkMagician",
+        "darkMagicianGirl",
+        "kuriboh",
+        "kuriboh",
+        "celticGuardian",
+        "celticGuardian",
+        "celticGuardian",
+        "beaverWarrior",
+        "beaverWarrior",
+        "gaia",
+        "curseOfDragon",
+        "summonedSkull",
+        "busterBlader",
+        "bigShieldGardna",
+        "bigShieldGardna",
+        "gazelle",
+        "berfomet",
+        "magnetValkyrion",
+        "polymerization",
+        "polymerization",
+        "monsterReborn",
+        "darkHole",
+        "swordsOfRevealingLight",
+        "magicalHats",
+        "magicalHats",
+        "brainControl",
+        "potOfGreed",
+        "gracefulCharity",
+        "darkMagicAttack",
+        "mirrorForce",
+        "mirrorForce",
+        "magicCylinder",
+        "magicCylinder",
+        "spellbindingCircle",
+        "spellbindingCircle",
+        "waboku",
+        "waboku",
+        "trapHole",
+        "negateAttack"
+      ],
+      "extra": [
+        "gaiaDragonChampion",
+        "chimera"
+      ]
+    },
+    {
+      "name": "Seto Kaiba",
+      "duelistId": "kaiba",
+      "main": [
+        "blueEyes",
+        "blueEyes",
+        "blueEyes",
+        "lordOfD",
+        "lordOfD",
+        "battleOx",
+        "battleOx",
+        "battleOx",
+        "saggi",
+        "vorseRaider",
+        "vorseRaider",
+        "kaiserSeahorse",
+        "kaiserSeahorse",
+        "laJinn",
+        "laJinn",
+        "rudeKaiser",
+        "rudeKaiser",
+        "ryuKishin",
+        "ryuKishin",
+        "ryuKishin",
+        "polymerization",
+        "polymerization",
+        "fluteOfSummoningDragon",
+        "fluteOfSummoningDragon",
+        "monsterReborn",
+        "darkHole",
+        "shrink",
+        "shrink",
+        "despell",
+        "potOfGreed",
+        "crushCardVirus",
+        "ringOfDestruction",
+        "ringOfDestruction",
+        "negateAttack",
+        "negateAttack",
+        "mirrorForce",
+        "mirrorForce",
+        "trapHole",
+        "trapHole",
+        "waboku"
+      ],
+      "extra": [
+        "blueEyesUltimate"
+      ]
+    },
+    {
+      "name": "Joey Wheeler",
+      "duelistId": "joey",
+      "main": [
+        "redEyes",
+        "babyDragon",
+        "babyDragon",
+        "timeWizard",
+        "timeWizard",
+        "rocketWarrior",
+        "rocketWarrior",
+        "pantherWarrior",
+        "pantherWarrior",
+        "alligatorsSword",
+        "alligatorsSword",
+        "littleWinguard",
+        "littleWinguard",
+        "gearfried",
+        "gearfried",
+        "axeRaider",
+        "flameManipulator",
+        "flameManipulator",
+        "masaki",
+        "masaki",
+        "summonedSkull",
+        "polymerization",
+        "polymerization",
+        "polymerization",
+        "scapegoat",
+        "scapegoat",
+        "shieldAndSword",
+        "giantTrunade",
+        "salamandra",
+        "salamandra",
+        "monsterReborn",
+        "potOfGreed",
+        "gracefulDice",
+        "gracefulDice",
+        "skullDice",
+        "skullDice",
+        "kunaiWithChain",
+        "kunaiWithChain",
+        "trapHole",
+        "waboku"
+      ],
+      "extra": [
+        "flameSwordsman",
+        "thousandDragon",
+        "blackSkullDragon"
+      ]
+    },
+    {
+      "name": "Mai Valentine",
+      "duelistId": "mai",
+      "main": [
+        "harpieLady",
+        "harpieLady",
+        "harpieLady",
+        "cyberHarpie",
+        "cyberHarpie",
+        "harpieSisters",
+        "harpiesPetDragon",
+        "harpieGirl",
+        "harpieGirl",
+        "amazonessSwordsWoman",
+        "amazonessSwordsWoman",
+        "dunames",
+        "dunames",
+        "birdface",
+        "birdface",
+        "birdface",
+        "littleWinguard",
+        "littleWinguard",
+        "elegantEgotist",
+        "elegantEgotist",
+        "cyberShield",
+        "cyberShield",
+        "roseWhip",
+        "roseWhip",
+        "featherDuster",
+        "monsterReborn",
+        "potOfGreed",
+        "gracefulCharity",
+        "darkHole",
+        "mirrorWall",
+        "mirrorWall",
+        "gravityBind",
+        "gravityBind",
+        "dustTornado",
+        "dustTornado",
+        "mirrorForce",
+        "mirrorForce",
+        "negateAttack",
+        "negateAttack",
+        "waboku"
+      ],
+      "extra": []
+    }
+  ]
+}

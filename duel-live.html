@@ -750,7 +750,7 @@ const { nextPhases, PHASE_LABELS } = __req("./duel-phases.js");
 const { chooseAction, chooseChainResponse, chooseTargets, chooseTributes } = __req("./duel-ai.js");
 const { DUELISTS, getMatchup, MATCHUPS } = __req("./duelists.js");
 const { createCinema } = __req("./cinema/player.js");
-const { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } = __req("./cinema/free-video.js");
+const { clearJobs, getCapability, hasClip, planTiers, prefetchResponses, probeCapability, setClipMode } = __req("./cinema/free-video.js");
 const { enableRemoteVoice, speak } = __req("./cinema/realtime-voice.js");
 const { el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones, resetLifePointTracking } = __req("./render.js");
 const { reactionKeyFor } = __req("./cinema/archetypes.js");
@@ -1129,6 +1129,7 @@ async function maybeTrapWindow() {
   while (state.pending?.kind === "chain" && guard < 20) {
     guard += 1;
     renderChain();
+    warmLikelyResponses();
     const choice = state.pending.side === "player"
       ? await askChainResponse(state)
       : chooseChainResponse(state, Math.random);
@@ -1144,6 +1145,22 @@ async function maybeTrapWindow() {
 // A chain resolves backwards, which is the least intuitive rule in the game.
 // Showing the links, and lighting them up in resolution order, is the whole
 // reason it is legible.
+// The response window is where the wait is most visible, so start the clips a
+// likely answer would need before the answer is given.
+function warmLikelyResponses() {
+  const side = state.pending?.side;
+  if (!side) return;
+  const shots = legalResponses(state, side).slice(0, 2).map((option) => ({
+    id: `warm-${option.uid}`,
+    kind: "trap",
+    duelistId: state.sides[side].duelistId,
+    side,
+    seconds: 2.2,
+    prompt: `${option.name}; a huge holographic card flips face-up and floods the arena with light`,
+  }));
+  if (shots.length) prefetchResponses(shots);
+}
+
 function renderChain() {
   const rail = ui.chain;
   const chain = state?.chain;
@@ -4507,11 +4524,22 @@ function drawWhiteout(ctx, p, w, h) {
   ctx.restore();
 }
 
+// The shot kinds the canvas can draw unaided. A kind that is in neither this
+// set nor the clip library would play as a blank beat, which the coverage
+// check refuses at build time.
+const PROCEDURAL_KINDS = new Set([
+  "clash", "direct", "summon", "fusion", "spell", "trap", "finish",
+  "chain_build", "chain_resolve", "open", "reaction", "versus", "intro", "outro", "idle",
+]);
+
 function drawShotFx(ctx, shot, p, t) {
   const { width: w, height: h } = ctx.canvas;
   if (shot.kind === "clash" || shot.kind === "direct") drawStrike(ctx, shot, p, t, w, h);
   else if (shot.kind === "summon" || shot.kind === "fusion") drawArrival(ctx, shot, p, t, w, h);
-  else if (shot.kind === "spell" || shot.kind === "trap") drawCardFlash(ctx, shot, p, w, h);
+  else if (shot.kind === "spell" || shot.kind === "trap"
+    || shot.kind === "chain_build" || shot.kind === "chain_resolve") {
+    drawCardFlash(ctx, shot, p, w, h);
+  }
   else if (shot.kind === "finish") drawWhiteout(ctx, p, w, h);
 }
 
@@ -4663,7 +4691,7 @@ function createCinema({ canvas, still, video, caption, getState, accents, onShot
   };
 }
 
-Object.assign(__exports, { paceFor, createCinema });
+Object.assign(__exports, { paceFor, createCinema, PROCEDURAL_KINDS });
 });
 
 __def("src/cinema/procedural-stage.js", {}, function (__exports, __req) {
@@ -5095,6 +5123,26 @@ async function resolve(shot, { tier = highestTier(), timeoutMs = 0, fetchImpl = 
   return raced;
 }
 
+/**
+ * Warm the clips a likely response would need.
+ *
+ * The trap flip is the most dramatic moment in the game and, being the one
+ * nobody sees coming, the one most likely to fall back a tier. At a response
+ * window we already know the shortlist, so the wait can start before the choice.
+ */
+function prefetchResponses(shots, { limit = 2, fetchImpl = fetch } = {}) {
+  const tier = highestTier();
+  if (tier === "procedural") return 0;
+  let started = 0;
+  for (const shot of shots) {
+    if (started >= limit) break;
+    if (!shot?.prompt) continue;
+    prefetch(shot, tier, fetchImpl);
+    started += 1;
+  }
+  return started;
+}
+
 function clearJobs() {
   jobs.clear();
 }
@@ -5125,7 +5173,7 @@ function planTiers(shots, { videoBudget = 2 } = {}) {
   });
 }
 
-Object.assign(__exports, { getCapability, probeCapability, highestTier, prefetch, resolve, clearJobs, jobCount, deservesVideo, planTiers, TIERS, CLIP_MODES, setClipMode, getClipMode, hasClip });
+Object.assign(__exports, { getCapability, probeCapability, highestTier, prefetch, resolve, prefetchResponses, clearJobs, jobCount, deservesVideo, planTiers, TIERS, CLIP_MODES, setClipMode, getClipMode, hasClip });
 });
 
 __def("src/cinema/archetypes.js", {"../cards/index.js":"src/cards/index.js","./world.js":"src/cinema/world.js"}, function (__exports, __req) {
@@ -5222,6 +5270,16 @@ function archetypeFor(shot, { hasClip } = {}) {
   const look = (a) => ATTRIBUTE_LOOK[a] ?? ATTRIBUTE_LOOK.DARK;
   const where = `in ${NEUTRAL_ARENA}`;
 
+  // Chain shots are about the stack, not about any one card, so they key on
+  // the kind alone and stay a fixed handful of clips.
+  if (shot.kind === "chain_build" || shot.kind === "chain_resolve") {
+    return {
+      key: shot.kind.replace("_", "-"),
+      prompt: shot.prompt,
+      seconds: shot.seconds,
+    };
+  }
+
   if (!MONSTER_KINDS.has(shot.kind)) {
     const character = duelistKeyFor(shot);
     if (character && (!hasClip || hasClip(character))) {
@@ -5277,6 +5335,13 @@ function archetypeFor(shot, { hasClip } = {}) {
   };
 }
 
+const chainPrompt = (kind) => assemble(kind === "chain_build"
+  ? `several huge holographic cards flip face-up one after another and hang stacked in the air, `
+    + `each lit brighter than the last, in ${NEUTRAL_ARENA}`
+  : `one card in a stack of holographic cards flares and discharges its effect across `
+    + `${NEUTRAL_ARENA}`);
+
+
 /** Every archetype the four decks can actually produce — the whole clip library. */
 function libraryFor(duelists) {
   const keys = new Map();
@@ -5294,6 +5359,9 @@ function libraryFor(duelists) {
     }
   }
   for (const kind of ["trap", "spell", "finish"]) add(archetypeFor({ kind, seconds: 6 }));
+  for (const kind of ["chain_build", "chain_resolve"]) {
+    add(archetypeFor({ kind, seconds: 6, prompt: chainPrompt(kind) }));
+  }
   return [...keys.values()];
 }
 
@@ -5765,6 +5833,19 @@ const SHOT_BUILDERS = {
 
   activate(event, state) {
     const duelist = duelistOf(state, event.side);
+    // A card revealed as part of a chain reads as a link resolving, not as a
+    // standalone flip, so the exchange keeps its rhythm.
+    if (event.reveal && event.chainLink > 1) {
+      return {
+        kind: "chain_resolve",
+        title: event.card,
+        subtitle: `Chain Link ${event.chainLink}`,
+        seconds: 2.2,
+        prompt: assemble(`${event.art ?? event.card}; one card in a stack of holographic cards `
+          + `flares and discharges its effect across ${NEUTRAL_ARENA_TEXT}`),
+        voice: duelist.lines.trap.replace("{card}", event.card),
+      };
+    }
     return {
       kind: event.reveal ? "trap" : "spell",
       title: event.card,
@@ -5800,14 +5881,34 @@ const SHOT_BUILDERS = {
   },
 };
 
-const CINEMATIC = new Set(["summon", "clash", "directAttack", "activate", "win"]);
+// A chain is an exchange, so it reads as several beats rather than one shot.
+const SHOT_BUILDERS_CHAIN = {
+  chainStart(event, state) {
+    return {
+      kind: "chain_build",
+      title: event.links > 1 ? `Chain — ${event.links} links` : "Chain",
+      subtitle: event.links > 1 ? "Resolving last to first" : "",
+      seconds: event.links > 1 ? 2.4 : 1.6,
+      prompt: assemble(`several huge holographic cards flip face-up one after another and hang `
+        + `stacked in the air above ${NEUTRAL_ARENA_TEXT}, each one lit brighter than the last`),
+      voice: null,
+    };
+  },
+};
+
+const NEUTRAL_ARENA_TEXT = "a floodlit open-air duel arena at night";
+
+const CINEMATIC = new Set([
+  "summon", "clash", "directAttack", "activate", "win", "chainStart",
+]);
 
 function buildStoryboard(events, state, { turn = state.turn } = {}) {
   const shots = [];
   events.forEach((event, i) => {
     if (!CINEMATIC.has(event.type)) return;
     if (event.type === "summon" && event.how === "token") return;
-    const built = SHOT_BUILDERS[event.type](event, state, i);
+    const build = SHOT_BUILDERS[event.type] ?? SHOT_BUILDERS_CHAIN[event.type];
+    const built = build(event, state, i);
     shots.push({
       ...built,
       id: `t${turn}-${i}-${built.kind}-${(built.title ?? "").replace(/\W+/g, "").slice(0, 24)}`,

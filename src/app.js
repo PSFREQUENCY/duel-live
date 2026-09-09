@@ -12,7 +12,9 @@ import { nextPhases, PHASE_LABELS } from "./duel-phases.js";
 import { chooseAction, chooseChainResponse, chooseTargets, chooseTributes } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
 import { createCinema } from "./cinema/player.js";
-import { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } from "./cinema/free-video.js";
+import {
+  clearJobs, getCapability, hasClip, planTiers, prefetchResponses, probeCapability, setClipMode,
+} from "./cinema/free-video.js";
 import { enableRemoteVoice, speak } from "./cinema/realtime-voice.js";
 import {
   el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones,
@@ -395,6 +397,7 @@ async function maybeTrapWindow() {
   while (state.pending?.kind === "chain" && guard < 20) {
     guard += 1;
     renderChain();
+    warmLikelyResponses();
     const choice = state.pending.side === "player"
       ? await askChainResponse(state)
       : chooseChainResponse(state, Math.random);
@@ -410,6 +413,22 @@ async function maybeTrapWindow() {
 // A chain resolves backwards, which is the least intuitive rule in the game.
 // Showing the links, and lighting them up in resolution order, is the whole
 // reason it is legible.
+// The response window is where the wait is most visible, so start the clips a
+// likely answer would need before the answer is given.
+function warmLikelyResponses() {
+  const side = state.pending?.side;
+  if (!side) return;
+  const shots = legalResponses(state, side).slice(0, 2).map((option) => ({
+    id: `warm-${option.uid}`,
+    kind: "trap",
+    duelistId: state.sides[side].duelistId,
+    side,
+    seconds: 2.2,
+    prompt: `${option.name}; a huge holographic card flips face-up and floods the arena with light`,
+  }));
+  if (shots.length) prefetchResponses(shots);
+}
+
 function renderChain() {
   const rail = ui.chain;
   const chain = state?.chain;

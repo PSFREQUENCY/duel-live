@@ -17,6 +17,8 @@
     "shotlist": "node scripts/build-shot-list.mjs",
     "clips": "node scripts/check-clips.mjs",
     "clips:preview": "node scripts/preview-clips.mjs",
-    "record": "node scripts/record-duel.mjs"
+    "record": "node scripts/record-duel.mjs",
+    "coverage": "node scripts/check-shot-coverage.mjs",
+    "pack": "node scripts/export-pack.mjs"
   }
 }
