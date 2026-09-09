@@ -186,7 +186,9 @@ export function describe(event, state) {
     case "position": return `${event.card} switches to ${event.position}.`;
     case "fieldShift": return `${event.label} takes hold.`;
     case "bounce": return `${event.card} returns to the hand.`;
-    case "win": return `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
+    case "win": return event.reason === "doubleKnockout"
+      ? "Both duelists hit zero at once — the duel is a draw."
+      : `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
     default: return null;
   }
 }

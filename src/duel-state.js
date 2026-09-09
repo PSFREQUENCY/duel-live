@@ -76,6 +76,10 @@ function createSide(duelistId, lifePoints, rng) {
 export function createDuel(matchupId, { seed = Date.now() } = {}) {
   const matchup = getMatchup(matchupId);
   if (!matchup) throw new Error(`Unknown matchup: ${matchupId}`);
+  // Card ids must be reproducible, or a replay from the same seed refers to
+  // cards that do not exist. Every instance in a duel is created in the same
+  // order, so resetting the counter here is enough.
+  resetUidCounter(0);
   const rng = mulberry32(seed);
   const state = {
     matchupId,

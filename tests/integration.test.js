@@ -113,3 +113,36 @@ test("clicking your own monster works in the Main Phase, not only in Battle", as
   assert.match(app, /repositionable/,
     "monsters that can move must be highlighted, or the click is undiscoverable");
 });
+
+test("every zone you own answers a click, so nothing offered is unreachable", async () => {
+  const app = (await import("node:fs")).readFileSync(
+    new URL("../src/app.js", import.meta.url), "utf8");
+  // Each of these was a dead end at some point: the engine offered an action
+  // the interface gave no way to reach.
+  for (const [zone, handler] of [
+    ["my-monsters", "onMyMonster"],
+    ["my-backrow", "onMyBackrow"],
+    ["foe-monsters", "onFoeMonster"],
+  ]) {
+    const call = app.slice(app.indexOf(`el("${zone}")`), app.indexOf(`el("${zone}")`) + 400);
+    assert.match(call, new RegExp(`onZoneClick: ${handler}`),
+      `#${zone} has no click handler — anything the engine offers there is unreachable`);
+  }
+});
+
+test("an activation the engine offers on your own field is reachable", async () => {
+  const { createDuel, applyAction, endTurn, legalActions } = await import("../src/duel-engine.js");
+  const { makeInstance } = await import("../src/duel-state.js");
+  let duel = createDuel("yugi-kaiba", { seed: 3 });
+  const hats = makeInstance("magicalHats", "yugi");
+  duel.sides.player.hand = [hats];
+  duel = applyAction(duel, { type: "setBackrow", uid: hats.uid }).state;
+  duel = endTurn(endTurn(duel).state).state;
+
+  const offered = legalActions(duel).find((a) => a.uid === hats.uid);
+  assert.ok(offered, "a Quick-Play set last turn should be activatable");
+  assert.ok(
+    duel.sides.player.backrow.some((c) => c && c.uid === hats.uid),
+    "and it is on the field, which is where the click has to land",
+  );
+});

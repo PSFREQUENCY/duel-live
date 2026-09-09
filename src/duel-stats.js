@@ -97,8 +97,9 @@ export function summariseDuel(events, state) {
   sides.player.damageDealt = sides.opponent.damageTaken;
   sides.opponent.damageDealt = sides.player.damageTaken;
 
-  const winner = state.winner ?? null;
+  const winner = state.winner === "draw" ? null : (state.winner ?? null);
   return {
+    drawn: state.winner === "draw",
     matchupId: state.matchupId,
     winner,
     loser: winner ? other(winner) : null,
@@ -119,6 +120,7 @@ export function summariseDuel(events, state) {
 
 /** The one line worth leading a share card with. */
 export function headline(stats) {
+  if (stats.drawn) return "A double knockout — both duelists at zero";
   if (!stats.winner) return "Duel in progress";
   const winner = stats.duelists[stats.winner];
   if (stats.reason === "deckout") return `${winner.name} wins on a deck out`;

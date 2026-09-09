@@ -229,9 +229,12 @@ function actSetBackrow(state, side, action, ctx) {
 
 function actActivate(state, side, action, ctx) {
   const s = state.sides[side];
-  const card = cardOf(
-    s.hand.find((c) => c.uid === action.uid) ?? s.backrow.find((c) => c && c.uid === action.uid) ?? {},
-  );
+  const held = s.hand.find((c) => c.uid === action.uid)
+    ?? s.backrow.find((c) => c && c.uid === action.uid);
+  // A uid that names nothing is a caller bug, not a card; refuse rather than
+  // throwing from deep inside the card table.
+  if (!held) return;
+  const card = cardOf(held);
   // Where the card points is the player's decision, so ask before resolving --
   // but only when there is more than one thing it could point at.
   const spec = targetSpecFor(card);
@@ -524,9 +527,17 @@ function finish(state, winner, reason, ctx) {
 
 function checkWin(state, ctx) {
   if (state.winner) return;
-  for (const side of SIDES) {
-    if (state.sides[side].lp <= 0) finish(state, other(side), "lifePoints", ctx);
+  const out = SIDES.filter((side) => state.sides[side].lp <= 0);
+  if (!out.length) return;
+  // Ring of Destruction can take both players to zero at once. That is a draw,
+  // not two winners — which is what the old loop reported.
+  if (out.length === SIDES.length) {
+    state.winner = "draw";
+    state.winReason = "doubleKnockout";
+    ctx.events.push({ type: "win", side: "draw", reason: "doubleKnockout" });
+    return;
   }
+  finish(state, other(out[0]), "lifePoints", ctx);
 }
 
 export function endTurn(state) {

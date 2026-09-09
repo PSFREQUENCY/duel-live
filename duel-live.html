@@ -743,7 +743,7 @@ __def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":
 // The engine decides outcomes; this file only sequences and presents them.
 
 const { getCard } = __req("./cards/index.js");
-const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, respondToChain, respondToDiscard, respondToTarget, respondToTribute, setPhase, tributesCover } = __req("./duel-engine.js");
+const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, isMainPhase, respondToChain, respondToDiscard, respondToTarget, respondToTribute, setPhase, tributesCover } = __req("./duel-engine.js");
 const { legalResponses, resolutionOrder } = __req("./duel-chain.js");
 const { nextPhases, PHASE_LABELS } = __req("./duel-phases.js");
 const { chooseAction, chooseChainResponse, chooseTargets, chooseTributes } = __req("./duel-ai.js");
@@ -828,7 +828,15 @@ function renderAll() {
     targets: choosingTributes ? new Set(tributePicks) : new Set(),
     onZoneClick: onMyMonster, onZoneHover,
   });
-  renderZones(state, "player", el("my-backrow"), { row: "backrow", onZoneHover });
+  // Set Spells and Traps are yours to use; without a click handler the engine
+  // was offering activations no one could reach.
+  const backrowReady = new Set(
+    mine.filter((a) => a.type === "activate"
+      && state.sides.player.backrow.some((c) => c && c.uid === a.uid)).map((a) => a.uid),
+  );
+  renderZones(state, "player", el("my-backrow"), {
+    row: "backrow", ready: backrowReady, onZoneClick: onMyBackrow, onZoneHover,
+  });
   renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
 
   renderEffects();
@@ -860,6 +868,10 @@ function renderEffects() {
     ui.effects.append(chip);
   }
 }
+
+// Set Spells on your own field that are activatable right now.
+const backrowActivations = (actions) =>
+  new Set(actions.filter((a) => a.type === "activate").map((a) => a.uid));
 
 // Monsters that can change position right now, by uid.
 const repositionable = (actions) =>
@@ -912,6 +924,7 @@ function renderPhaseNote() {
   if (kinds.has("summon") || kinds.has("set")) parts.push("summon or set a monster");
   if (kinds.has("activate")) parts.push("activate a card");
   if (kinds.has("setBackrow")) parts.push("set a spell or trap");
+  if (backrowActivations(legal).size) parts.push("activate a set spell");
   if (kinds.has("position")) parts.push("change a monster's position");
   if (kinds.has("attack")) parts.push("declare an attack");
   note.textContent = parts.length
@@ -1320,6 +1333,10 @@ async function downloadCard() {
 
 function announceWinner() {
   cinema.setIdle(null);
+  if (state.winner === "draw") {
+    ui.hint.textContent = "Both duelists hit zero at once — the duel is a draw.";
+    return;
+  }
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
   ui.hint.textContent = `${duelist.name} wins — ${state.winReason === "deckout" ? "deck out" : "0 LP"}.`;
   speakBanter(closingExchange(state));
@@ -1364,6 +1381,24 @@ function onMyMonster(inst) {
   if (direct) return void run(() => applyAction(state, direct));
   attackFrom = inst.uid;
   renderAll();
+}
+
+function onMyBackrow(inst) {
+  if (busy || !myTurn()) return;
+  const action = legalActions(state, "player")
+    .find((a) => a.type === "activate" && a.uid === inst.uid);
+  if (action) { run(() => applyAction(state, action)); return; }
+  // Say why rather than doing nothing, which is what made this look broken.
+  const card = getCard(inst.cardId);
+  if (card.kind === "trap") {
+    flashTemporaryMessage(`${card.name} is a Trap — it fires on its own trigger.`);
+  } else if (card.sub === "quick" && inst.setOnTurn >= state.turn) {
+    flashTemporaryMessage(`${card.name} was set this turn — it is live next turn.`);
+  } else if (!isMainPhase(state)) {
+    flashTemporaryMessage(`${card.name} can only be activated in a Main Phase.`);
+  } else {
+    flashTemporaryMessage(`${card.name} has nothing to target right now.`);
+  }
 }
 
 function onFoeMonster(inst) {
@@ -2281,9 +2316,12 @@ function actSetBackrow(state, side, action, ctx) {
 
 function actActivate(state, side, action, ctx) {
   const s = state.sides[side];
-  const card = cardOf(
-    s.hand.find((c) => c.uid === action.uid) ?? s.backrow.find((c) => c && c.uid === action.uid) ?? {},
-  );
+  const held = s.hand.find((c) => c.uid === action.uid)
+    ?? s.backrow.find((c) => c && c.uid === action.uid);
+  // A uid that names nothing is a caller bug, not a card; refuse rather than
+  // throwing from deep inside the card table.
+  if (!held) return;
+  const card = cardOf(held);
   // Where the card points is the player's decision, so ask before resolving --
   // but only when there is more than one thing it could point at.
   const spec = targetSpecFor(card);
@@ -2576,9 +2614,17 @@ function finish(state, winner, reason, ctx) {
 
 function checkWin(state, ctx) {
   if (state.winner) return;
-  for (const side of SIDES) {
-    if (state.sides[side].lp <= 0) finish(state, other(side), "lifePoints", ctx);
+  const out = SIDES.filter((side) => state.sides[side].lp <= 0);
+  if (!out.length) return;
+  // Ring of Destruction can take both players to zero at once. That is a draw,
+  // not two winners — which is what the old loop reported.
+  if (out.length === SIDES.length) {
+    state.winner = "draw";
+    state.winReason = "doubleKnockout";
+    ctx.events.push({ type: "win", side: "draw", reason: "doubleKnockout" });
+    return;
   }
+  finish(state, other(out[0]), "lifePoints", ctx);
 }
 
 function endTurn(state) {
@@ -3317,6 +3363,10 @@ function createSide(duelistId, lifePoints, rng) {
 function createDuel(matchupId, { seed = Date.now() } = {}) {
   const matchup = getMatchup(matchupId);
   if (!matchup) throw new Error(`Unknown matchup: ${matchupId}`);
+  // Card ids must be reproducible, or a replay from the same seed refers to
+  // cards that do not exist. Every instance in a duel is created in the same
+  // order, so resetting the counter here is enough.
+  resetUidCounter(0);
   const rng = mulberry32(seed);
   const state = {
     matchupId,
@@ -3929,16 +3979,17 @@ const SUB_STEP_LABELS = {
 Object.assign(__exports, { timingsFor, canActivateAt, nextSubStep, BATTLE_STEPS, DAMAGE_SUB_STEPS, TIMINGS, isDamageSubStep, allowsOptionalResponse, SUB_STEP_LABELS });
 });
 
-__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js","./cards/index.js":"src/cards/index.js","./duel-targets.js":"src/duel-targets.js","./duel-chain.js":"src/duel-chain.js"}, function (__exports, __req) {
+__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js","./cards/index.js":"src/cards/index.js","./duel-targets.js":"src/duel-targets.js","./duel-chain.js":"src/duel-chain.js","./duel-eval.js":"src/duel-eval.js"}, function (__exports, __req) {
 // Opponent AI. Scores the legal actions the engine offers -- it never reaches
 // into duel state to invent a move the rules would not allow.
 
-const { cardOf, defaultTributes, effectiveStats, gravityBindLevel, legalActions, other } = __req("./duel-engine.js");
+const { applyAction, cardOf, defaultTributes, effectiveStats, gravityBindLevel, legalActions, other } = __req("./duel-engine.js");
 const { monstersOn } = __req("./duel-state.js");
 const { getDuelist } = __req("./duelists.js");
 const { CARDS } = __req("./cards/index.js");
 const { autoTargets, targetSpecFor } = __req("./duel-targets.js");
 const { legalResponses } = __req("./duel-chain.js");
+const { evaluate, lookahead } = __req("./duel-eval.js");
 const CARDS_BY_NAME = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
 
 const TEMPERAMENT = {
@@ -4004,17 +4055,43 @@ function scorePlay(state, side, action, style) {
   return 0;
 }
 
-function chooseAction(state, side = state.activeSide, rng = Math.random) {
+/**
+ * Pick a move.
+ *
+ * The heuristic scorer proposes; a one-ply lookahead over the top few then
+ * checks what each invites in reply. That is what stops the opponent walking a
+ * monster into a counter-attack it could already see.
+ */
+function chooseAction(state, side = state.activeSide, rng = Math.random, {
+  depth = 1, branch = 5,
+} = {}) {
   const actions = legalActions(state, side);
   if (!actions.length) return null;
   const style = styleOf(state, side);
+
   const scored = actions.map((action) => ({
     action,
     score: (action.type === "attack" ? scoreAttack : scorePlay)(state, side, action, style)
       + rng() * 40,
-  }));
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].score > 0 ? scored[0].action : null;
+  })).sort((a, b) => b.score - a.score);
+
+  if (depth <= 0) return scored[0].score > 0 ? scored[0].action : null;
+
+  // Only the shortlist is searched; the rest were not going to be played anyway.
+  const shortlist = scored.filter((entry) => entry.score > 0).slice(0, branch);
+  if (!shortlist.length) return null;
+  if (shortlist.length === 1) return shortlist[0].action;
+
+  const base = evaluate(state, side);
+  let best = null;
+  for (const entry of shortlist) {
+    const after = lookahead(state, side, entry.action, applyAction);
+    if (after === null) continue;
+    // Blend: the heuristic knows about card intent, the search about consequences.
+    const merged = (after - base) * 10 + entry.score * 0.15;
+    if (!best || merged > best.merged) best = { merged, action: entry.action };
+  }
+  return best?.action ?? shortlist[0].action;
 }
 
 /** The AI points an effect where the engine would by default. */
@@ -4161,6 +4238,95 @@ function trapValue(card, threat) {
 }
 
 Object.assign(__exports, { chooseAction, chooseTargets, chooseTributes, chooseChainResponse, chooseTrapResponse, crushVirusFodder });
+});
+
+__def("src/duel-eval.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// Static evaluation, and a one-ply search over it.
+//
+// The opponent used to score its own legal actions with no idea what happened
+// next, which is why it would attack into an obvious trap. Applying an action
+// and looking at the reply it invites is enough to stop that, without a search
+// tree.
+
+const { cardOf, effectiveStats, legalActions, other } = __req("./duel-engine.js");
+const { monstersOn } = __req("./duel-state.js");
+const { getDuelist } = __req("./duelists.js");
+/**
+ * Temperament as weights on the terms, not as a script. An aggressive duelist
+ * values the life point race and discounts card advantage; a control duelist
+ * does the opposite. The search then does the work and the personality survives.
+ */
+const WEIGHTS = {
+  aggro:   { life: 1.5, board: 1.0, cards: 0.4, set: 0.2 },
+  control: { life: 0.7, board: 1.1, cards: 1.3, set: 0.9 },
+  swingy:  { life: 1.2, board: 1.0, cards: 0.7, set: 0.6 },
+  tempo:   { life: 1.0, board: 1.2, cards: 0.9, set: 0.7 },
+};
+
+const weightsFor = (state, side) =>
+  WEIGHTS[getDuelist(state.sides[side].duelistId)?.strategy] ?? WEIGHTS.tempo;
+
+const boardPresence = (state, side) =>
+  monstersOn(state, side).reduce((sum, inst) => {
+    const stats = effectiveStats(state, side, inst);
+    // A monster in defence is worth its wall, not its sword.
+    return sum + (inst.position === "attack" ? stats.atk : stats.def * 0.8);
+  }, 0);
+
+/** How good this position is for `side`, in arbitrary but consistent units. */
+function evaluate(state, side, weights = weightsFor(state, side)) {
+  const foe = other(side);
+  if (state.winner === side) return 1e6;
+  if (state.winner === foe) return -1e6;
+
+  const life = (state.sides[side].lp - state.sides[foe].lp) / 100;
+  const board = (boardPresence(state, side) - boardPresence(state, foe)) / 100;
+  const cards = (state.sides[side].hand.length + monstersOn(state, side).length)
+    - (state.sides[foe].hand.length + monstersOn(state, foe).length);
+  // A face-down card is worth something even when it is a bluff.
+  const set = state.sides[side].backrow.filter(Boolean).length
+    - state.sides[foe].backrow.filter(Boolean).length;
+
+  return life * weights.life + board * weights.board + cards * weights.cards + set * weights.set;
+}
+
+/**
+ * Apply an action, let the opponent take their single best reply, and evaluate
+ * what is left. Deliberately one ply: enough to see a lethal counter-attack,
+ * cheap enough to run inside a turn.
+ */
+function lookahead(state, side, action, apply, { replies = 6 } = {}) {
+  let after;
+  try {
+    after = apply(state, action).state;
+  } catch {
+    return null;   // an action the engine refuses is worth nothing
+  }
+  // A pending choice is not a position to evaluate; take the action at face value.
+  if (after.pending) return evaluate(after, side);
+
+  const foe = other(side);
+  const foeWeights = weightsFor(after, foe);
+  const foeActions = legalActions(after, foe).slice(0, replies);
+  if (!foeActions.length) return evaluate(after, side);
+
+  let worst = Infinity;
+  for (const reply of foeActions) {
+    let replied;
+    try {
+      replied = apply(after, reply).state;
+    } catch {
+      continue;
+    }
+    // Score from our side, assuming they take whatever is best for them.
+    const theirGain = evaluate(replied, foe, foeWeights);
+    const ourScore = evaluate(replied, side) - theirGain * 0.15;
+    if (ourScore < worst) worst = ourScore;
+  }
+  return worst === Infinity ? evaluate(after, side) : worst;
+}
+
+Object.assign(__exports, { evaluate, lookahead, WEIGHTS, weightsFor });
 });
 
 __def("src/cinema/player.js", {"../cards/index.js":"src/cards/index.js","./procedural-stage.js":"src/cinema/procedural-stage.js","./free-video.js":"src/cinema/free-video.js","./realtime-voice.js":"src/cinema/realtime-voice.js"}, function (__exports, __req) {
@@ -5424,7 +5590,9 @@ function describe(event, state) {
     case "position": return `${event.card} switches to ${event.position}.`;
     case "fieldShift": return `${event.label} takes hold.`;
     case "bounce": return `${event.card} returns to the hand.`;
-    case "win": return `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
+    case "win": return event.reason === "doubleKnockout"
+      ? "Both duelists hit zero at once — the duel is a draw."
+      : `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
     default: return null;
   }
 }
@@ -5529,6 +5697,14 @@ const SHOT_BUILDERS = {
   },
 
   win(event, state) {
+    if (event.side === "draw") {
+      return {
+        kind: "finish", title: "Draw", subtitle: "Both duelists hit zero at once",
+        seconds: 5, prompt: assembleTitle("two duelists standing in a dark arena as every "
+          + "hologram collapses at once and both life point counters fall to zero"),
+        voice: null,
+      };
+    }
     const duelist = duelistOf(state, event.side);
     const loser = duelistOf(state, event.side === "player" ? "opponent" : "player");
     return {
@@ -6326,8 +6502,9 @@ function summariseDuel(events, state) {
   sides.player.damageDealt = sides.opponent.damageTaken;
   sides.opponent.damageDealt = sides.player.damageTaken;
 
-  const winner = state.winner ?? null;
+  const winner = state.winner === "draw" ? null : (state.winner ?? null);
   return {
+    drawn: state.winner === "draw",
     matchupId: state.matchupId,
     winner,
     loser: winner ? other(winner) : null,
@@ -6348,6 +6525,7 @@ function summariseDuel(events, state) {
 
 /** The one line worth leading a share card with. */
 function headline(stats) {
+  if (stats.drawn) return "A double knockout — both duelists at zero";
   if (!stats.winner) return "Duel in progress";
   const winner = stats.duelists[stats.winner];
   if (stats.reason === "deckout") return `${winner.name} wins on a deck out`;

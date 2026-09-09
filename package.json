@@ -16,6 +16,7 @@
     "prewarm": "node --env-file-if-exists=.env.local scripts/prewarm-library.mjs",
     "shotlist": "node scripts/build-shot-list.mjs",
     "clips": "node scripts/check-clips.mjs",
-    "clips:preview": "node scripts/preview-clips.mjs"
+    "clips:preview": "node scripts/preview-clips.mjs",
+    "record": "node scripts/record-duel.mjs"
   }
 }

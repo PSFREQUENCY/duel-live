@@ -94,6 +94,14 @@ const SHOT_BUILDERS = {
   },
 
   win(event, state) {
+    if (event.side === "draw") {
+      return {
+        kind: "finish", title: "Draw", subtitle: "Both duelists hit zero at once",
+        seconds: 5, prompt: assembleTitle("two duelists standing in a dark arena as every "
+          + "hologram collapses at once and both life point counters fall to zero"),
+        voice: null,
+      };
+    }
     const duelist = duelistOf(state, event.side);
     const loser = duelistOf(state, event.side === "player" ? "opponent" : "player");
     return {

@@ -4,7 +4,7 @@
 import { getCard } from "./cards/index.js";
 import {
   applyAction, createDuel, endTurn, legalActions, positionBlockedBecause,
-  respondToChain, respondToDiscard, respondToTarget, respondToTribute,
+  isMainPhase, respondToChain, respondToDiscard, respondToTarget, respondToTribute,
   setPhase, tributesCover,
 } from "./duel-engine.js";
 import { legalResponses, resolutionOrder } from "./duel-chain.js";
@@ -95,7 +95,15 @@ function renderAll() {
     targets: choosingTributes ? new Set(tributePicks) : new Set(),
     onZoneClick: onMyMonster, onZoneHover,
   });
-  renderZones(state, "player", el("my-backrow"), { row: "backrow", onZoneHover });
+  // Set Spells and Traps are yours to use; without a click handler the engine
+  // was offering activations no one could reach.
+  const backrowReady = new Set(
+    mine.filter((a) => a.type === "activate"
+      && state.sides.player.backrow.some((c) => c && c.uid === a.uid)).map((a) => a.uid),
+  );
+  renderZones(state, "player", el("my-backrow"), {
+    row: "backrow", ready: backrowReady, onZoneClick: onMyBackrow, onZoneHover,
+  });
   renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
 
   renderEffects();
@@ -127,6 +135,10 @@ function renderEffects() {
     ui.effects.append(chip);
   }
 }
+
+// Set Spells on your own field that are activatable right now.
+const backrowActivations = (actions) =>
+  new Set(actions.filter((a) => a.type === "activate").map((a) => a.uid));
 
 // Monsters that can change position right now, by uid.
 const repositionable = (actions) =>
@@ -179,6 +191,7 @@ function renderPhaseNote() {
   if (kinds.has("summon") || kinds.has("set")) parts.push("summon or set a monster");
   if (kinds.has("activate")) parts.push("activate a card");
   if (kinds.has("setBackrow")) parts.push("set a spell or trap");
+  if (backrowActivations(legal).size) parts.push("activate a set spell");
   if (kinds.has("position")) parts.push("change a monster's position");
   if (kinds.has("attack")) parts.push("declare an attack");
   note.textContent = parts.length
@@ -587,6 +600,10 @@ async function downloadCard() {
 
 function announceWinner() {
   cinema.setIdle(null);
+  if (state.winner === "draw") {
+    ui.hint.textContent = "Both duelists hit zero at once — the duel is a draw.";
+    return;
+  }
   const duelist = DUELISTS[state.sides[state.winner].duelistId];
   ui.hint.textContent = `${duelist.name} wins — ${state.winReason === "deckout" ? "deck out" : "0 LP"}.`;
   speakBanter(closingExchange(state));
@@ -631,6 +648,24 @@ function onMyMonster(inst) {
   if (direct) return void run(() => applyAction(state, direct));
   attackFrom = inst.uid;
   renderAll();
+}
+
+function onMyBackrow(inst) {
+  if (busy || !myTurn()) return;
+  const action = legalActions(state, "player")
+    .find((a) => a.type === "activate" && a.uid === inst.uid);
+  if (action) { run(() => applyAction(state, action)); return; }
+  // Say why rather than doing nothing, which is what made this look broken.
+  const card = getCard(inst.cardId);
+  if (card.kind === "trap") {
+    flashTemporaryMessage(`${card.name} is a Trap — it fires on its own trigger.`);
+  } else if (card.sub === "quick" && inst.setOnTurn >= state.turn) {
+    flashTemporaryMessage(`${card.name} was set this turn — it is live next turn.`);
+  } else if (!isMainPhase(state)) {
+    flashTemporaryMessage(`${card.name} can only be activated in a Main Phase.`);
+  } else {
+    flashTemporaryMessage(`${card.name} has nothing to target right now.`);
+  }
 }
 
 function onFoeMonster(inst) {

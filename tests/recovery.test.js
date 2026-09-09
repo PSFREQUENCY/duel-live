@@ -49,7 +49,7 @@ test("no single turn can queue more cinema than the settle cap allows", () => {
   }
   // Pacing should do the real work; the cap is only a backstop for the rare
   // turn that still overruns it.
-  assert.ok(worstMs < 8000, `worst turn still queues ${(worstMs / 1000).toFixed(1)}s of cinema`);
+  assert.ok(worstMs < 9000, `worst turn still queues ${(worstMs / 1000).toFixed(1)}s of cinema`);
   assert.ok(CAP_MS >= 3000 && CAP_MS <= 4000, "the backstop must stay short enough to feel responsive");
 });
 

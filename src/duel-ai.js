@@ -2,13 +2,15 @@
 // into duel state to invent a move the rules would not allow.
 
 import {
-  cardOf, defaultTributes, effectiveStats, gravityBindLevel, legalActions, other,
+  applyAction, cardOf, defaultTributes, effectiveStats, gravityBindLevel,
+  legalActions, other,
 } from "./duel-engine.js";
 import { monstersOn } from "./duel-state.js";
 import { getDuelist } from "./duelists.js";
 import { CARDS } from "./cards/index.js";
 import { autoTargets, targetSpecFor } from "./duel-targets.js";
 import { legalResponses } from "./duel-chain.js";
+import { evaluate, lookahead } from "./duel-eval.js";
 
 const CARDS_BY_NAME = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
 
@@ -75,17 +77,43 @@ function scorePlay(state, side, action, style) {
   return 0;
 }
 
-export function chooseAction(state, side = state.activeSide, rng = Math.random) {
+/**
+ * Pick a move.
+ *
+ * The heuristic scorer proposes; a one-ply lookahead over the top few then
+ * checks what each invites in reply. That is what stops the opponent walking a
+ * monster into a counter-attack it could already see.
+ */
+export function chooseAction(state, side = state.activeSide, rng = Math.random, {
+  depth = 1, branch = 5,
+} = {}) {
   const actions = legalActions(state, side);
   if (!actions.length) return null;
   const style = styleOf(state, side);
+
   const scored = actions.map((action) => ({
     action,
     score: (action.type === "attack" ? scoreAttack : scorePlay)(state, side, action, style)
       + rng() * 40,
-  }));
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].score > 0 ? scored[0].action : null;
+  })).sort((a, b) => b.score - a.score);
+
+  if (depth <= 0) return scored[0].score > 0 ? scored[0].action : null;
+
+  // Only the shortlist is searched; the rest were not going to be played anyway.
+  const shortlist = scored.filter((entry) => entry.score > 0).slice(0, branch);
+  if (!shortlist.length) return null;
+  if (shortlist.length === 1) return shortlist[0].action;
+
+  const base = evaluate(state, side);
+  let best = null;
+  for (const entry of shortlist) {
+    const after = lookahead(state, side, entry.action, applyAction);
+    if (after === null) continue;
+    // Blend: the heuristic knows about card intent, the search about consequences.
+    const merged = (after - base) * 10 + entry.score * 0.15;
+    if (!best || merged > best.merged) best = { merged, action: entry.action };
+  }
+  return best?.action ?? shortlist[0].action;
 }
 
 /** The AI points an effect where the engine would by default. */
