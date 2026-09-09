@@ -100,11 +100,19 @@ export function renderDuelists(state) {
     el(`${prefix}-name`).textContent = duelist.name;
     el(`${prefix}-title`).textContent = duelist.title;
     el(`${prefix}-pip`).style.background = duelist.accent;
+    // Both strips carry the same counters in the same order, so a glance at one
+    // reads the same as a glance at the other.
+    el(`${prefix}-hand`).textContent = `H ${s.hand.length}`;
     el(`${prefix}-deck`).textContent = `D ${s.deck.length}`;
+    el(`${prefix}-deck`).classList.toggle("is-low", s.deck.length < 5);
     el(`${prefix}-gy`).textContent = `GY ${s.graveyard.length}`;
-    if (prefix === "foe") el("foe-hand").textContent = `H ${s.hand.length}`;
+    el(`${prefix}-extra`).textContent = `EX ${s.extra.length}`;
+    const banished = s.banished ?? [];
+    const banishedNode = el(`${prefix}-banished`);
+    banishedNode.hidden = banished.length === 0;
+    banishedNode.textContent = `BAN ${banished.length}`;
   }
-  el("me-turn").textContent = `T${state.turn}`;
+
 }
 
 const lastLp = { player: null, opponent: null };

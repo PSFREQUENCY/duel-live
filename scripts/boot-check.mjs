@@ -21,7 +21,7 @@ const bound = [...dom.listeners.keys()].filter((k) => k.includes("btn") || k.inc
 
 console.log(`boot        ok · ${dom.nodes.size} ids resolved · ${bound.length} controls bound`);
 console.log(`duelists    ${node("me-name").textContent} vs ${node("foe-name").textContent}`);
-console.log(`life points ${node("me-lp").textContent} / ${node("foe-lp").textContent}  (turn ${node("me-turn").textContent})`);
+console.log(`life points ${node("me-lp").textContent} / ${node("foe-lp").textContent}  (turn ${node("turn-counter").textContent})`);
 console.log(`log         ${node("log").children.length} entries`);
 
 if (errors.length) {

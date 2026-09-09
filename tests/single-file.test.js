@@ -54,7 +54,7 @@ test("the bundled game boots and plays without a server", async () => {
   assert.equal(node("foe-name").textContent, "Seto Kaiba");
 
   for (let i = 0; i < 8; i += 1) { await fire("advance-btn"); await settle(90); }
-  const turn = Number(node("me-turn").textContent.slice(1));
+  const turn = Number(node("turn-counter").textContent);
   assert.ok(turn > 1, `the bundled duel did not advance past turn ${turn}`);
   assert.ok(node("log").children.length > 4, "the bundled duel produced no log");
 });

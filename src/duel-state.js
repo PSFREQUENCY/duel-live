@@ -60,6 +60,10 @@ function createSide(duelistId, lifePoints, rng) {
     monsters: Array(5).fill(null),
     backrow: Array(5).fill(null),
     graveyard: [],
+    // Banished cards and the Field Spell zone start empty and are shown only
+    // once something reaches them.
+    banished: [],
+    field: null,
     normalSummonUsed: false,
     lockAttacksTurns: 0,
     gravityBind: 0,

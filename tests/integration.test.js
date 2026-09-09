@@ -51,13 +51,13 @@ test("the voice toggle flips both label and aria state", async () => {
 });
 
 test("advancing phases drives the duel forward through real turns", async () => {
-  const startTurn = node("me-turn").textContent;
+  const startTurn = node("turn-counter").textContent;
   for (let i = 0; i < 14; i += 1) {
     await fire("advance-btn");
     await settle(90);
   }
-  const turn = Number(node("me-turn").textContent.slice(1));
-  assert.ok(turn > Number(startTurn.slice(1)), `turn counter stuck at ${turn}`);
+  const turn = Number(node("turn-counter").textContent);
+  assert.ok(turn > Number(startTurn), `turn counter stuck at ${turn}`);
   const lp = Number(node("me-lp").textContent) + Number(node("foe-lp").textContent);
   assert.ok(lp < 16000, "after 14 phase advances someone should have taken damage");
   assert.ok(node("log").children.length > 5, "the duel log should be filling up");

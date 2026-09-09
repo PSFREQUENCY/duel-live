@@ -64,7 +64,13 @@
             <div class="lp-track"><i id="foe-lp-fill"></i></div>
             <span class="lp-num" id="foe-lp">8000</span>
           </div>
-          <div class="counts"><span id="foe-hand">H 5</span><span id="foe-deck">D 35</span><button class="count-btn" id="foe-gy" type="button">GY 0</button></div>
+          <div class="counts">
+            <span id="foe-hand">H 5</span>
+            <span id="foe-deck">D 35</span>
+            <button class="count-btn" id="foe-gy" type="button">GY 0</button>
+            <button class="count-btn" id="foe-extra" type="button">EX 0</button>
+            <button class="count-btn is-empty" id="foe-banished" type="button" hidden>BAN 0</button>
+          </div>
         </div>
 
         <div class="zones zones--foe" id="foe-backrow" aria-label="Opponent spell and trap zones"></div>
@@ -97,11 +103,18 @@
             <div class="lp-track"><i id="me-lp-fill"></i></div>
             <span class="lp-num" id="me-lp">8000</span>
           </div>
-          <div class="counts"><span id="me-deck">D 35</span><button class="count-btn" id="me-gy" type="button">GY 0</button><span id="me-turn">T1</span></div>
+          <div class="counts">
+            <span id="me-hand">H 5</span>
+            <span id="me-deck">D 35</span>
+            <button class="count-btn" id="me-gy" type="button">GY 0</button>
+            <button class="count-btn" id="me-extra" type="button">EX 0</button>
+            <button class="count-btn is-empty" id="me-banished" type="button" hidden>BAN 0</button>
+          </div>
         </div>
       </section>
 
       <aside class="side">
+        <div class="phase-turn"><span>Turn</span><strong id="turn-counter">1</strong></div>
         <div class="phase-rail" id="phase-rail" role="group" aria-label="Phase">
           <span class="phase" data-phase="draw">Draw</span>
           <span class="phase" data-phase="standby">Standby</span>

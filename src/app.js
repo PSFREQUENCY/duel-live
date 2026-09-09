@@ -71,6 +71,7 @@ function renderAll() {
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
+  el("turn-counter").textContent = String(state.turn);
   renderPhase(state.phase, { locked: lockedPhases() });
   renderPhaseNote();
 

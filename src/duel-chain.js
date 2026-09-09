@@ -6,6 +6,7 @@
 // like a trap, so it is modelled properly rather than as one response window.
 
 import { getCard } from "./cards/index.js";
+import { canActivateAt } from "./duel-damage-step.js";
 import { other } from "./duel-state.js";
 
 export const PASS = Symbol("pass");
@@ -61,8 +62,8 @@ export function openChain(state, side, inst, trigger = null) {
 }
 
 /** Open an empty chain, used when a trigger offers a window before any card. */
-export function openWindow(state, respondingSide, trigger = null) {
-  state.chain = { links: [], respondingSide, passCount: 0, trigger };
+export function openWindow(state, respondingSide, trigger = null, timing = null) {
+  state.chain = { links: [], respondingSide, passCount: 0, trigger, timing };
   return state.chain;
 }
 
@@ -97,6 +98,10 @@ export function legalResponses(state, side) {
   // A card already on the chain is waiting to resolve; it cannot be added twice.
   const onChain = new Set(chain.links.map((link) => link.uid));
 
+  // Where in the turn we are decides what is legal; a card that only works
+  // during damage calculation says so, and the engine simply obeys.
+  const timing = state.damageSubStep ?? chain.timing ?? state.phase;
+
   for (const inst of s.backrow) {
     if (!inst || !inst.faceDown || onChain.has(inst.uid)) continue;
     const card = getCard(inst.cardId);
@@ -104,6 +109,7 @@ export function legalResponses(state, side) {
     // Nothing set this turn is live yet.
     if (inst.setOnTurn !== undefined && inst.setOnTurn >= state.turn) continue;
     if (!canChainTo(card, chain)) continue;
+    if (!canActivateAt(card, timing)) continue;
     out.push({ uid: inst.uid, name: card.name, spellSpeed: spellSpeed(card), from: "field" });
   }
 
@@ -114,6 +120,7 @@ export function legalResponses(state, side) {
       const card = getCard(inst.cardId);
       if (card.kind !== "spell" || card.sub !== "quick") continue;
       if (!canChainTo(card, chain)) continue;
+      if (!canActivateAt(card, timing)) continue;
       out.push({ uid: inst.uid, name: card.name, spellSpeed: spellSpeed(card), from: "hand" });
     }
   }

@@ -153,6 +153,8 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   border-radius: 4px; padding: 2px 5px;
 }
 .count-btn:hover { color: var(--ink); border-color: var(--line); background: rgba(20, 30, 55, 0.8); }
+/* A deck about to run out is the quietest way to lose; say so. */
+.counts .is-low { color: var(--danger); font-weight: 700; }
 
 /* ---------------------------------------------------------- hover card --- */
 
@@ -370,6 +372,12 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   padding: 13px; border: 1px solid var(--line-soft); border-radius: var(--radius);
   background: rgba(9, 13, 26, 0.6); max-height: calc(100vh - 150px);
 }
+.phase-turn {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-faint);
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px;
+}
+.phase-turn strong { color: var(--ink); font-size: 12px; letter-spacing: 0; }
 .phase-rail { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
 .phase {
   font-family: var(--mono); font-size: 8px; text-align: center; padding: 6px 1px;

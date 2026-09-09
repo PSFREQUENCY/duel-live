@@ -10,6 +10,7 @@ import { autoAdvance, canTransition, PHASES as PHASE_ORDER } from "./duel-phases
 import {
   chainClosed, legalResponses, openWindow, PASS, resolutionOrder, respond, spellSpeed,
 } from "./duel-chain.js";
+import { allowsOptionalResponse, DAMAGE_SUB_STEPS, nextSubStep } from "./duel-damage-step.js";
 import {
   cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone,
   monstersOn, mulberry32, other, SIDES,
@@ -115,7 +116,7 @@ function offerSummonResponse(state, side, inst, ctx) {
   if (inst.faceDown || ctx.skipTrapWindow) return;
   offerWindow(state, other(side), {
     kind: "summon", summonedSide: side, summonedUid: inst.uid,
-  });
+  }, isMainPhase(state) ? state.phase : "battle_step");
 }
 
 function actSummon(state, side, action, ctx) {
@@ -350,35 +351,71 @@ export function canAttack(state, side, inst) {
   return true;
 }
 
+/**
+ * Resolve a battle through the five Damage Step sub-steps.
+ *
+ * A direct attack takes the same path -- it simply has no defender to flip or
+ * compare against -- so response windows behave identically. Forking the code
+ * for direct attacks is how "the attack resolves and then a trap retroactively
+ * saves the monster" bugs appear.
+ */
 function resolveBattle(state, side, attacker, defender, ctx) {
   const foe = other(side);
-  const a = effectiveStats(state, side, attacker).atk;
-  if (!defender) {
-    dealDamage(state, foe, a, ctx, "direct");
-    ctx.events.push({ type: "directAttack", side, card: cardOf(attacker).name, damage: a });
-    return;
+  const doomed = [];
+  let damage = null;
+  let reflect = null;
+
+  for (const subStep of DAMAGE_SUB_STEPS) {
+    state.damageSubStep = subStep;
+    ctx.events.push({ type: "damageStep", subStep, side });
+
+    if (subStep === "ds_start" && defender?.faceDown) {
+      // The target is turned face-up before anything is compared against it.
+      defender.faceDown = false;
+      ctx.events.push({ type: "flip", side: foe, card: cardOf(defender).name });
+    }
+
+    if (subStep === "ds_calculation") {
+      const a = effectiveStats(state, side, attacker).atk;
+      if (!defender) {
+        damage = { to: foe, amount: a, cause: "direct" };
+      } else {
+        const d = effectiveStats(state, foe, defender);
+        const wall = defender.position === "attack" ? d.atk : d.def;
+        ctx.events.push({
+          type: "clash", side, attacker: cardOf(attacker).name, defender: cardOf(defender).name,
+          attackerAtk: a, defenderValue: wall, defenderPosition: defender.position,
+        });
+        if (a > wall) {
+          doomed.push([foe, defender]);
+          if (defender.position === "attack") damage = { to: foe, amount: a - wall, cause: "battle" };
+        } else if (a < wall) {
+          if (defender.position === "attack") doomed.push([side, attacker]);
+          damage = { to: side, amount: wall - a, cause: "battle" };
+          if (cardOf(defender).reflectBattleDamage) reflect = { to: foe, amount: wall - a };
+        } else if (defender.position === "attack") {
+          doomed.push([foe, defender], [side, attacker]);
+        }
+      }
+    }
+
+    // Damage lands here, once, whatever the attack was.
+    if (subStep === "ds_after_damage" && damage) {
+      dealDamage(state, damage.to, damage.amount, ctx, damage.cause);
+      if (damage.cause === "direct") {
+        ctx.events.push({
+          type: "directAttack", side, card: cardOf(attacker).name, damage: damage.amount,
+        });
+      }
+      if (reflect) dealDamage(state, reflect.to, reflect.amount, ctx, "amazoness");
+    }
+
+    // Destruction is applied last.
+    if (subStep === "ds_end") {
+      for (const [owner, inst] of doomed) sendToGraveyard(state, owner, inst, ctx, "battle");
+    }
   }
-  if (defender.faceDown) {
-    defender.faceDown = false;
-    ctx.events.push({ type: "flip", side: foe, card: cardOf(defender).name });
-  }
-  const d = effectiveStats(state, foe, defender);
-  const wall = defender.position === "attack" ? d.atk : d.def;
-  ctx.events.push({
-    type: "clash", side, attacker: cardOf(attacker).name, defender: cardOf(defender).name,
-    attackerAtk: a, defenderValue: wall, defenderPosition: defender.position,
-  });
-  if (a > wall) {
-    sendToGraveyard(state, foe, defender, ctx, "battle");
-    if (defender.position === "attack") dealDamage(state, foe, a - wall, ctx, "battle");
-  } else if (a < wall) {
-    if (defender.position === "attack") sendToGraveyard(state, side, attacker, ctx, "battle");
-    dealDamage(state, side, wall - a, ctx, "battle");
-    if (cardOf(defender).reflectBattleDamage) dealDamage(state, foe, wall - a, ctx, "amazoness");
-  } else if (defender.position === "attack") {
-    sendToGraveyard(state, foe, defender, ctx, "battle");
-    sendToGraveyard(state, side, attacker, ctx, "battle");
-  }
+  state.damageSubStep = null;
 }
 
 function actAttack(state, side, action, ctx) {
@@ -410,8 +447,8 @@ function actAttack(state, side, action, ctx) {
  * Offer a response window. Returns true when someone can answer, in which case
  * the caller must stop and let the chain run before resolving anything.
  */
-function offerWindow(state, respondingSide, trigger) {
-  openWindow(state, respondingSide, trigger);
+function offerWindow(state, respondingSide, trigger, timing = "battle_step") {
+  openWindow(state, respondingSide, trigger, timing);
   if (!legalResponses(state, respondingSide).length) {
     // Nothing to answer with, so no window at all.
     // Nobody can answer, so there is no window to hold the game open for.

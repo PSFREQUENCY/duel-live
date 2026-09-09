@@ -26,14 +26,18 @@ test("every element id the app looks up exists in index.html", () => {
   assert.deepEqual(missing, [], `ids referenced but not in the page: ${missing.join(", ")}`);
 });
 
-test("template ids built from a prefix resolve for both sides", () => {
+test("both player strips carry the same counters, in the same order", () => {
+  // A glance at one strip should read the same as a glance at the other.
   for (const prefix of ["me", "foe"]) {
-    for (const suffix of ["name", "title", "pip", "deck", "gy", "lp", "lp-fill"]) {
+    for (const suffix of ["name", "title", "pip", "lp", "lp-fill",
+      "hand", "deck", "gy", "extra", "banished"]) {
       assert.ok(htmlIds.has(`${prefix}-${suffix}`), `missing #${prefix}-${suffix}`);
     }
   }
-  assert.ok(htmlIds.has("foe-hand"));
-  assert.ok(htmlIds.has("me-turn"));
+  const order = (prefix) => [...html.matchAll(new RegExp(`id="${prefix}-(hand|deck|gy|extra|banished)"`, "g"))]
+    .map((m) => m[1]);
+  assert.deepEqual(order("me"), order("foe"), "the two strips must list counters in one order");
+  assert.ok(htmlIds.has("turn-counter"), "the turn number belongs on the phase rail");
 });
 
 test("the page loads the app as a module and nothing else", () => {
