@@ -653,7 +653,16 @@ function askTrap(pending) {
     const inst = state.sides.player.backrow.find((c) => c && c.uid === uid);
     return { label: `Activate ${getCard(inst.cardId).name}`, value: uid };
   });
-  return askChoice("Your opponent is attacking. Respond?", options);
+  const question = pending.trigger === "onSummon"
+    ? `${summonedName(pending)} was summoned. Respond?`
+    : "Your opponent is attacking. Respond?";
+  return askChoice(question, options);
+}
+
+function summonedName(pending) {
+  const { summonedSide, summonedUid } = pending.resume ?? {};
+  const inst = state.sides[summonedSide]?.monsters.find((m) => m && m.uid === summonedUid);
+  return inst ? getCard(inst.cardId).name : "A monster";
 }
 
 // ------------------------------------------------------------- lifecycle ---

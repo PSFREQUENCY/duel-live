@@ -99,7 +99,24 @@ function completeSummon(state, side, inst, action, ctx) {
   }
   if (s.virusTurns > 0 && effectiveStats(state, side, inst).atk >= s.virusThreshold) {
     sendToGraveyard(state, side, inst, ctx, "crushVirus");
+    return;
   }
+  offerSummonResponse(state, side, inst, ctx);
+}
+
+// Trap Hole, Crush Card Virus, Gravity Bind and Dust Tornado all wait for a
+// summon. Without this window they sit in the deck and never do anything.
+function offerSummonResponse(state, side, inst, ctx) {
+  // A monster placed face-down was Set, not summoned, so nothing triggers.
+  if (inst.faceDown || ctx.skipTrapWindow) return;
+  const foe = other(side);
+  const window = trapWindow(state, foe, "onSummon");
+  if (!window.length) return;
+  state.pending = {
+    kind: "trapWindow", side: foe, trigger: "onSummon",
+    options: window.map((c) => c.uid),
+    resume: { summonedUid: inst.uid, summonedSide: side },
+  };
 }
 
 function actSummon(state, side, action, ctx) {
@@ -277,12 +294,28 @@ function actPosition(state, side, action, ctx) {
 
 // ----------------------------------------------------------------- battle ---
 
+/** The strictest Gravity Bind in play, or 0 when none is face-up. */
+export function gravityBindLevel(state) {
+  let level = 0;
+  for (const s of SIDES) {
+    for (const inst of state.sides[s].backrow) {
+      if (!inst || inst.faceDown) continue;
+      const effect = cardOf(inst).effect;
+      if (effect?.op === "gravityBind") {
+        level = level ? Math.min(level, effect.minLevel) : effect.minLevel;
+      }
+    }
+  }
+  return level;
+}
+
 export function canAttack(state, side, inst) {
   const s = state.sides[side];
   if (state.phase !== "battle" || state.activeSide !== side) return false;
   if (inst.hasAttacked || inst.faceDown || inst.position !== "attack" || inst.bound) return false;
   if (s.lockAttacksTurns > 0) return false;
-  if (state.gravityBindLevel && cardOf(inst).level >= state.gravityBindLevel) return false;
+  const bind = gravityBindLevel(state);
+  if (bind && cardOf(inst).level >= bind) return false;
   return true;
 }
 
@@ -437,6 +470,23 @@ export function applyAction(state, action) {
   return { state: next, events: ctx.events };
 }
 
+function revealTrap(state, side, choiceUid, target, ctx) {
+  const inst = state.sides[side].backrow.find((c) => c && c.uid === choiceUid);
+  if (!inst) return;
+  const card = cardOf(inst);
+  inst.faceDown = false;
+  ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
+  const spec = targetSpecFor(card);
+  applyEffect(state, side, card.effect, Object.assign(ctx, {
+    target,
+    targets: spec ? autoTargets(state, side, spec, card) : null,
+  }));
+  if (card.sub !== "continuous") {
+    state.sides[side].backrow[state.sides[side].backrow.indexOf(inst)] = null;
+    state.sides[side].graveyard.push(inst);
+  }
+}
+
 export function respondToTrapWindow(state, choiceUid) {
   const next = clone(state);
   const pending = next.pending;
@@ -444,23 +494,20 @@ export function respondToTrapWindow(state, choiceUid) {
   next.pending = null;
   const ctx = newCtx(next);
   const side = pending.side;
+
+  if (pending.trigger === "onSummon") {
+    const summoned = monstersOn(next, pending.resume.summonedSide)
+      .find((m) => m.uid === pending.resume.summonedUid) ?? null;
+    if (choiceUid) revealTrap(next, side, choiceUid, summoned, ctx);
+    checkWin(next, ctx);
+    return { state: next, events: ctx.events };
+  }
+
   const attackerSide = other(side);
   const attacker = monstersOn(next, attackerSide).find((m) => m.uid === pending.resume.attackerUid);
   const defender = monstersOn(next, side).find((m) => m.uid === pending.resume.defenderUid) ?? null;
 
-  if (choiceUid) {
-    const inst = next.sides[side].backrow.find((c) => c && c.uid === choiceUid);
-    if (inst) {
-      const card = cardOf(inst);
-      inst.faceDown = false;
-      ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
-      applyEffect(next, side, card.effect, Object.assign(ctx, { target: attacker }));
-      if (card.sub !== "continuous") {
-        next.sides[side].backrow[next.sides[side].backrow.indexOf(inst)] = null;
-        next.sides[side].graveyard.push(inst);
-      }
-    }
-  }
+  if (choiceUid) revealTrap(next, side, choiceUid, attacker, ctx);
   if (!ctx.negateAttack && attacker && next.sides[attackerSide].monsters.includes(attacker)) {
     resolveBattle(next, attackerSide, attacker, defender, ctx);
   }

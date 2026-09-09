@@ -153,7 +153,8 @@ const OPS = {
   },
 
   gravityBind(state, side, effect, ctx) {
-    state.gravityBindLevel = effect.minLevel;
+    // No flag: the lock is read off the card while it sits face-up, so
+    // destroying it lifts the lock. A flag here would outlive the card.
     emit(ctx, { type: "fieldShift", side, label: "Gravity Bind" });
   },
 
@@ -296,6 +297,15 @@ const OPS = {
   },
 
   crushVirus(state, side, effect, ctx) {
+    // Paid by tributing a DARK monster with 1000 or less ATK. Without the cost
+    // this is a free board wipe, which it is emphatically not.
+    const fodder = monstersOn(state, side).filter((inst) => {
+      const card = cardOf(inst);
+      return card.attribute === "DARK" && effectiveStats(state, side, inst).atk <= 1000;
+    });
+    if (!fodder.length) return;
+    sendToGraveyard(state, side, fodder[0], ctx, "virusCost");
+
     const foe = other(side);
     state.sides[foe].virusTurns = effect.turns;
     state.sides[foe].virusThreshold = effect.threshold;

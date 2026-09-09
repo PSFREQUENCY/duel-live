@@ -133,6 +133,7 @@ test("an effect with no timer is reported as open-ended, not as zero turns", () 
 
 test("Crush Card Virus names the threshold it is enforcing", () => {
   const state = createDuel("yugi-kaiba", { seed: 2 });
+  state.sides.opponent.monsters[0] = makeInstance("saggi", "kaiba"); // pays the cost
   applyEffect(state, "opponent", CARDS.crushCardVirus.effect, ctx());
   const virus = activeEffects(state, "player").find((e) => e.label === "Crush Card Virus");
   assert.equal(virus.turnsLeft, 3);
@@ -148,6 +149,7 @@ test("a clean board reports nothing rather than an empty rail", () => {
 
 test("the summary reports the soonest expiry across everything in play", () => {
   const state = createDuel("yugi-kaiba", { seed: 2 });
+  state.sides.opponent.monsters[0] = makeInstance("saggi", "kaiba"); // pays the cost
   applyEffect(state, "player", CARDS.swordsOfRevealingLight.effect, ctx());
   applyEffect(state, "opponent", CARDS.crushCardVirus.effect, ctx());
   state.sides.opponent.lockAttacksTurns = 1;

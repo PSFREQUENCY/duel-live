@@ -234,6 +234,15 @@ Defence positions with face-down sets · Fusion Summoning from hand and field ·
 (normal, continuous, quick-play, equip) · Traps that open a real response window when you
 are attacked · direct attacks · a six-card hand limit · deck-out.
 
+Traps respond to two triggers: an attack, and a summon. Trap Hole, Crush Card
+Virus, Gravity Bind and Dust Tornado all wait on a summon, and a test asserts
+each one actually fires in a real duel — a trap that can never trigger is dead
+weight in a deck.
+
+Continuous effects are read off the card while it sits face-up rather than
+recorded as a flag, so destroying Gravity Bind lifts the lock instead of leaving
+the board frozen for the rest of the duel.
+
 Every card's effect is data in `src/cards/`, resolved by a dispatcher in
 `src/duel-effects.js` — adding a card is a data change, not an engine change. A test
 asserts that no card can reference an effect the engine cannot resolve.

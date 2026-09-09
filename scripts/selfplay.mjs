@@ -8,7 +8,10 @@ import {
 import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "../src/duel-ai.js";
 import { mulberry32 } from "../src/duel-state.js";
 
-export function playDuel(matchupId, seed, { maxTurns = 60 } = {}) {
+// Gravity Bind legitimately grinds a duel toward deck-out, and a deck-out in a
+// 40-card deck lands around turn 80. A cap below that reports a working lock as
+// a stall.
+export function playDuel(matchupId, seed, { maxTurns = 120 } = {}) {
   const rng = mulberry32(seed);
   let state = createDuel(matchupId, { seed });
   const events = [];

@@ -117,6 +117,7 @@ test("Crush Card Virus destroys every strong monster the opponent controls", () 
   const state = seed();
   put(state, "player", "blueEyes");
   put(state, "player", "celticGuardian"); // 1400, under the 1500 threshold
+  put(state, "opponent", "saggi");        // DARK, 600 ATK — the tribute it costs
   applyEffect(state, "opponent", CARDS.crushCardVirus.effect, ctx(state));
   const left = monstersOn(state, "player");
   assert.equal(left.length, 1);

@@ -1327,7 +1327,16 @@ function askTrap(pending) {
     const inst = state.sides.player.backrow.find((c) => c && c.uid === uid);
     return { label: `Activate ${getCard(inst.cardId).name}`, value: uid };
   });
-  return askChoice("Your opponent is attacking. Respond?", options);
+  const question = pending.trigger === "onSummon"
+    ? `${summonedName(pending)} was summoned. Respond?`
+    : "Your opponent is attacking. Respond?";
+  return askChoice(question, options);
+}
+
+function summonedName(pending) {
+  const { summonedSide, summonedUid } = pending.resume ?? {};
+  const inst = state.sides[summonedSide]?.monsters.find((m) => m && m.uid === summonedUid);
+  return inst ? getCard(inst.cardId).name : "A monster";
 }
 
 // ------------------------------------------------------------- lifecycle ---
@@ -1932,7 +1941,24 @@ function completeSummon(state, side, inst, action, ctx) {
   }
   if (s.virusTurns > 0 && effectiveStats(state, side, inst).atk >= s.virusThreshold) {
     sendToGraveyard(state, side, inst, ctx, "crushVirus");
+    return;
   }
+  offerSummonResponse(state, side, inst, ctx);
+}
+
+// Trap Hole, Crush Card Virus, Gravity Bind and Dust Tornado all wait for a
+// summon. Without this window they sit in the deck and never do anything.
+function offerSummonResponse(state, side, inst, ctx) {
+  // A monster placed face-down was Set, not summoned, so nothing triggers.
+  if (inst.faceDown || ctx.skipTrapWindow) return;
+  const foe = other(side);
+  const window = trapWindow(state, foe, "onSummon");
+  if (!window.length) return;
+  state.pending = {
+    kind: "trapWindow", side: foe, trigger: "onSummon",
+    options: window.map((c) => c.uid),
+    resume: { summonedUid: inst.uid, summonedSide: side },
+  };
 }
 
 function actSummon(state, side, action, ctx) {
@@ -2110,12 +2136,28 @@ function actPosition(state, side, action, ctx) {
 
 // ----------------------------------------------------------------- battle ---
 
+/** The strictest Gravity Bind in play, or 0 when none is face-up. */
+function gravityBindLevel(state) {
+  let level = 0;
+  for (const s of SIDES) {
+    for (const inst of state.sides[s].backrow) {
+      if (!inst || inst.faceDown) continue;
+      const effect = cardOf(inst).effect;
+      if (effect?.op === "gravityBind") {
+        level = level ? Math.min(level, effect.minLevel) : effect.minLevel;
+      }
+    }
+  }
+  return level;
+}
+
 function canAttack(state, side, inst) {
   const s = state.sides[side];
   if (state.phase !== "battle" || state.activeSide !== side) return false;
   if (inst.hasAttacked || inst.faceDown || inst.position !== "attack" || inst.bound) return false;
   if (s.lockAttacksTurns > 0) return false;
-  if (state.gravityBindLevel && cardOf(inst).level >= state.gravityBindLevel) return false;
+  const bind = gravityBindLevel(state);
+  if (bind && cardOf(inst).level >= bind) return false;
   return true;
 }
 
@@ -2270,6 +2312,23 @@ function applyAction(state, action) {
   return { state: next, events: ctx.events };
 }
 
+function revealTrap(state, side, choiceUid, target, ctx) {
+  const inst = state.sides[side].backrow.find((c) => c && c.uid === choiceUid);
+  if (!inst) return;
+  const card = cardOf(inst);
+  inst.faceDown = false;
+  ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
+  const spec = targetSpecFor(card);
+  applyEffect(state, side, card.effect, Object.assign(ctx, {
+    target,
+    targets: spec ? autoTargets(state, side, spec, card) : null,
+  }));
+  if (card.sub !== "continuous") {
+    state.sides[side].backrow[state.sides[side].backrow.indexOf(inst)] = null;
+    state.sides[side].graveyard.push(inst);
+  }
+}
+
 function respondToTrapWindow(state, choiceUid) {
   const next = clone(state);
   const pending = next.pending;
@@ -2277,23 +2336,20 @@ function respondToTrapWindow(state, choiceUid) {
   next.pending = null;
   const ctx = newCtx(next);
   const side = pending.side;
+
+  if (pending.trigger === "onSummon") {
+    const summoned = monstersOn(next, pending.resume.summonedSide)
+      .find((m) => m.uid === pending.resume.summonedUid) ?? null;
+    if (choiceUid) revealTrap(next, side, choiceUid, summoned, ctx);
+    checkWin(next, ctx);
+    return { state: next, events: ctx.events };
+  }
+
   const attackerSide = other(side);
   const attacker = monstersOn(next, attackerSide).find((m) => m.uid === pending.resume.attackerUid);
   const defender = monstersOn(next, side).find((m) => m.uid === pending.resume.defenderUid) ?? null;
 
-  if (choiceUid) {
-    const inst = next.sides[side].backrow.find((c) => c && c.uid === choiceUid);
-    if (inst) {
-      const card = cardOf(inst);
-      inst.faceDown = false;
-      ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
-      applyEffect(next, side, card.effect, Object.assign(ctx, { target: attacker }));
-      if (card.sub !== "continuous") {
-        next.sides[side].backrow[next.sides[side].backrow.indexOf(inst)] = null;
-        next.sides[side].graveyard.push(inst);
-      }
-    }
-  }
+  if (choiceUid) revealTrap(next, side, choiceUid, attacker, ctx);
   if (!ctx.negateAttack && attacker && next.sides[attackerSide].monsters.includes(attacker)) {
     resolveBattle(next, attackerSide, attacker, defender, ctx);
   }
@@ -2365,7 +2421,7 @@ function playableSpell(state, side, inst) {
   return true;
 }
 
-Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToTarget, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToTrapWindow, legalActions, createDuel, SIDES, other, effectiveStats, cardOf });
+Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToTarget, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, gravityBindLevel, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToTrapWindow, legalActions, createDuel, SIDES, other, effectiveStats, cardOf });
 });
 
 __def("src/duel-effects.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
@@ -2518,7 +2574,8 @@ const OPS = {
   },
 
   gravityBind(state, side, effect, ctx) {
-    state.gravityBindLevel = effect.minLevel;
+    // No flag: the lock is read off the card while it sits face-up, so
+    // destroying it lifts the lock. A flag here would outlive the card.
     emit(ctx, { type: "fieldShift", side, label: "Gravity Bind" });
   },
 
@@ -2661,6 +2718,15 @@ const OPS = {
   },
 
   crushVirus(state, side, effect, ctx) {
+    // Paid by tributing a DARK monster with 1000 or less ATK. Without the cost
+    // this is a free board wipe, which it is emphatically not.
+    const fodder = monstersOn(state, side).filter((inst) => {
+      const card = cardOf(inst);
+      return card.attribute === "DARK" && effectiveStats(state, side, inst).atk <= 1000;
+    });
+    if (!fodder.length) return;
+    sendToGraveyard(state, side, fodder[0], ctx, "virusCost");
+
     const foe = other(side);
     state.sides[foe].virusTurns = effect.turns;
     state.sides[foe].virusThreshold = effect.threshold;
@@ -3148,7 +3214,7 @@ __def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.j
 // Opponent AI. Scores the legal actions the engine offers -- it never reaches
 // into duel state to invent a move the rules would not allow.
 
-const { cardOf, defaultTributes, effectiveStats, legalActions, other } = __req("./duel-engine.js");
+const { cardOf, defaultTributes, effectiveStats, gravityBindLevel, legalActions, other } = __req("./duel-engine.js");
 const { monstersOn } = __req("./duel-state.js");
 const { getDuelist } = __req("./duelists.js");
 const { CARDS } = __req("./cards/index.js");
@@ -3200,7 +3266,13 @@ function scorePlay(state, side, action, style) {
       const theirs = monstersOn(state, other(side)).length;
       return theirs > mine ? 480 : -100;
     }
-    if (card.effect?.op === "destroyFoeBackrow") return state.sides[other(side)].backrow.filter(Boolean).length * 90;
+    if (card.effect?.op === "destroyFoeBackrow" || card.effect?.op === "bounceAllBackrow") {
+      const foeBackrow = state.sides[other(side)].backrow.filter(Boolean);
+      // A face-up lock is the thing most worth spending removal on: sitting
+      // under Gravity Bind is how a duel grinds to a halt.
+      const locked = gravityBindLevel(state) > 0;
+      return foeBackrow.length * 90 + (locked ? 900 : 0);
+    }
     if (card.sub === "equip") return 260;
     return 210;
   }
@@ -3246,6 +3318,10 @@ function chooseTrapResponse(state, rng = Math.random) {
   if (!pending || pending.kind !== "trapWindow") return null;
   const side = pending.side;
   const style = styleOf(state, side);
+
+  // A summon window has no attacker; the threat is what just arrived.
+  if (pending.trigger === "onSummon") return chooseSummonResponse(state, pending, style, rng);
+
   const attacker = monstersOn(state, other(side)).find((m) => m.uid === pending.resume.attackerUid);
   if (!attacker) return null;
   const incoming = effectiveStats(state, other(side), attacker).atk;
@@ -3261,6 +3337,38 @@ function chooseTrapResponse(state, rng = Math.random) {
   return ranked[0]?.uid ?? null;
 }
 
+// Spend a summon-triggered trap on a monster worth answering, not on a token.
+function chooseSummonResponse(state, pending, style, rng) {
+  const { summonedSide, summonedUid } = pending.resume;
+  const summoned = monstersOn(state, summonedSide).find((m) => m.uid === summonedUid);
+  if (!summoned) return null;
+  const threat = effectiveStats(state, summonedSide, summoned).atk;
+  if (threat < 1500 && rng() > style.trapBias / 2) return null;
+
+  const usable = pending.options
+    .map((uid) => state.sides[pending.side].backrow.find((c) => c && c.uid === uid))
+    .filter(Boolean)
+    .filter((inst) => canPaySummonTrap(state, pending.side, cardOf(inst), summoned, threat));
+  return usable.sort((a, b) => trapValue(cardOf(b), threat) - trapValue(cardOf(a), threat))[0]?.uid ?? null;
+}
+
+// Do not flip a trap that cannot do anything to what was just summoned.
+function canPaySummonTrap(state, side, card, summoned, threat) {
+  const effect = card.effect ?? {};
+  if (effect.op === "destroySummoned") return threat >= (effect.minAtk ?? 0);
+  if (effect.op === "crushVirus") return crushVirusFodder(state, side).length > 0;
+  if (effect.op === "destroyFoeBackrow") return state.sides[other(side)].backrow.some(Boolean);
+  return true;
+}
+
+/** Crush Card Virus is paid by tributing a DARK monster with 1000 or less ATK. */
+function crushVirusFodder(state, side) {
+  return monstersOn(state, side).filter((inst) => {
+    const card = cardOf(inst);
+    return card.attribute === "DARK" && effectiveStats(state, side, inst).atk <= 1000;
+  });
+}
+
 function trapValue(card, threat) {
   const op = card.effect?.op;
   if (op === "destroyAttackers") return 1000;
@@ -3272,7 +3380,7 @@ function trapValue(card, threat) {
   return 200;
 }
 
-Object.assign(__exports, { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse });
+Object.assign(__exports, { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse, crushVirusFodder });
 });
 
 __def("src/cinema/player.js", {"../cards/index.js":"src/cards/index.js","./procedural-stage.js":"src/cinema/procedural-stage.js","./free-video.js":"src/cinema/free-video.js","./realtime-voice.js":"src/cinema/realtime-voice.js"}, function (__exports, __req) {
@@ -5238,13 +5346,14 @@ function rebornTarget(state) {
 Object.assign(__exports, { describeCard, rebornTarget });
 });
 
-__def("src/duel-effects-active.js", {"./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+__def("src/duel-effects-active.js", {"./duelists.js":"src/duelists.js","./duel-engine.js":"src/duel-engine.js"}, function (__exports, __req) {
 // The continuing effects in play right now, as something a player can read.
 //
 // Derived from engine state rather than tracked separately, so a counter can
 // never disagree with the rule it is counting.
 
 const { DUELISTS } = __req("./duelists.js");
+const { gravityBindLevel } = __req("./duel-engine.js");
 /**
  * Everything currently constraining play, from the point of view of `viewer`.
  * `turnsLeft` is null for effects that last until something removes them.
@@ -5286,11 +5395,12 @@ function activeEffects(state, viewer = "player") {
     }
   }
 
-  if (state.gravityBindLevel) {
+  const bind = gravityBindLevel(state);
+  if (bind) {
     out.push({
       id: "gravity-bind",
       label: "Gravity Bind",
-      detail: `Level ${state.gravityBindLevel}+ monsters cannot attack`,
+      detail: `Level ${bind}+ monsters cannot attack — destroy the card to lift it`,
       turnsLeft: null,
       against: true,
     });

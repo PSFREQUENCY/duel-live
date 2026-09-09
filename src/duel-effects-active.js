@@ -4,6 +4,7 @@
 // never disagree with the rule it is counting.
 
 import { DUELISTS } from "./duelists.js";
+import { gravityBindLevel } from "./duel-engine.js";
 
 /**
  * Everything currently constraining play, from the point of view of `viewer`.
@@ -46,11 +47,12 @@ export function activeEffects(state, viewer = "player") {
     }
   }
 
-  if (state.gravityBindLevel) {
+  const bind = gravityBindLevel(state);
+  if (bind) {
     out.push({
       id: "gravity-bind",
       label: "Gravity Bind",
-      detail: `Level ${state.gravityBindLevel}+ monsters cannot attack`,
+      detail: `Level ${bind}+ monsters cannot attack — destroy the card to lift it`,
       turnsLeft: null,
       against: true,
     });

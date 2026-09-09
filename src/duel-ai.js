@@ -1,7 +1,9 @@
 // Opponent AI. Scores the legal actions the engine offers -- it never reaches
 // into duel state to invent a move the rules would not allow.
 
-import { cardOf, defaultTributes, effectiveStats, legalActions, other } from "./duel-engine.js";
+import {
+  cardOf, defaultTributes, effectiveStats, gravityBindLevel, legalActions, other,
+} from "./duel-engine.js";
 import { monstersOn } from "./duel-state.js";
 import { getDuelist } from "./duelists.js";
 import { CARDS } from "./cards/index.js";
@@ -54,7 +56,13 @@ function scorePlay(state, side, action, style) {
       const theirs = monstersOn(state, other(side)).length;
       return theirs > mine ? 480 : -100;
     }
-    if (card.effect?.op === "destroyFoeBackrow") return state.sides[other(side)].backrow.filter(Boolean).length * 90;
+    if (card.effect?.op === "destroyFoeBackrow" || card.effect?.op === "bounceAllBackrow") {
+      const foeBackrow = state.sides[other(side)].backrow.filter(Boolean);
+      // A face-up lock is the thing most worth spending removal on: sitting
+      // under Gravity Bind is how a duel grinds to a halt.
+      const locked = gravityBindLevel(state) > 0;
+      return foeBackrow.length * 90 + (locked ? 900 : 0);
+    }
     if (card.sub === "equip") return 260;
     return 210;
   }
@@ -100,6 +108,10 @@ export function chooseTrapResponse(state, rng = Math.random) {
   if (!pending || pending.kind !== "trapWindow") return null;
   const side = pending.side;
   const style = styleOf(state, side);
+
+  // A summon window has no attacker; the threat is what just arrived.
+  if (pending.trigger === "onSummon") return chooseSummonResponse(state, pending, style, rng);
+
   const attacker = monstersOn(state, other(side)).find((m) => m.uid === pending.resume.attackerUid);
   if (!attacker) return null;
   const incoming = effectiveStats(state, other(side), attacker).atk;
@@ -113,6 +125,38 @@ export function chooseTrapResponse(state, rng = Math.random) {
     .filter(Boolean)
     .sort((a, b) => trapValue(cardOf(b), threat) - trapValue(cardOf(a), threat));
   return ranked[0]?.uid ?? null;
+}
+
+// Spend a summon-triggered trap on a monster worth answering, not on a token.
+function chooseSummonResponse(state, pending, style, rng) {
+  const { summonedSide, summonedUid } = pending.resume;
+  const summoned = monstersOn(state, summonedSide).find((m) => m.uid === summonedUid);
+  if (!summoned) return null;
+  const threat = effectiveStats(state, summonedSide, summoned).atk;
+  if (threat < 1500 && rng() > style.trapBias / 2) return null;
+
+  const usable = pending.options
+    .map((uid) => state.sides[pending.side].backrow.find((c) => c && c.uid === uid))
+    .filter(Boolean)
+    .filter((inst) => canPaySummonTrap(state, pending.side, cardOf(inst), summoned, threat));
+  return usable.sort((a, b) => trapValue(cardOf(b), threat) - trapValue(cardOf(a), threat))[0]?.uid ?? null;
+}
+
+// Do not flip a trap that cannot do anything to what was just summoned.
+function canPaySummonTrap(state, side, card, summoned, threat) {
+  const effect = card.effect ?? {};
+  if (effect.op === "destroySummoned") return threat >= (effect.minAtk ?? 0);
+  if (effect.op === "crushVirus") return crushVirusFodder(state, side).length > 0;
+  if (effect.op === "destroyFoeBackrow") return state.sides[other(side)].backrow.some(Boolean);
+  return true;
+}
+
+/** Crush Card Virus is paid by tributing a DARK monster with 1000 or less ATK. */
+export function crushVirusFodder(state, side) {
+  return monstersOn(state, side).filter((inst) => {
+    const card = cardOf(inst);
+    return card.attribute === "DARK" && effectiveStats(state, side, inst).atk <= 1000;
+  });
 }
 
 function trapValue(card, threat) {
