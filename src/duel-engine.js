@@ -5,6 +5,7 @@ import { getCard } from "./cards/index.js";
 import {
   applyEffect, dealDamage, findFusion, placeMonster, sendToGraveyard,
 } from "./duel-effects.js";
+import { autoTargets, needsChoice, targetOptions, targetSpecFor } from "./duel-targets.js";
 import {
   cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone,
   monstersOn, mulberry32, other, SIDES,
@@ -55,20 +56,39 @@ function isFusionMaterial(state, side, inst) {
   return state.sides[side].extra.some((f) => getCard(f.cardId).fusion.includes(inst.cardId));
 }
 
-function actSummon(state, side, action, ctx) {
-  const s = state.sides[side];
-  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
-  const card = cardOf(inst);
-  let need = tributesRequired(card);
-  // Tribute the weakest monsters first, but never eat a live fusion material
-  // while an ordinary body is still available.
+/** How the AI, or an auto-resolve, would spend tributes: weakest first, but
+ * never eating a live fusion material while an ordinary body is available. */
+export function defaultTributes(state, side, need) {
   const cost = (m) => effectiveStats(state, side, m).atk + (isFusionMaterial(state, side, m) ? 10000 : 0);
   const fodder = monstersOn(state, side).sort((a, b) => cost(a) - cost(b));
-  while (need > 0 && fodder.length) {
+  const chosen = [];
+  let left = need;
+  while (left > 0 && fodder.length) {
     const victim = fodder.shift();
-    need -= tributeValue(state, side, victim);
-    sendToGraveyard(state, side, victim, ctx, "tribute");
+    left -= tributeValue(state, side, victim);
+    chosen.push(victim.uid);
   }
+  return chosen;
+}
+
+/** Does the chosen set cover the cost? Kaiser Sea Horse counts as two. */
+export function tributesCover(state, side, uids, need) {
+  const field = monstersOn(state, side);
+  const chosen = uids.map((uid) => field.find((m) => m.uid === uid)).filter(Boolean);
+  if (chosen.length !== uids.length) return false;
+  return chosen.reduce((sum, m) => sum + tributeValue(state, side, m), 0) >= need;
+}
+
+function payTributes(state, side, uids, ctx) {
+  const field = monstersOn(state, side);
+  for (const uid of uids) {
+    const victim = field.find((m) => m.uid === uid);
+    if (victim) sendToGraveyard(state, side, victim, ctx, "tribute");
+  }
+}
+
+function completeSummon(state, side, inst, action, ctx) {
+  const s = state.sides[side];
   s.normalSummonUsed = true;
   const position = action.set ? "defense" : (action.position ?? "attack");
   placeMonster(state, side, inst, ctx, { position, how: action.set ? "set" : "normal" });
@@ -80,6 +100,74 @@ function actSummon(state, side, action, ctx) {
   if (s.virusTurns > 0 && effectiveStats(state, side, inst).atk >= s.virusThreshold) {
     sendToGraveyard(state, side, inst, ctx, "crushVirus");
   }
+}
+
+function actSummon(state, side, action, ctx) {
+  const s = state.sides[side];
+  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
+  const need = tributesRequired(cardOf(inst));
+
+  if (need > 0) {
+    const chosen = action.tributes ?? null;
+    // With more monsters than the cost demands, which ones go is the player's
+    // decision, not the engine's -- so ask instead of picking for them.
+    const candidates = monstersOn(state, side);
+    if (!chosen && candidates.length > need) {
+      state.pending = {
+        kind: "tribute", side, summonUid: inst.uid, need,
+        card: cardOf(inst).name,
+        options: candidates.map((m) => m.uid),
+        set: Boolean(action.set),
+      };
+      s.hand.push(inst);
+      return;
+    }
+    const tributes = chosen ?? defaultTributes(state, side, need);
+    if (!tributesCover(state, side, tributes, need)) { s.hand.push(inst); return; }
+    payTributes(state, side, tributes, ctx);
+  }
+  completeSummon(state, side, inst, action, ctx);
+}
+
+/** Finish an activation the player paused to choose targets for. */
+export function respondToTarget(state, uids) {
+  const next = clone(state);
+  const pending = next.pending;
+  if (!pending || pending.kind !== "target") return { state: next, events: [] };
+  const chosen = uids ?? [];
+  // An optional pick may be empty; a required one may not be under-filled.
+  if (!pending.optional && chosen.length !== pending.need) return { state: next, events: [] };
+
+  next.pending = null;
+  const ctx = newCtx(next);
+  const side = pending.side;
+  const s = next.sides[side];
+  const held = s.hand.find((c) => c.uid === pending.activateUid)
+    ?? s.backrow.find((c) => c && c.uid === pending.activateUid);
+  if (!held) return { state: next, events: ctx.events };
+  const card = cardOf(held);
+  actActivateResolved(next, side, { uid: pending.activateUid, targets: chosen }, ctx, targetSpecFor(card), card);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
+}
+
+/** Finish a summon the player paused to choose tributes for. */
+export function respondToTribute(state, uids) {
+  const next = clone(state);
+  const pending = next.pending;
+  if (!pending || pending.kind !== "tribute") return { state: next, events: [] };
+  const { side, summonUid, need } = pending;
+  if (!tributesCover(next, side, uids, need)) return { state: next, events: [] };
+
+  next.pending = null;
+  const ctx = newCtx(next);
+  const s = next.sides[side];
+  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === summonUid), 1)[0];
+  if (!inst) return { state: next, events: ctx.events };
+  payTributes(next, side, uids, ctx);
+  completeSummon(next, side, inst, { set: pending.set }, ctx);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
 }
 
 function actSetBackrow(state, side, action, ctx) {
@@ -94,11 +182,35 @@ function actSetBackrow(state, side, action, ctx) {
 
 function actActivate(state, side, action, ctx) {
   const s = state.sides[side];
+  const card = cardOf(
+    s.hand.find((c) => c.uid === action.uid) ?? s.backrow.find((c) => c && c.uid === action.uid) ?? {},
+  );
+  // Where the card points is the player's decision, so ask before resolving --
+  // but only when there is more than one thing it could point at.
+  const spec = targetSpecFor(card);
+  if (spec && !action.targets && !spec.after && needsChoice(state, side, spec, card)) {
+    state.pending = {
+      kind: "target", side, activateUid: action.uid, card: card.name,
+      prompt: spec.prompt, need: spec.count, optional: Boolean(spec.optional),
+      options: targetOptionsFor(state, side, card),
+    };
+    return;
+  }
+  actActivateResolved(state, side, action, ctx, spec, card);
+}
+
+export function targetOptionsFor(state, side, card) {
+  const spec = targetSpecFor(card);
+  return spec ? targetOptions(state, side, spec, card) : [];
+}
+
+function actActivateResolved(state, side, action, ctx, spec, card) {
+  const s = state.sides[side];
   const fromHand = s.hand.findIndex((c) => c.uid === action.uid);
   const inst = fromHand >= 0 ? s.hand.splice(fromHand, 1)[0] : s.backrow.find((c) => c && c.uid === action.uid);
   if (!inst) return;
-  const card = cardOf(inst);
   ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text });
+  ctx.targets = action.targets ?? (spec && !spec.after ? autoTargets(state, side, spec, card) : null);
   if (card.sub === "equip") {
     const zone = fromHand >= 0 ? emptyBackrowZone(state, side) : s.backrow.indexOf(inst);
     if (zone < 0) return;
@@ -108,7 +220,7 @@ function actActivate(state, side, action, ctx) {
     if (host) host.equips.push(inst.uid);
     return;
   }
-  applyEffect(state, side, card.effect, { ...ctx, target: action.target ?? ctx.target });
+  applyEffect(state, side, card.effect, ctx);
   if (fromHand >= 0) s.graveyard.push(inst);
   else if (card.sub !== "continuous") {
     s.backrow[s.backrow.indexOf(inst)] = null;

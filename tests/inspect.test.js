@@ -70,17 +70,35 @@ test("Monster Reborn's target is the strongest monster in either graveyard", () 
   assert.equal(rebornTarget(state).cardId, "blueEyes", "either graveyard, not just your own");
 });
 
-test("the previewed target is the one Monster Reborn actually takes", () => {
+test("Monster Reborn offers every graveyard monster, including the highlighted one", () => {
   const state = createDuel("yugi-kaiba", { seed: 8 });
   state.sides.player.graveyard.push(makeInstance("celticGuardian", "yugi"));
   state.sides.opponent.graveyard.push(makeInstance("blueEyes", "kaiba"));
   const reborn = makeInstance("monsterReborn", "yugi");
   state.sides.player.hand = [reborn];
 
-  const predicted = rebornTarget(state).cardId;
-  const after = applyAction(state, { type: "activate", uid: reborn.uid }).state;
-  assert.equal(monstersOn(after, "player")[0].cardId, predicted,
-    "the graveyard preview would be lying if these differed");
+  const paused = applyAction(state, { type: "activate", uid: reborn.uid }).state;
+  assert.equal(paused.pending?.kind, "target", "reviving is the player's choice, not the engine's");
+  assert.equal(paused.pending.need, 1);
+  const offered = paused.pending.options.map((o) => o.uid);
+  assert.ok(offered.includes(rebornTarget(state).uid),
+    "the monster the graveyard highlights must be one you can actually pick");
+  assert.equal(offered.length, 2, "both graveyards are on offer");
+});
+
+test("you can revive the weaker monster if you want it", async () => {
+  const { respondToTarget } = await import("../src/duel-engine.js");
+  const state = createDuel("yugi-kaiba", { seed: 8 });
+  const weak = makeInstance("celticGuardian", "yugi");
+  state.sides.player.graveyard.push(weak);
+  state.sides.opponent.graveyard.push(makeInstance("blueEyes", "kaiba"));
+  const reborn = makeInstance("monsterReborn", "yugi");
+  state.sides.player.hand = [reborn];
+
+  const paused = applyAction(state, { type: "activate", uid: reborn.uid }).state;
+  const after = respondToTarget(paused, [weak.uid]).state;
+  assert.equal(monstersOn(after, "player")[0].cardId, "celticGuardian",
+    "the engine must not override the player with the stronger option");
 });
 
 test("spells and traps are never given monster stats", () => {

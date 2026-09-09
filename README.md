@@ -210,6 +210,23 @@ from across the field. Lines are original, written in character rather than lift
 show, and the director only fires on moments that earn it, so nobody chatters over a
 face-down. Everything spoken also lands in the duel log.
 
+### Choices the engine used to make for you
+
+Anything with more than one legal answer asks. Tribute summons let you pick which
+monsters go — the engine no longer eats your weakest. Brain Control, Monster
+Reborn, Shrink, Ring of Destruction, De-Spell, Dust Tornado, the equips, Graceful
+Charity's discard and the Flute's summons all present their legal targets.
+
+Targeting is derived from the effect rather than declared per card, so a new card
+using a known op gets a picker for free — and the option list is filtered by what
+the card can actually do, so De-Spell never offers you a Trap. When only one
+answer is legal there is no prompt, because a forced choice is not a choice. The
+old automatic behaviour survives as the AI's pick and the fallback.
+
+Continuing effects show a counter on the left of the board with the turns they
+have left — Swords of Revealing Light, Crush Card Virus — or an ∞ for the ones
+that last until something removes them.
+
 ### Rules implemented
 
 8000 Life Points · one Normal Summon per turn · tributes at Level 5 and 7 · Attack and

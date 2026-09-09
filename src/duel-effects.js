@@ -75,7 +75,10 @@ const OPS = {
     const toss = effect.discard ?? 0;
     for (let i = 0; i < toss; i += 1) {
       const hand = state.sides[side].hand;
-      const worst = hand.reduce((a, b) => (cardOf(a).atk ?? 0) <= (cardOf(b).atk ?? 0) ? a : b, hand[0]);
+      // The discard follows the draw, so a chosen card may be one just drawn.
+      const picked = ctx.targets?.[i] ? hand.find((c) => c.uid === ctx.targets[i]) : null;
+      const worst = picked
+        ?? hand.reduce((a, b) => ((cardOf(a).atk ?? 0) <= (cardOf(b).atk ?? 0) ? a : b), hand[0]);
       if (worst) sendToGraveyard(state, side, hand.splice(hand.indexOf(worst), 1)[0], ctx, "discard");
     }
   },
@@ -89,7 +92,11 @@ const OPS = {
   destroyFoeBackrow(state, side, effect, ctx) {
     const foe = other(side);
     let left = effect.limit ?? 99;
-    for (const inst of state.sides[foe].backrow.filter(Boolean)) {
+    const pool = state.sides[foe].backrow.filter(Boolean);
+    const ordered = ctx.targets?.length
+      ? pool.filter((inst) => ctx.targets.includes(inst.uid))
+      : pool;
+    for (const inst of ordered) {
       if (left <= 0) break;
       if (effect.only && cardOf(inst).kind !== effect.only) continue;
       sendToGraveyard(state, foe, inst, ctx, "backrowWipe");
@@ -113,9 +120,11 @@ const OPS = {
   revive(state, side, effect, ctx) {
     const pool = [...state.sides[side].graveyard, ...state.sides[other(side)].graveyard]
       .filter((c) => cardOf(c).kind === "monster");
-    const best = pool.sort((a, b) => cardOf(b).atk - cardOf(a).atk)[0];
-    if (!best) return;
-    placeMonster(state, side, pullFromAnywhere(state, side, best.uid), ctx, { how: "reborn" });
+    const chosen = ctx.targets?.[0]
+      ? pool.find((c) => c.uid === ctx.targets[0])
+      : pool.sort((a, b) => cardOf(b).atk - cardOf(a).atk)[0];
+    if (!chosen) return;
+    placeMonster(state, side, pullFromAnywhere(state, side, chosen.uid), ctx, { how: "reborn" });
   },
 
   tokens(state, side, effect, ctx) {
@@ -154,9 +163,13 @@ const OPS = {
   },
 
   modifyAtk(state, side, effect, ctx) {
+    const chosen = ctx.targets?.length
+      ? [...monstersOn(state, side), ...monstersOn(state, other(side))]
+        .filter((m) => ctx.targets.includes(m.uid))
+      : [ctx.target].filter(Boolean);
     const targets = effect.target === "attackers"
       ? monstersOn(state, other(side)).filter((m) => m.position === "attack")
-      : [ctx.target].filter(Boolean);
+      : chosen;
     for (const inst of targets) {
       const owner = state.sides.player.monsters.includes(inst) ? "player" : "opponent";
       const { atk } = effectiveStats(state, owner, inst);
@@ -188,7 +201,10 @@ const OPS = {
   takeControl(state, side, effect, ctx) {
     if (effect.cost) dealDamage(state, side, effect.cost, ctx, "cost");
     const foe = other(side);
-    const prize = monstersOn(state, foe).sort((a, b) => effectiveStats(state, foe, b).atk - effectiveStats(state, foe, a).atk)[0];
+    const field = monstersOn(state, foe);
+    const prize = ctx.targets?.[0]
+      ? field.find((m) => m.uid === ctx.targets[0])
+      : field.sort((a, b) => effectiveStats(state, foe, b).atk - effectiveStats(state, foe, a).atk)[0];
     if (!prize || emptyMonsterZone(state, side) < 0) return;
     state.sides[foe].monsters[state.sides[foe].monsters.indexOf(prize)] = null;
     prize.borrowedFrom = foe;
@@ -205,7 +221,11 @@ const OPS = {
   summonFromHand(state, side, effect, ctx) {
     const hand = state.sides[side].hand;
     let left = effect.count;
-    for (const inst of hand.filter((c) => cardOf(c).type === effect.type).slice(0, effect.count)) {
+    const eligible = hand.filter((c) => cardOf(c).type === effect.type);
+    const ordered = ctx.targets?.length
+      ? eligible.filter((c) => ctx.targets.includes(c.uid))
+      : eligible;
+    for (const inst of ordered.slice(0, effect.count)) {
       if (left <= 0 || emptyMonsterZone(state, side) < 0) break;
       hand.splice(hand.indexOf(inst), 1);
       placeMonster(state, side, inst, ctx, { how: "flute" });
@@ -255,7 +275,9 @@ const OPS = {
   },
 
   ringOfDestruction(state, side, effect, ctx) {
-    const target = ctx.target ?? monstersOn(state, other(side))[0];
+    const field = [...monstersOn(state, side), ...monstersOn(state, other(side))];
+    const target = (ctx.targets?.[0] && field.find((m) => m.uid === ctx.targets[0]))
+      ?? ctx.target ?? monstersOn(state, other(side))[0];
     if (!target) return;
     const owner = state.sides[side].monsters.includes(target) ? side : other(side);
     const { atk } = effectiveStats(state, owner, target);

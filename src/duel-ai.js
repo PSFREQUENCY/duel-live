@@ -1,9 +1,13 @@
 // Opponent AI. Scores the legal actions the engine offers -- it never reaches
 // into duel state to invent a move the rules would not allow.
 
-import { cardOf, effectiveStats, legalActions, other } from "./duel-engine.js";
+import { cardOf, defaultTributes, effectiveStats, legalActions, other } from "./duel-engine.js";
 import { monstersOn } from "./duel-state.js";
 import { getDuelist } from "./duelists.js";
+import { CARDS } from "./cards/index.js";
+import { autoTargets, targetSpecFor } from "./duel-targets.js";
+
+const CARDS_BY_NAME = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
 
 const TEMPERAMENT = {
   aggro:  { trade: 1.4, board: 0.9, hold: 0.4, trapBias: 0.55 },
@@ -73,6 +77,22 @@ export function chooseAction(state, side = state.activeSide, rng = Math.random) 
   }));
   scored.sort((a, b) => b.score - a.score);
   return scored[0].score > 0 ? scored[0].action : null;
+}
+
+/** The AI points an effect where the engine would by default. */
+export function chooseTargets(state) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "target") return null;
+  const card = CARDS_BY_NAME[pending.card];
+  const spec = card ? targetSpecFor(card) : null;
+  return spec ? autoTargets(state, pending.side, spec, card) : [];
+}
+
+/** The AI spends tributes the same way the engine would by default. */
+export function chooseTributes(state) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "tribute") return null;
+  return defaultTributes(state, pending.side, pending.need);
 }
 
 export function chooseTrapResponse(state, rng = Math.random) {

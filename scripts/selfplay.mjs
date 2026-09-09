@@ -1,8 +1,11 @@
 // Self-play harness: drives both matchups to a result with no UI attached.
 // Used as an engine soak test -- `node scripts/selfplay.mjs 200`.
 
-import { applyAction, createDuel, endTurn, legalActions, respondToTrapWindow, setPhase } from "../src/duel-engine.js";
-import { chooseAction, chooseTrapResponse } from "../src/duel-ai.js";
+import {
+  applyAction, createDuel, endTurn, legalActions, respondToTrapWindow,
+  respondToTarget, respondToTribute, setPhase,
+} from "../src/duel-engine.js";
+import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "../src/duel-ai.js";
 import { mulberry32 } from "../src/duel-state.js";
 
 export function playDuel(matchupId, seed, { maxTurns = 60 } = {}) {
@@ -13,6 +16,16 @@ export function playDuel(matchupId, seed, { maxTurns = 60 } = {}) {
 
   while (!state.winner && state.turn <= maxTurns && guard < 4000) {
     guard += 1;
+    if (state.pending?.kind === "target") {
+      const r = respondToTarget(state, chooseTargets(state));
+      state = r.state; events.push(...r.events);
+      continue;
+    }
+    if (state.pending?.kind === "tribute") {
+      const r = respondToTribute(state, chooseTributes(state));
+      state = r.state; events.push(...r.events);
+      continue;
+    }
     if (state.pending) {
       const r = respondToTrapWindow(state, chooseTrapResponse(state, rng));
       state = r.state; events.push(...r.events);

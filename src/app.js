@@ -4,9 +4,9 @@
 import { getCard } from "./cards/index.js";
 import {
   applyAction, createDuel, endTurn, legalActions, positionBlockedBecause,
-  respondToTrapWindow, setPhase, trapWindow,
+  respondToTarget, respondToTrapWindow, respondToTribute, setPhase, trapWindow, tributesCover,
 } from "./duel-engine.js";
-import { chooseAction, chooseTrapResponse } from "./duel-ai.js";
+import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
 import { createCinema } from "./cinema/player.js";
 import { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } from "./cinema/free-video.js";
@@ -19,6 +19,7 @@ import { reactionKeyFor } from "./cinema/archetypes.js";
 import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
 import { createHoverPanel, showGraveyard } from "./inspect.js";
+import { activeEffects } from "./duel-effects-active.js";
 import { summariseDuel } from "./duel-stats.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
 
@@ -28,6 +29,7 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+  effects: el("effect-rail"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -36,6 +38,7 @@ let state = null;
 let muted = false;
 let busy = false;
 let attackFrom = null;
+let tributePicks = [];
 let stalledTicks = 0;
 let introShown = false;
 let duelEvents = [];
@@ -75,15 +78,49 @@ function renderAll() {
   const targets = attackFrom
     ? new Set(mine.filter((a) => a.uid === attackFrom && a.targetUid).map((a) => a.targetUid))
     : new Set();
+  const choosingTributes = state.pending?.kind === "tribute" && state.pending.side === "player";
+  const tributeReady = choosingTributes ? new Set(state.pending.options) : null;
 
   const onZoneHover = (inst, side, zone) => hover.inspect(inst, side, zone, state);
   renderZones(state, "opponent", el("foe-backrow"), { row: "backrow", onZoneHover });
   renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover });
-  renderZones(state, "player", el("my-monsters"), { row: "monsters", ready: actionable, onZoneClick: onMyMonster, onZoneHover });
+  renderZones(state, "player", el("my-monsters"), {
+    row: "monsters",
+    ready: tributeReady ?? actionable,
+    targets: choosingTributes ? new Set(tributePicks) : new Set(),
+    onZoneClick: onMyMonster, onZoneHover,
+  });
   renderZones(state, "player", el("my-backrow"), { row: "backrow", onZoneHover });
   renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
 
+  renderEffects();
   updateControls(mine);
+}
+
+// Continuing effects are the only rules a player cannot see on the board, so
+// each one gets a chip with its remaining turns.
+function renderEffects() {
+  const effects = activeEffects(state, "player");
+  ui.effects.innerHTML = "";
+  for (const effect of effects) {
+    const chip = document.createElement("li");
+    chip.className = `effect-chip ${effect.against ? "is-against" : "is-favour"}`;
+    chip.title = effect.detail;
+
+    const count = document.createElement("span");
+    count.className = `effect-count${effect.turnsLeft === null ? " is-open" : ""}`;
+    count.textContent = effect.turnsLeft === null ? "∞" : String(effect.turnsLeft);
+    count.setAttribute("aria-label", effect.turnsLeft === null
+      ? "lasts until removed" : `${effect.turnsLeft} turns remaining`);
+
+    const text = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = effect.label;
+    text.append(name, document.createTextNode(effect.detail));
+
+    chip.append(count, text);
+    ui.effects.append(chip);
+  }
 }
 
 // Monsters that can change position right now, by uid.
@@ -201,7 +238,7 @@ async function run(mutator) {
     state = result.state;
     present(result.events);
     await settle();
-    await maybeTrapWindow();
+    await maybePending();
     await maybeOpponentTurn();
   } catch (error) {
     // A thrown turn used to strand the duel on the opponent's side with every
@@ -244,6 +281,32 @@ function settle(capMs = SETTLE_CAP_MS) {
   });
 }
 
+async function maybePending() {
+  while (state.pending?.kind === "target") {
+    const uids = state.pending.side === "player"
+      ? await askTargets(state.pending)
+      : chooseTargets(state);
+    const result = respondToTarget(state, uids);
+    state = result.state;
+    present(result.events);
+    await settle();
+  }
+  while (state.pending?.kind === "tribute") {
+    if (state.pending.side === "player") {
+      const uids = await askTributes(state.pending);
+      const result = respondToTribute(state, uids);
+      state = result.state;
+      present(result.events);
+    } else {
+      const result = respondToTribute(state, chooseTributes(state));
+      state = result.state;
+      present(result.events);
+    }
+    await settle();
+  }
+  await maybeTrapWindow();
+}
+
 async function maybeTrapWindow() {
   while (state.pending?.kind === "trapWindow") {
     if (state.pending.side === "player") {
@@ -266,7 +329,7 @@ async function maybeOpponentTurn() {
   let guard = 0;
   while (!state.winner && state.activeSide === "opponent" && guard < 60) {
     guard += 1;
-    await maybeTrapWindow();
+    await maybePending();
     if (state.winner) break;
 
     const action = chooseAction(state, "opponent", Math.random);
@@ -282,7 +345,7 @@ async function maybeOpponentTurn() {
     if (left > 0) await settle(Math.min(left, SETTLE_CAP_MS));
     else await Promise.resolve();
   }
-  await maybeTrapWindow();
+  await maybePending();
   if (state.winner) announceWinner();
 }
 
@@ -450,6 +513,11 @@ function onPlayCard(inst, options) {
 }
 
 function onMyMonster(inst) {
+  // Choosing tributes takes over clicks on your own field until it is answered.
+  if (state?.pending?.kind === "tribute" && state.pending.side === "player") {
+    toggleTribute(inst);
+    return;
+  }
   if (busy || !myTurn()) return;
   const actions = legalActions(state, "player");
 
@@ -496,6 +564,88 @@ function askChoice(question, choices) {
       ui.promptActions.append(button);
     }
   });
+}
+
+// One picker for every card that points somewhere: Brain Control, Monster
+// Reborn, Shrink, the equips, De-Spell, Graceful Charity's discard. The options
+// come from the engine, so the list can never offer an illegal target.
+function askTargets(pending) {
+  return new Promise((done) => {
+    const picks = [];
+    const finish = (uids) => { ui.prompt.hidden = true; renderAll(); done(uids); };
+    const paint = () => {
+      ui.prompt.hidden = false;
+      ui.promptText.textContent = `${pending.card} — ${pending.prompt}`
+        + (pending.need > 1 ? ` (${picks.length} of ${pending.need})` : "");
+      ui.promptActions.innerHTML = "";
+
+      for (const option of pending.options) {
+        const button = document.createElement("button");
+        button.className = "btn";
+        button.type = "button";
+        const chosen = picks.includes(option.uid);
+        button.textContent = `${chosen ? "✓ " : ""}${option.name} — ${option.detail}`
+          + (option.where === "graveyard" ? " · GY" : option.where === "hand" ? " · hand" : "");
+        button.addEventListener("click", () => {
+          if (chosen) picks.splice(picks.indexOf(option.uid), 1);
+          else if (picks.length < pending.need) picks.push(option.uid);
+          if (picks.length === pending.need && pending.need === 1) finish(picks.slice());
+          else paint();
+        });
+        ui.promptActions.append(button);
+      }
+      if (pending.need > 1 || pending.optional) {
+        const confirm = document.createElement("button");
+        confirm.className = "btn btn-accent";
+        confirm.type = "button";
+        confirm.textContent = "Confirm";
+        confirm.disabled = !pending.optional && picks.length !== pending.need;
+        confirm.addEventListener("click", () => finish(picks.slice()));
+        ui.promptActions.append(confirm);
+      }
+    };
+    paint();
+  });
+}
+
+function askTributes(pending) {
+  return new Promise((done) => {
+    tributePicks = [];
+    const finish = (uids) => { tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids); };
+    const paint = () => {
+      const enough = tributesCover(state, "player", tributePicks, pending.need);
+      ui.prompt.hidden = false;
+      ui.promptText.textContent =
+        `Summoning ${pending.card}. Click ${pending.need} monster${pending.need > 1 ? "s" : ""} `
+        + `on your field to tribute — ${tributePicks.length} chosen.`;
+      ui.promptActions.innerHTML = "";
+      for (const [text, value, enabled] of [
+        ["Tribute and summon", tributePicks.slice(), enough],
+        ["Let the game choose", chooseTributes(state), true],
+        ["Cancel", null, true],
+      ]) {
+        const button = document.createElement("button");
+        button.className = "btn";
+        button.type = "button";
+        button.textContent = text;
+        button.disabled = !enabled;
+        if (enabled) button.addEventListener("click", () => finish(value));
+        ui.promptActions.append(button);
+      }
+      renderAll();
+    };
+    askTributes.repaint = paint;
+    paint();
+  });
+}
+
+function toggleTribute(inst) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "tribute" || !pending.options.includes(inst.uid)) return;
+  tributePicks = tributePicks.includes(inst.uid)
+    ? tributePicks.filter((uid) => uid !== inst.uid)
+    : [...tributePicks, inst.uid];
+  askTributes.repaint?.();
 }
 
 function askTrap(pending) {

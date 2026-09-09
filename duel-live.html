@@ -286,6 +286,33 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   font-size: 8px; letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
 }
 
+/* ------------------------------------------------------- effects in play --- */
+
+.effect-rail {
+  position: absolute; z-index: 5; left: 12px; top: 50%;
+  transform: translateY(-50%);
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 6px; max-width: 190px;
+}
+.effect-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 9px; border-radius: 7px;
+  background: rgba(6, 10, 20, 0.86); backdrop-filter: blur(6px);
+  border: 1px solid var(--chip-accent, var(--line));
+  border-left: 3px solid var(--chip-accent, var(--accent));
+  font-size: 10.5px; line-height: 1.25; color: var(--ink-dim);
+}
+.effect-chip strong { display: block; color: var(--ink); font-size: 11px; font-weight: 600; }
+.effect-count {
+  flex: none; min-width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  background: var(--chip-accent, var(--accent)); color: #04121c;
+}
+.effect-count.is-open { background: transparent; color: var(--chip-accent); border: 1px solid currentColor; font-size: 12px; }
+.effect-chip.is-against { --chip-accent: var(--danger); }
+.effect-chip.is-favour { --chip-accent: var(--good); }
+
 /* -------------------------------------------------------------- banter --- */
 
 .banter {
@@ -544,6 +571,8 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
         <div class="zones zones--me-monsters" id="my-monsters" aria-label="Your monster zones"></div>
         <div class="zones zones--me" id="my-backrow" aria-label="Your spell and trap zones"></div>
 
+        <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
+
         <div class="banter" id="banter" hidden>
           <span class="banter-who" id="banter-who"></span>
           <p class="banter-text" id="banter-text"></p>
@@ -649,13 +678,13 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
 const { getCard } = __req("./cards/index.js");
-const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, respondToTrapWindow, setPhase, trapWindow } = __req("./duel-engine.js");
-const { chooseAction, chooseTrapResponse } = __req("./duel-ai.js");
+const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, respondToTarget, respondToTrapWindow, respondToTribute, setPhase, trapWindow, tributesCover } = __req("./duel-engine.js");
+const { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } = __req("./duel-ai.js");
 const { DUELISTS, getMatchup, MATCHUPS } = __req("./duelists.js");
 const { createCinema } = __req("./cinema/player.js");
 const { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } = __req("./cinema/free-video.js");
@@ -665,6 +694,7 @@ const { reactionKeyFor } = __req("./cinema/archetypes.js");
 const { buildStoryboard, duelistShot, idleShot, titleShot } = __req("./cinema/storyboard.js");
 const { closingExchange, directBanter, openingExchange } = __req("./banter.js");
 const { createHoverPanel, showGraveyard } = __req("./inspect.js");
+const { activeEffects } = __req("./duel-effects-active.js");
 const { summariseDuel } = __req("./duel-stats.js");
 const { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } = __req("./share-card.js");
 const ui = {
@@ -673,6 +703,7 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+  effects: el("effect-rail"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -681,6 +712,7 @@ let state = null;
 let muted = false;
 let busy = false;
 let attackFrom = null;
+let tributePicks = [];
 let stalledTicks = 0;
 let introShown = false;
 let duelEvents = [];
@@ -720,15 +752,49 @@ function renderAll() {
   const targets = attackFrom
     ? new Set(mine.filter((a) => a.uid === attackFrom && a.targetUid).map((a) => a.targetUid))
     : new Set();
+  const choosingTributes = state.pending?.kind === "tribute" && state.pending.side === "player";
+  const tributeReady = choosingTributes ? new Set(state.pending.options) : null;
 
   const onZoneHover = (inst, side, zone) => hover.inspect(inst, side, zone, state);
   renderZones(state, "opponent", el("foe-backrow"), { row: "backrow", onZoneHover });
   renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover });
-  renderZones(state, "player", el("my-monsters"), { row: "monsters", ready: actionable, onZoneClick: onMyMonster, onZoneHover });
+  renderZones(state, "player", el("my-monsters"), {
+    row: "monsters",
+    ready: tributeReady ?? actionable,
+    targets: choosingTributes ? new Set(tributePicks) : new Set(),
+    onZoneClick: onMyMonster, onZoneHover,
+  });
   renderZones(state, "player", el("my-backrow"), { row: "backrow", onZoneHover });
   renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
 
+  renderEffects();
   updateControls(mine);
+}
+
+// Continuing effects are the only rules a player cannot see on the board, so
+// each one gets a chip with its remaining turns.
+function renderEffects() {
+  const effects = activeEffects(state, "player");
+  ui.effects.innerHTML = "";
+  for (const effect of effects) {
+    const chip = document.createElement("li");
+    chip.className = `effect-chip ${effect.against ? "is-against" : "is-favour"}`;
+    chip.title = effect.detail;
+
+    const count = document.createElement("span");
+    count.className = `effect-count${effect.turnsLeft === null ? " is-open" : ""}`;
+    count.textContent = effect.turnsLeft === null ? "∞" : String(effect.turnsLeft);
+    count.setAttribute("aria-label", effect.turnsLeft === null
+      ? "lasts until removed" : `${effect.turnsLeft} turns remaining`);
+
+    const text = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = effect.label;
+    text.append(name, document.createTextNode(effect.detail));
+
+    chip.append(count, text);
+    ui.effects.append(chip);
+  }
 }
 
 // Monsters that can change position right now, by uid.
@@ -846,7 +912,7 @@ async function run(mutator) {
     state = result.state;
     present(result.events);
     await settle();
-    await maybeTrapWindow();
+    await maybePending();
     await maybeOpponentTurn();
   } catch (error) {
     // A thrown turn used to strand the duel on the opponent's side with every
@@ -889,6 +955,32 @@ function settle(capMs = SETTLE_CAP_MS) {
   });
 }
 
+async function maybePending() {
+  while (state.pending?.kind === "target") {
+    const uids = state.pending.side === "player"
+      ? await askTargets(state.pending)
+      : chooseTargets(state);
+    const result = respondToTarget(state, uids);
+    state = result.state;
+    present(result.events);
+    await settle();
+  }
+  while (state.pending?.kind === "tribute") {
+    if (state.pending.side === "player") {
+      const uids = await askTributes(state.pending);
+      const result = respondToTribute(state, uids);
+      state = result.state;
+      present(result.events);
+    } else {
+      const result = respondToTribute(state, chooseTributes(state));
+      state = result.state;
+      present(result.events);
+    }
+    await settle();
+  }
+  await maybeTrapWindow();
+}
+
 async function maybeTrapWindow() {
   while (state.pending?.kind === "trapWindow") {
     if (state.pending.side === "player") {
@@ -911,7 +1003,7 @@ async function maybeOpponentTurn() {
   let guard = 0;
   while (!state.winner && state.activeSide === "opponent" && guard < 60) {
     guard += 1;
-    await maybeTrapWindow();
+    await maybePending();
     if (state.winner) break;
 
     const action = chooseAction(state, "opponent", Math.random);
@@ -927,7 +1019,7 @@ async function maybeOpponentTurn() {
     if (left > 0) await settle(Math.min(left, SETTLE_CAP_MS));
     else await Promise.resolve();
   }
-  await maybeTrapWindow();
+  await maybePending();
   if (state.winner) announceWinner();
 }
 
@@ -1095,6 +1187,11 @@ function onPlayCard(inst, options) {
 }
 
 function onMyMonster(inst) {
+  // Choosing tributes takes over clicks on your own field until it is answered.
+  if (state?.pending?.kind === "tribute" && state.pending.side === "player") {
+    toggleTribute(inst);
+    return;
+  }
   if (busy || !myTurn()) return;
   const actions = legalActions(state, "player");
 
@@ -1141,6 +1238,88 @@ function askChoice(question, choices) {
       ui.promptActions.append(button);
     }
   });
+}
+
+// One picker for every card that points somewhere: Brain Control, Monster
+// Reborn, Shrink, the equips, De-Spell, Graceful Charity's discard. The options
+// come from the engine, so the list can never offer an illegal target.
+function askTargets(pending) {
+  return new Promise((done) => {
+    const picks = [];
+    const finish = (uids) => { ui.prompt.hidden = true; renderAll(); done(uids); };
+    const paint = () => {
+      ui.prompt.hidden = false;
+      ui.promptText.textContent = `${pending.card} — ${pending.prompt}`
+        + (pending.need > 1 ? ` (${picks.length} of ${pending.need})` : "");
+      ui.promptActions.innerHTML = "";
+
+      for (const option of pending.options) {
+        const button = document.createElement("button");
+        button.className = "btn";
+        button.type = "button";
+        const chosen = picks.includes(option.uid);
+        button.textContent = `${chosen ? "✓ " : ""}${option.name} — ${option.detail}`
+          + (option.where === "graveyard" ? " · GY" : option.where === "hand" ? " · hand" : "");
+        button.addEventListener("click", () => {
+          if (chosen) picks.splice(picks.indexOf(option.uid), 1);
+          else if (picks.length < pending.need) picks.push(option.uid);
+          if (picks.length === pending.need && pending.need === 1) finish(picks.slice());
+          else paint();
+        });
+        ui.promptActions.append(button);
+      }
+      if (pending.need > 1 || pending.optional) {
+        const confirm = document.createElement("button");
+        confirm.className = "btn btn-accent";
+        confirm.type = "button";
+        confirm.textContent = "Confirm";
+        confirm.disabled = !pending.optional && picks.length !== pending.need;
+        confirm.addEventListener("click", () => finish(picks.slice()));
+        ui.promptActions.append(confirm);
+      }
+    };
+    paint();
+  });
+}
+
+function askTributes(pending) {
+  return new Promise((done) => {
+    tributePicks = [];
+    const finish = (uids) => { tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids); };
+    const paint = () => {
+      const enough = tributesCover(state, "player", tributePicks, pending.need);
+      ui.prompt.hidden = false;
+      ui.promptText.textContent =
+        `Summoning ${pending.card}. Click ${pending.need} monster${pending.need > 1 ? "s" : ""} `
+        + `on your field to tribute — ${tributePicks.length} chosen.`;
+      ui.promptActions.innerHTML = "";
+      for (const [text, value, enabled] of [
+        ["Tribute and summon", tributePicks.slice(), enough],
+        ["Let the game choose", chooseTributes(state), true],
+        ["Cancel", null, true],
+      ]) {
+        const button = document.createElement("button");
+        button.className = "btn";
+        button.type = "button";
+        button.textContent = text;
+        button.disabled = !enabled;
+        if (enabled) button.addEventListener("click", () => finish(value));
+        ui.promptActions.append(button);
+      }
+      renderAll();
+    };
+    askTributes.repaint = paint;
+    paint();
+  });
+}
+
+function toggleTribute(inst) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "tribute" || !pending.options.includes(inst.uid)) return;
+  tributePicks = tributePicks.includes(inst.uid)
+    ? tributePicks.filter((uid) => uid !== inst.uid)
+    : [...tributePicks, inst.uid];
+  askTributes.repaint?.();
 }
 
 function askTrap(pending) {
@@ -1658,12 +1837,13 @@ const TRAPS = {
 Object.assign(__exports, { TRAPS });
 });
 
-__def("src/duel-engine.js", {"./cards/index.js":"src/cards/index.js","./duel-effects.js":"src/duel-effects.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+__def("src/duel-engine.js", {"./cards/index.js":"src/cards/index.js","./duel-effects.js":"src/duel-effects.js","./duel-targets.js":"src/duel-targets.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
 // The rules engine. It owns every outcome in a duel; the cinema layer only ever
 // renders the events it emits. Actions are pure: apply* clones before mutating.
 
 const { getCard } = __req("./cards/index.js");
 const { applyEffect, dealDamage, findFusion, placeMonster, sendToGraveyard } = __req("./duel-effects.js");
+const { autoTargets, needsChoice, targetOptions, targetSpecFor } = __req("./duel-targets.js");
 const { cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone, monstersOn, mulberry32, other, SIDES } = __req("./duel-state.js");
 
 const PHASES = ["draw", "main1", "battle", "end"];
@@ -1709,20 +1889,39 @@ function isFusionMaterial(state, side, inst) {
   return state.sides[side].extra.some((f) => getCard(f.cardId).fusion.includes(inst.cardId));
 }
 
-function actSummon(state, side, action, ctx) {
-  const s = state.sides[side];
-  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
-  const card = cardOf(inst);
-  let need = tributesRequired(card);
-  // Tribute the weakest monsters first, but never eat a live fusion material
-  // while an ordinary body is still available.
+/** How the AI, or an auto-resolve, would spend tributes: weakest first, but
+ * never eating a live fusion material while an ordinary body is available. */
+function defaultTributes(state, side, need) {
   const cost = (m) => effectiveStats(state, side, m).atk + (isFusionMaterial(state, side, m) ? 10000 : 0);
   const fodder = monstersOn(state, side).sort((a, b) => cost(a) - cost(b));
-  while (need > 0 && fodder.length) {
+  const chosen = [];
+  let left = need;
+  while (left > 0 && fodder.length) {
     const victim = fodder.shift();
-    need -= tributeValue(state, side, victim);
-    sendToGraveyard(state, side, victim, ctx, "tribute");
+    left -= tributeValue(state, side, victim);
+    chosen.push(victim.uid);
   }
+  return chosen;
+}
+
+/** Does the chosen set cover the cost? Kaiser Sea Horse counts as two. */
+function tributesCover(state, side, uids, need) {
+  const field = monstersOn(state, side);
+  const chosen = uids.map((uid) => field.find((m) => m.uid === uid)).filter(Boolean);
+  if (chosen.length !== uids.length) return false;
+  return chosen.reduce((sum, m) => sum + tributeValue(state, side, m), 0) >= need;
+}
+
+function payTributes(state, side, uids, ctx) {
+  const field = monstersOn(state, side);
+  for (const uid of uids) {
+    const victim = field.find((m) => m.uid === uid);
+    if (victim) sendToGraveyard(state, side, victim, ctx, "tribute");
+  }
+}
+
+function completeSummon(state, side, inst, action, ctx) {
+  const s = state.sides[side];
   s.normalSummonUsed = true;
   const position = action.set ? "defense" : (action.position ?? "attack");
   placeMonster(state, side, inst, ctx, { position, how: action.set ? "set" : "normal" });
@@ -1734,6 +1933,74 @@ function actSummon(state, side, action, ctx) {
   if (s.virusTurns > 0 && effectiveStats(state, side, inst).atk >= s.virusThreshold) {
     sendToGraveyard(state, side, inst, ctx, "crushVirus");
   }
+}
+
+function actSummon(state, side, action, ctx) {
+  const s = state.sides[side];
+  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
+  const need = tributesRequired(cardOf(inst));
+
+  if (need > 0) {
+    const chosen = action.tributes ?? null;
+    // With more monsters than the cost demands, which ones go is the player's
+    // decision, not the engine's -- so ask instead of picking for them.
+    const candidates = monstersOn(state, side);
+    if (!chosen && candidates.length > need) {
+      state.pending = {
+        kind: "tribute", side, summonUid: inst.uid, need,
+        card: cardOf(inst).name,
+        options: candidates.map((m) => m.uid),
+        set: Boolean(action.set),
+      };
+      s.hand.push(inst);
+      return;
+    }
+    const tributes = chosen ?? defaultTributes(state, side, need);
+    if (!tributesCover(state, side, tributes, need)) { s.hand.push(inst); return; }
+    payTributes(state, side, tributes, ctx);
+  }
+  completeSummon(state, side, inst, action, ctx);
+}
+
+/** Finish an activation the player paused to choose targets for. */
+function respondToTarget(state, uids) {
+  const next = clone(state);
+  const pending = next.pending;
+  if (!pending || pending.kind !== "target") return { state: next, events: [] };
+  const chosen = uids ?? [];
+  // An optional pick may be empty; a required one may not be under-filled.
+  if (!pending.optional && chosen.length !== pending.need) return { state: next, events: [] };
+
+  next.pending = null;
+  const ctx = newCtx(next);
+  const side = pending.side;
+  const s = next.sides[side];
+  const held = s.hand.find((c) => c.uid === pending.activateUid)
+    ?? s.backrow.find((c) => c && c.uid === pending.activateUid);
+  if (!held) return { state: next, events: ctx.events };
+  const card = cardOf(held);
+  actActivateResolved(next, side, { uid: pending.activateUid, targets: chosen }, ctx, targetSpecFor(card), card);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
+}
+
+/** Finish a summon the player paused to choose tributes for. */
+function respondToTribute(state, uids) {
+  const next = clone(state);
+  const pending = next.pending;
+  if (!pending || pending.kind !== "tribute") return { state: next, events: [] };
+  const { side, summonUid, need } = pending;
+  if (!tributesCover(next, side, uids, need)) return { state: next, events: [] };
+
+  next.pending = null;
+  const ctx = newCtx(next);
+  const s = next.sides[side];
+  const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === summonUid), 1)[0];
+  if (!inst) return { state: next, events: ctx.events };
+  payTributes(next, side, uids, ctx);
+  completeSummon(next, side, inst, { set: pending.set }, ctx);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
 }
 
 function actSetBackrow(state, side, action, ctx) {
@@ -1748,11 +2015,35 @@ function actSetBackrow(state, side, action, ctx) {
 
 function actActivate(state, side, action, ctx) {
   const s = state.sides[side];
+  const card = cardOf(
+    s.hand.find((c) => c.uid === action.uid) ?? s.backrow.find((c) => c && c.uid === action.uid) ?? {},
+  );
+  // Where the card points is the player's decision, so ask before resolving --
+  // but only when there is more than one thing it could point at.
+  const spec = targetSpecFor(card);
+  if (spec && !action.targets && !spec.after && needsChoice(state, side, spec, card)) {
+    state.pending = {
+      kind: "target", side, activateUid: action.uid, card: card.name,
+      prompt: spec.prompt, need: spec.count, optional: Boolean(spec.optional),
+      options: targetOptionsFor(state, side, card),
+    };
+    return;
+  }
+  actActivateResolved(state, side, action, ctx, spec, card);
+}
+
+function targetOptionsFor(state, side, card) {
+  const spec = targetSpecFor(card);
+  return spec ? targetOptions(state, side, spec, card) : [];
+}
+
+function actActivateResolved(state, side, action, ctx, spec, card) {
+  const s = state.sides[side];
   const fromHand = s.hand.findIndex((c) => c.uid === action.uid);
   const inst = fromHand >= 0 ? s.hand.splice(fromHand, 1)[0] : s.backrow.find((c) => c && c.uid === action.uid);
   if (!inst) return;
-  const card = cardOf(inst);
   ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text });
+  ctx.targets = action.targets ?? (spec && !spec.after ? autoTargets(state, side, spec, card) : null);
   if (card.sub === "equip") {
     const zone = fromHand >= 0 ? emptyBackrowZone(state, side) : s.backrow.indexOf(inst);
     if (zone < 0) return;
@@ -1762,7 +2053,7 @@ function actActivate(state, side, action, ctx) {
     if (host) host.equips.push(inst.uid);
     return;
   }
-  applyEffect(state, side, card.effect, { ...ctx, target: action.target ?? ctx.target });
+  applyEffect(state, side, card.effect, ctx);
   if (fromHand >= 0) s.graveyard.push(inst);
   else if (card.sub !== "continuous") {
     s.backrow[s.backrow.indexOf(inst)] = null;
@@ -2074,7 +2365,7 @@ function playableSpell(state, side, inst) {
   return true;
 }
 
-Object.assign(__exports, { tributesRequired, canNormalSummon, requirementMet, canChangePosition, positionBlockedBecause, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToTrapWindow, legalActions, createDuel, SIDES, other, effectiveStats, cardOf });
+Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToTarget, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToTrapWindow, legalActions, createDuel, SIDES, other, effectiveStats, cardOf });
 });
 
 __def("src/duel-effects.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
@@ -2149,7 +2440,10 @@ const OPS = {
     const toss = effect.discard ?? 0;
     for (let i = 0; i < toss; i += 1) {
       const hand = state.sides[side].hand;
-      const worst = hand.reduce((a, b) => (cardOf(a).atk ?? 0) <= (cardOf(b).atk ?? 0) ? a : b, hand[0]);
+      // The discard follows the draw, so a chosen card may be one just drawn.
+      const picked = ctx.targets?.[i] ? hand.find((c) => c.uid === ctx.targets[i]) : null;
+      const worst = picked
+        ?? hand.reduce((a, b) => ((cardOf(a).atk ?? 0) <= (cardOf(b).atk ?? 0) ? a : b), hand[0]);
       if (worst) sendToGraveyard(state, side, hand.splice(hand.indexOf(worst), 1)[0], ctx, "discard");
     }
   },
@@ -2163,7 +2457,11 @@ const OPS = {
   destroyFoeBackrow(state, side, effect, ctx) {
     const foe = other(side);
     let left = effect.limit ?? 99;
-    for (const inst of state.sides[foe].backrow.filter(Boolean)) {
+    const pool = state.sides[foe].backrow.filter(Boolean);
+    const ordered = ctx.targets?.length
+      ? pool.filter((inst) => ctx.targets.includes(inst.uid))
+      : pool;
+    for (const inst of ordered) {
       if (left <= 0) break;
       if (effect.only && cardOf(inst).kind !== effect.only) continue;
       sendToGraveyard(state, foe, inst, ctx, "backrowWipe");
@@ -2187,9 +2485,11 @@ const OPS = {
   revive(state, side, effect, ctx) {
     const pool = [...state.sides[side].graveyard, ...state.sides[other(side)].graveyard]
       .filter((c) => cardOf(c).kind === "monster");
-    const best = pool.sort((a, b) => cardOf(b).atk - cardOf(a).atk)[0];
-    if (!best) return;
-    placeMonster(state, side, pullFromAnywhere(state, side, best.uid), ctx, { how: "reborn" });
+    const chosen = ctx.targets?.[0]
+      ? pool.find((c) => c.uid === ctx.targets[0])
+      : pool.sort((a, b) => cardOf(b).atk - cardOf(a).atk)[0];
+    if (!chosen) return;
+    placeMonster(state, side, pullFromAnywhere(state, side, chosen.uid), ctx, { how: "reborn" });
   },
 
   tokens(state, side, effect, ctx) {
@@ -2228,9 +2528,13 @@ const OPS = {
   },
 
   modifyAtk(state, side, effect, ctx) {
+    const chosen = ctx.targets?.length
+      ? [...monstersOn(state, side), ...monstersOn(state, other(side))]
+        .filter((m) => ctx.targets.includes(m.uid))
+      : [ctx.target].filter(Boolean);
     const targets = effect.target === "attackers"
       ? monstersOn(state, other(side)).filter((m) => m.position === "attack")
-      : [ctx.target].filter(Boolean);
+      : chosen;
     for (const inst of targets) {
       const owner = state.sides.player.monsters.includes(inst) ? "player" : "opponent";
       const { atk } = effectiveStats(state, owner, inst);
@@ -2262,7 +2566,10 @@ const OPS = {
   takeControl(state, side, effect, ctx) {
     if (effect.cost) dealDamage(state, side, effect.cost, ctx, "cost");
     const foe = other(side);
-    const prize = monstersOn(state, foe).sort((a, b) => effectiveStats(state, foe, b).atk - effectiveStats(state, foe, a).atk)[0];
+    const field = monstersOn(state, foe);
+    const prize = ctx.targets?.[0]
+      ? field.find((m) => m.uid === ctx.targets[0])
+      : field.sort((a, b) => effectiveStats(state, foe, b).atk - effectiveStats(state, foe, a).atk)[0];
     if (!prize || emptyMonsterZone(state, side) < 0) return;
     state.sides[foe].monsters[state.sides[foe].monsters.indexOf(prize)] = null;
     prize.borrowedFrom = foe;
@@ -2279,7 +2586,11 @@ const OPS = {
   summonFromHand(state, side, effect, ctx) {
     const hand = state.sides[side].hand;
     let left = effect.count;
-    for (const inst of hand.filter((c) => cardOf(c).type === effect.type).slice(0, effect.count)) {
+    const eligible = hand.filter((c) => cardOf(c).type === effect.type);
+    const ordered = ctx.targets?.length
+      ? eligible.filter((c) => ctx.targets.includes(c.uid))
+      : eligible;
+    for (const inst of ordered.slice(0, effect.count)) {
       if (left <= 0 || emptyMonsterZone(state, side) < 0) break;
       hand.splice(hand.indexOf(inst), 1);
       placeMonster(state, side, inst, ctx, { how: "flute" });
@@ -2329,7 +2640,9 @@ const OPS = {
   },
 
   ringOfDestruction(state, side, effect, ctx) {
-    const target = ctx.target ?? monstersOn(state, other(side))[0];
+    const field = [...monstersOn(state, side), ...monstersOn(state, other(side))];
+    const target = (ctx.targets?.[0] && field.find((m) => m.uid === ctx.targets[0]))
+      ?? ctx.target ?? monstersOn(state, other(side))[0];
     if (!target) return;
     const owner = state.sides[side].monsters.includes(target) ? side : other(side);
     const { atk } = effectiveStats(state, owner, target);
@@ -2684,13 +2997,164 @@ const getMatchup = (id) => MATCHUPS[id];
 Object.assign(__exports, { DUELISTS, MATCHUPS, getDuelist, getMatchup });
 });
 
-__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+__def("src/duel-targets.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// Which cards an effect may be pointed at, and who decides.
+//
+// The engine used to pick for the player -- the strongest monster in the
+// graveyard, the first matching host, the weakest card to discard. Those are
+// the player's decisions. A spec here declares what an effect selects; the
+// engine opens one window and the same list feeds the UI and the AI, so the two
+// can never disagree about what is legal.
+
+const { getCard } = __req("./cards/index.js");
+const { effectiveStats, other } = __req("./duel-engine.js");
+const { monstersOn } = __req("./duel-state.js");
+const isMonsterCard = (inst) => getCard(inst.cardId).kind === "monster";
+
+const POOLS = {
+  foeMonster: (state, side) =>
+    monstersOn(state, other(side)).map((inst) => entry(state, other(side), inst, "field")),
+
+  anyMonster: (state, side) => [
+    ...monstersOn(state, side).map((inst) => entry(state, side, inst, "field")),
+    ...monstersOn(state, other(side)).map((inst) => entry(state, other(side), inst, "field")),
+  ],
+
+  ownMonster: (state, side) =>
+    monstersOn(state, side).map((inst) => entry(state, side, inst, "field")),
+
+  graveyardMonster: (state, side) => [
+    ...state.sides[side].graveyard, ...state.sides[other(side)].graveyard,
+  ].filter((inst) => isMonsterCard(inst) && !getCard(inst.cardId).token)
+    .map((inst) => entry(state, side, inst, "graveyard")),
+
+  foeBackrow: (state, side) =>
+    state.sides[other(side)].backrow.filter(Boolean)
+      .map((inst) => entry(state, other(side), inst, "backrow")),
+
+  hand: (state, side) => state.sides[side].hand.map((inst) => entry(state, side, inst, "hand")),
+
+  handDragon: (state, side) => state.sides[side].hand
+    .filter((inst) => getCard(inst.cardId).type === "Dragon")
+    .map((inst) => entry(state, side, inst, "hand")),
+};
+
+function entry(state, owner, inst, where) {
+  const card = getCard(inst.cardId);
+  const live = where === "field" && card.kind === "monster"
+    ? effectiveStats(state, owner, inst) : null;
+  return {
+    uid: inst.uid,
+    name: inst.faceDown && where !== "hand" ? "Face-down card" : card.name,
+    detail: live ? `${live.atk} ATK` : (card.kind === "monster" ? `${card.atk} ATK` : card.kind),
+    owner,
+    where,
+  };
+}
+
+/**
+ * What a card asks the player to choose, or null when it needs no target.
+ * Derived from the effect rather than declared per card, so a new card with a
+ * known op gets targeting for free.
+ */
+function targetSpecFor(card) {
+  const effect = card?.effect;
+  if (!effect) return null;
+  switch (effect.op) {
+    case "takeControl":
+      return { pool: "foeMonster", count: 1, prompt: "Choose a monster to take control of" };
+    case "revive":
+      return { pool: "graveyardMonster", count: 1, prompt: "Choose a monster to revive" };
+    case "ringOfDestruction":
+      return { pool: "anyMonster", count: 1, prompt: "Choose a monster to destroy" };
+    case "modifyAtk":
+      return effect.target === "any"
+        ? { pool: "anyMonster", count: 1, prompt: "Choose a monster to weaken" }
+        : null;
+    case "equip":
+      return { pool: "ownMonster", count: 1, prompt: "Choose a monster to equip", filter: "equip" };
+    case "destroyFoeBackrow":
+      // De-Spell destroys Spells only, so it must not offer a Trap.
+      return effect.limit
+        ? {
+          pool: "foeBackrow", count: effect.limit,
+          prompt: `Choose a ${effect.only ?? "Spell or Trap"} to destroy`,
+          onlyKind: effect.only ?? null,
+        }
+        : null;
+    case "summonFromHand":
+      return { pool: "handDragon", count: effect.count, prompt: "Choose Dragons to summon", optional: true };
+    case "draw":
+      return effect.discard
+        ? { pool: "hand", count: effect.discard, prompt: "Choose cards to discard", after: "draw" }
+        : null;
+    default:
+      return null;
+  }
+}
+
+/** The selectable cards for a spec, already labelled for the UI. */
+function targetOptions(state, side, spec, card) {
+  if (!spec) return [];
+  let options = (POOLS[spec.pool] ?? (() => []))(state, side);
+  if (spec.filter === "equip") {
+    options = options.filter((option) => equipFits(state, side, option.uid, card));
+  }
+  if (spec.onlyKind) {
+    options = options.filter((option) => getCard(option.uid.split("#")[0]).kind === spec.onlyKind);
+  }
+  return options;
+}
+
+function equipFits(state, side, uid, card) {
+  const req = card?.effect?.requires;
+  if (!req) return true;
+  const inst = monstersOn(state, side).find((m) => m.uid === uid);
+  if (!inst) return false;
+  const target = getCard(inst.cardId);
+  if (req.attribute) return target.attribute === req.attribute;
+  if (req.type) return target.type === req.type;
+  if (req.name) return target.name === req.name || target.treatedAs === req.name;
+  return true;
+}
+
+/** What the engine would have chosen on its own — the AI's pick, and the fallback. */
+function autoTargets(state, side, spec, card) {
+  const options = targetOptions(state, side, spec, card);
+  if (!options.length) return [];
+  const byStrength = (a, b) => strength(state, b) - strength(state, a);
+  const ranked = spec.pool === "hand"
+    ? [...options].sort((a, b) => strength(state, a) - strength(state, b)) // discard the weakest
+    : [...options].sort(byStrength);                                       // take the strongest
+  return ranked.slice(0, spec.count).map((option) => option.uid);
+}
+
+function strength(state, option) {
+  const card = getCard(option.uid.split("#")[0]);
+  return card?.atk ?? 0;
+}
+
+/** True when the player has a real decision rather than a forced one. */
+function needsChoice(state, side, spec, card) {
+  if (!spec) return false;
+  const options = targetOptions(state, side, spec, card);
+  return options.length > spec.count;
+}
+
+Object.assign(__exports, { targetSpecFor, targetOptions, autoTargets, needsChoice });
+});
+
+__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js","./cards/index.js":"src/cards/index.js","./duel-targets.js":"src/duel-targets.js"}, function (__exports, __req) {
 // Opponent AI. Scores the legal actions the engine offers -- it never reaches
 // into duel state to invent a move the rules would not allow.
 
-const { cardOf, effectiveStats, legalActions, other } = __req("./duel-engine.js");
+const { cardOf, defaultTributes, effectiveStats, legalActions, other } = __req("./duel-engine.js");
 const { monstersOn } = __req("./duel-state.js");
 const { getDuelist } = __req("./duelists.js");
+const { CARDS } = __req("./cards/index.js");
+const { autoTargets, targetSpecFor } = __req("./duel-targets.js");
+const CARDS_BY_NAME = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
+
 const TEMPERAMENT = {
   aggro:  { trade: 1.4, board: 0.9, hold: 0.4, trapBias: 0.55 },
   control:{ trade: 0.9, board: 1.2, hold: 1.0, trapBias: 0.85 },
@@ -2761,6 +3225,22 @@ function chooseAction(state, side = state.activeSide, rng = Math.random) {
   return scored[0].score > 0 ? scored[0].action : null;
 }
 
+/** The AI points an effect where the engine would by default. */
+function chooseTargets(state) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "target") return null;
+  const card = CARDS_BY_NAME[pending.card];
+  const spec = card ? targetSpecFor(card) : null;
+  return spec ? autoTargets(state, pending.side, spec, card) : [];
+}
+
+/** The AI spends tributes the same way the engine would by default. */
+function chooseTributes(state) {
+  const pending = state.pending;
+  if (!pending || pending.kind !== "tribute") return null;
+  return defaultTributes(state, pending.side, pending.need);
+}
+
 function chooseTrapResponse(state, rng = Math.random) {
   const pending = state.pending;
   if (!pending || pending.kind !== "trapWindow") return null;
@@ -2792,7 +3272,7 @@ function trapValue(card, threat) {
   return 200;
 }
 
-Object.assign(__exports, { chooseAction, chooseTrapResponse });
+Object.assign(__exports, { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse });
 });
 
 __def("src/cinema/player.js", {"../cards/index.js":"src/cards/index.js","./procedural-stage.js":"src/cinema/procedural-stage.js","./free-video.js":"src/cinema/free-video.js","./realtime-voice.js":"src/cinema/realtime-voice.js"}, function (__exports, __req) {
@@ -4672,7 +5152,7 @@ function showGraveyard(state) {
   }
 
   el("graveyard-note").textContent = target
-    ? `Monster Reborn would revive ${getCard(target.cardId).name} — the strongest monster in either Graveyard, highlighted below.`
+    ? `Monster Reborn can revive any monster here — either Graveyard. The strongest, ${getCard(target.cardId).name}, is highlighted.`
     : "No monster in either Graveyard yet, so Monster Reborn has nothing to revive.";
   el("graveyard-modal").hidden = false;
 }
@@ -4756,6 +5236,92 @@ function rebornTarget(state) {
 }
 
 Object.assign(__exports, { describeCard, rebornTarget });
+});
+
+__def("src/duel-effects-active.js", {"./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+// The continuing effects in play right now, as something a player can read.
+//
+// Derived from engine state rather than tracked separately, so a counter can
+// never disagree with the rule it is counting.
+
+const { DUELISTS } = __req("./duelists.js");
+/**
+ * Everything currently constraining play, from the point of view of `viewer`.
+ * `turnsLeft` is null for effects that last until something removes them.
+ */
+function activeEffects(state, viewer = "player") {
+  const out = [];
+  const nameOf = (side) => DUELISTS[state.sides[side].duelistId].name;
+
+  for (const side of ["player", "opponent"]) {
+    const s = state.sides[side];
+
+    if (s.lockAttacksTurns > 0) {
+      out.push({
+        id: `swords-${side}`,
+        label: "Swords of Revealing Light",
+        // The counter lives on whoever is locked; the card belongs to the other.
+        detail: `${nameOf(side)} cannot attack`,
+        turnsLeft: s.lockAttacksTurns,
+        against: side === viewer,
+      });
+    }
+    if (s.virusTurns > 0) {
+      out.push({
+        id: `virus-${side}`,
+        label: "Crush Card Virus",
+        detail: `${nameOf(side)} loses monsters with ${s.virusThreshold}+ ATK`,
+        turnsLeft: s.virusTurns,
+        against: side === viewer,
+      });
+    }
+    if (s.hats) {
+      out.push({
+        id: `hats-${side}`,
+        label: "Magical Hats",
+        detail: `Next attack on ${nameOf(side)} has a 1 in ${s.hats.odds} chance to connect`,
+        turnsLeft: null,
+        against: side !== viewer,
+      });
+    }
+  }
+
+  if (state.gravityBindLevel) {
+    out.push({
+      id: "gravity-bind",
+      label: "Gravity Bind",
+      detail: `Level ${state.gravityBindLevel}+ monsters cannot attack`,
+      turnsLeft: null,
+      against: true,
+    });
+  }
+
+  for (const side of ["player", "opponent"]) {
+    for (const inst of state.sides[side].monsters) {
+      if (inst?.bound) {
+        out.push({
+          id: `bound-${inst.uid}`,
+          label: "Spellbinding Circle",
+          detail: `A monster ${nameOf(side)} controls cannot attack`,
+          turnsLeft: null,
+          against: side === viewer,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** A short badge for the board, or null when nothing is in play. */
+function effectSummary(state, viewer = "player") {
+  const effects = activeEffects(state, viewer);
+  if (!effects.length) return null;
+  const counted = effects.filter((e) => e.turnsLeft !== null);
+  const soonest = counted.length ? Math.min(...counted.map((e) => e.turnsLeft)) : null;
+  return { count: effects.length, soonest, effects };
+}
+
+Object.assign(__exports, { activeEffects, effectSummary });
 });
 
 __def("src/duel-stats.js", {"./duelists.js":"src/duelists.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {

@@ -138,7 +138,7 @@ export function showGraveyard(state) {
   }
 
   el("graveyard-note").textContent = target
-    ? `Monster Reborn would revive ${getCard(target.cardId).name} — the strongest monster in either Graveyard, highlighted below.`
+    ? `Monster Reborn can revive any monster here — either Graveyard. The strongest, ${getCard(target.cardId).name}, is highlighted.`
     : "No monster in either Graveyard yet, so Monster Reborn has nothing to revive.";
   el("graveyard-modal").hidden = false;
 }
