@@ -192,6 +192,12 @@ says so rather than handing over a link that silently does nothing.
 
 ### Reading the board
 
+The board is laid out to fit the window rather than to be scrolled: the arena
+takes the space that is left over and your hand is a fixed strip along the
+bottom, so you can always see it. Monster zones are portrait and spell/trap
+zones are short and wide, which is enough to tell the two rows apart without
+reading them.
+
 Hover any card on the field for its name, type, live ATK/DEF and what it does.
 Stats come from the engine, so a buffed monster shows what it is worth *now* —
 Buster Blader reads 3100 against a Blue-Eyes, not its printed 2600 — and the
@@ -201,6 +207,45 @@ not own stays a mystery.
 Click either **GY** counter to read both Graveyards. It marks the card Monster
 Reborn would revive, and a test asserts the marked card is the one the engine
 actually takes, so the preview cannot lie.
+
+### Why a card is greyed out
+
+A card you cannot play says why, in the same panel: *"Level 7 needs 2 tributes,
+and you control none"*, *"there is nothing for Monster Reborn to target"*, *"a
+Trap has to be set face-down first, then activated on a later turn"*. The reason
+is derived by asking the engine for its legal actions and reporting what is
+missing, so it can never drift from the rule that is actually enforced. Blocked
+cards stay clickable for exactly this reason — a click that does nothing teaches
+you nothing. On a touch screen, a long press pins the panel open.
+
+### Before you attack
+
+Declaring an attack shows an arc from your monster to its target and the
+arithmetic behind it before anything happens: *"Battle Ox destroyed, 800
+damage"*, *"Dark Magician destroyed, 500 damage back"*, *"Blocked — 100 damage
+to you"*. A face-down defender reads as unknown rather than being guessed at,
+and a swing that would end the duel is called out. Then you confirm. Every
+number comes from the same `effectiveStats` the engine resolves battle with, so
+the preview cannot promise something the engine will not deliver. Escape
+cancels.
+
+### The duel log
+
+The log groups into one collapsible block per turn, newest first, with the
+current turn open. Lines carry three weights — structural (phase changes),
+mechanical (summons, activations, damage) and dialogue — so the shape of a turn
+reads at a glance. Damage lines show the arithmetic rather than a summary
+(`Dark Magician 2500 vs Battle Ox 1700` → `800 damage`), and a card activated in
+a chain is badged with its chain link. Hovering a line highlights the zones it
+touched.
+
+### Keyboard and small screens
+
+Every zone is a real button with a label, so the board is reachable by Tab and
+the arrow keys move between zones. The log is a live region, so a screen reader
+narrates the duel as it happens. `prefers-reduced-motion` freezes the camera
+drift on the procedural stage while leaving the clips alone. Below 900px the
+board goes portrait and the side panel becomes a sticky bottom sheet.
 
 ### Banter
 
@@ -315,10 +360,10 @@ length; both matchups resolve in ~15 turns and finish essentially every time.
 
 ## Limitations
 
-- The Damage Step is not decomposed into sub-steps, so a card cannot yet declare that it
-  is activatable only during damage calculation. See `DUEL-LIVE-V2-SPEC.md` WP2.
-- The AI scores the engine's own legal actions. It plays a coherent game and uses its
-  signature cards, but it does not search ahead.
+- The AI searches one ply and scores the resulting position. It plays a coherent game
+  and uses its signature cards, but it does not search deeper than that.
+- Effect coverage is a curated subset of the two decks, not the whole card pool. A card
+  outside `src/cards/` does not exist here.
 - Video generation is slow everywhere. Tier 2 is budgeted per exchange and prefetched behind
   the tier below, and the archetype library exists so that cost is paid once rather than per
   duel. Tier 2 has been built and unit-tested against all three provider contracts but not yet

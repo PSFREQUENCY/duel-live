@@ -56,5 +56,9 @@ test("the bundled game boots and plays without a server", async () => {
   for (let i = 0; i < 8; i += 1) { await fire("advance-btn"); await settle(90); }
   const turn = Number(node("turn-counter").textContent);
   assert.ok(turn > 1, `the bundled duel did not advance past turn ${turn}`);
-  assert.ok(node("log").children.length > 4, "the bundled duel produced no log");
+  // The log groups into one <details> per turn, so count the lines inside them.
+  const lines = [...node("log").children]
+    .flatMap((turn) => [...(turn.children ?? [])])
+    .flatMap((child) => [...(child.children ?? []), child]);
+  assert.ok(lines.length > 4, `the bundled duel produced no log (${lines.length} nodes)`);
 });

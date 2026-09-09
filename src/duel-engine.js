@@ -725,6 +725,9 @@ export const isMainPhase = (state) => state.phase === "main1" || state.phase ===
 
 export function legalActions(state, side = state.activeSide) {
   if (state.winner || state.pending) return [];
+  // Summoning, setting and attacking belong to the turn player. Responses are
+  // offered separately, through the chain.
+  if (side !== state.activeSide) return [];
   const s = state.sides[side];
   const out = [];
   if (isMainPhase(state)) {

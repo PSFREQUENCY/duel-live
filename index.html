@@ -89,6 +89,19 @@
         <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
         <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
 
+        <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
+          <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
+        </svg>
+
+        <div class="attack-preview" id="attack-preview" hidden role="status">
+          <span class="preview-sum" id="preview-sum"></span>
+          <strong id="preview-verdict"></strong>
+          <div class="preview-actions">
+            <button class="btn btn-accent" id="preview-confirm" type="button">Attack</button>
+            <button class="btn" id="preview-cancel" type="button">Cancel</button>
+          </div>
+        </div>
+
         <div class="banter" id="banter" hidden>
           <span class="banter-who" id="banter-who"></span>
           <p class="banter-text" id="banter-text"></p>
@@ -135,7 +148,7 @@
           <div class="prompt-actions" id="prompt-actions"></div>
         </div>
         <h2 class="side-heading">Duel log</h2>
-        <ol class="log" id="log"></ol>
+        <div class="log" id="log" role="log" aria-live="polite" aria-label="Duel log"></div>
       </aside>
     </main>
 

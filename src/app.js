@@ -17,14 +17,17 @@ import {
 } from "./cinema/free-video.js";
 import { enableRemoteVoice, speak } from "./cinema/realtime-voice.js";
 import {
-  el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones,
+  el, renderDuelists, renderHand, renderLifePoints, renderLog, renderPhase, renderZones,
   resetLifePointTracking,
 } from "./render.js";
+import { dialogueLine, lineFor } from "./duel-log.js";
 import { reactionKeyFor } from "./cinema/archetypes.js";
 import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
 import { createHoverPanel, showGraveyard } from "./inspect.js";
 import { decodeReplay, encodeReplay, record, replay } from "./duel-replay.js";
+import { whyNotPlayable } from "./why-not.js";
+import { isLethal, previewAttack } from "./attack-preview.js";
 import { activeEffects } from "./duel-effects-active.js";
 import { summariseDuel } from "./duel-stats.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
@@ -35,6 +38,8 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+  arc: el("attack-arc"), arcPath: el("attack-arc-path"),
+  preview: el("attack-preview"), previewSum: el("preview-sum"), previewVerdict: el("preview-verdict"),
   effects: el("effect-rail"), chain: el("chain-rail"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
@@ -50,6 +55,7 @@ let introShown = false;
 let duelEvents = [];
 let duelSteps = [];
 let duelSeed = 0;
+let logLines = [];
 let cardFormat = DEFAULT_FORMAT;
 
 const hover = createHoverPanel();
@@ -69,6 +75,16 @@ const cinema = createCinema({
 });
 
 // ------------------------------------------------------------- rendering ---
+
+// Hovering a log line lights the zones it refers to.
+function highlightZones(zoneIds) {
+  const wanted = new Set(zoneIds);
+  for (const node of document.querySelectorAll(".zone")) {
+    node.classList.toggle("is-cited", wanted.has(node.dataset.zone));
+  }
+}
+
+const drawLog = () => renderLog(ui.log, logLines, { onHighlight: highlightZones });
 
 function renderAll() {
   if (!state) return;
@@ -91,9 +107,16 @@ function renderAll() {
   const choosingTributes = state.pending?.kind === "tribute" && state.pending.side === "player";
   const tributeReady = choosingTributes ? new Set(state.pending.options) : null;
 
-  const onZoneHover = (inst, side, zone) => hover.inspect(inst, side, zone, state);
+  // Hover on a pointer, tap to pin on a touch screen.
+  const onZoneHover = (inst, side, zone) => {
+    if (hover.isPinned) return;
+    hover.inspect(inst, side, zone, state);
+  };
+  const onZoneInspect = (inst, side, zone) => hover.inspect(inst, side, zone, state, { sticky: true });
   renderZones(state, "opponent", el("foe-backrow"), { row: "backrow", onZoneHover });
-  renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover });
+  renderZones(state, "opponent", el("foe-monsters"), {
+    row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover, onZoneInspect,
+  });
   renderZones(state, "player", el("my-monsters"), {
     row: "monsters",
     ready: tributeReady ?? actionable,
@@ -109,7 +132,15 @@ function renderAll() {
   renderZones(state, "player", el("my-backrow"), {
     row: "backrow", ready: backrowReady, onZoneClick: onMyBackrow, onZoneHover,
   });
-  renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
+  renderHand(state, ui.hand, {
+    actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"),
+    onPlay: onPlayCard,
+    whyNot: (inst) => whyNotPlayable(state, "player", inst),
+    onInspect: (inst, anchor, blocked) => {
+      if (hover.isPinned) return;
+      hover.inspect(inst, "player", anchor, state, { whyNot: blocked });
+    },
+  });
 
   renderEffects();
   updateControls(mine);
@@ -228,7 +259,11 @@ function flashTemporaryMessage(text, ms = 2600) {
 
 function present(events) {
   duelEvents.push(...events);
-  for (const event of events) logEvent(ui.log, event, state);
+  for (const event of events) {
+    const line = lineFor(event, state);
+    if (line) logLines.push(line);
+  }
+  drawLog();
   const shots = buildStoryboard(events, state);
   if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
   speakBanter(directBanter(events, state));
@@ -265,12 +300,8 @@ function showBanter(line) {
   void ui.banter.offsetWidth;
   ui.banter.classList.add("banter");
 
-  const li = document.createElement("li");
-  li.textContent = `${duelist.name}: “${line.text}”`;
-  li.classList.add("is-banter");
-  li.style.setProperty("--banter-accent", duelist.accent);
-  ui.log.prepend(li);
-  while (ui.log.children.length > 60) ui.log.lastChild?.remove();
+  logLines.push(dialogueLine(duelist.name, line.text, state?.turn ?? 1));
+  drawLog();
 
   playReaction(line);
   speak(line.text, line.duelistId, { muted });
@@ -325,10 +356,11 @@ function reportSnag(error) {
   console.error("duel step failed", error);
   cinema.clear();
   ui.prompt.hidden = true;
-  const li = document.createElement("li");
-  li.textContent = "The duel hit a snag — recovering. Press Resume if it does not continue.";
-  li.classList.add("is-big");
-  ui.log.prepend(li);
+  logLines.push({
+    weight: "structural", turn: state?.turn ?? 1, zones: [],
+    text: "The duel hit a snag — recovering. Press Resume if it does not continue.",
+  });
+  drawLog();
 }
 
 // The cinema is presentation, not gameplay: the engine has already decided the
@@ -668,8 +700,14 @@ function announceWinner() {
 
 // ----------------------------------------------------------------- input ---
 
-function onPlayCard(inst, options) {
+function onPlayCard(inst, options, blocked) {
   if (busy || !myTurn()) return;
+  if (!options.length) {
+    // A card that does nothing when clicked teaches nothing; say which rule
+    // is in the way.
+    if (blocked) flashTemporaryMessage(`${getCard(inst.cardId).name} — ${blocked}.`);
+    return;
+  }
   if (options.length === 1) {
     step("action", options[0]);
     return void run(() => applyAction(state, options[0]));
@@ -703,7 +741,7 @@ function onMyMonster(inst) {
   if (!options.length) return;
   if (attackFrom === inst.uid) { attackFrom = null; renderAll(); return; }
   const direct = options.find((a) => !a.targetUid);
-  if (direct) { step("action", direct); return void run(() => applyAction(state, direct)); }
+  if (direct) return void showAttackPreview(direct, null);
   attackFrom = inst.uid;
   renderAll();
 }
@@ -730,9 +768,76 @@ function onFoeMonster(inst) {
   if (busy || !attackFrom) return;
   const action = legalActions(state, "player")
     .find((a) => a.type === "attack" && a.uid === attackFrom && a.targetUid === inst.uid);
+  if (action) showAttackPreview(action, inst.uid);
+  else { attackFrom = null; renderAll(); }
+}
+
+// ---------------------------------------------------------- attack preview ---
+
+let pendingAttack = null;
+
+function showAttackPreview(action, targetUid) {
+  const preview = previewAttack(state, "player", action.uid, targetUid ?? null);
+  if (!preview) return;
+  pendingAttack = action;
+  const lethal = isLethal(state, "player", preview);
+
+  ui.preview.hidden = false;
+  ui.preview.className = `attack-preview is-${preview.tone}${lethal ? " is-lethal" : ""}`;
+  ui.previewSum.textContent = preview.kind === "direct"
+    ? `${preview.attackerName} — ${preview.atk} ATK, no blockers`
+    : preview.kind === "unknown"
+      ? `${preview.attackerName} ${preview.atk} ATK vs a face-down card`
+      : `${preview.attackerName} ${preview.atk} vs ${preview.defenderName} `
+        + `${preview.wall}${preview.inDefence ? " DEF" : " ATK"}`;
+  ui.previewVerdict.textContent = lethal
+    ? `${preview.verdict} — this wins the duel`
+    : preview.verdict;
+  drawArc(action.uid, targetUid);
+}
+
+function clearAttackPreview() {
+  pendingAttack = null;
   attackFrom = null;
-  if (action) { step("action", action); run(() => applyAction(state, action)); }
-  else renderAll();
+  ui.preview.hidden = true;
+  ui.arc.hidden = true;
+  renderAll();
+}
+
+function confirmAttack() {
+  const action = pendingAttack;
+  ui.preview.hidden = true;
+  ui.arc.hidden = true;
+  pendingAttack = null;
+  attackFrom = null;
+  if (!action) return;
+  step("action", action);
+  run(() => applyAction(state, action));
+}
+
+// A live arc from attacker to target, so the declaration reads as a movement
+// rather than as two disconnected clicks.
+function drawArc(attackerUid, targetUid) {
+  const from = document.querySelector(`#my-monsters .zone[data-uid="${attackerUid}"]`);
+  const to = targetUid
+    ? document.querySelector(`#foe-monsters .zone[data-uid="${targetUid}"]`)
+    : el("foe-lp");
+  const arena = ui.stage.parentElement;
+  if (!from || !to || !arena) return;
+
+  const box = arena.getBoundingClientRect();
+  const a = from.getBoundingClientRect();
+  const b = to.getBoundingClientRect();
+  const x1 = a.left + a.width / 2 - box.left;
+  const y1 = a.top + a.height / 2 - box.top;
+  const x2 = b.left + b.width / 2 - box.left;
+  const y2 = b.top + b.height / 2 - box.top;
+  const lift = Math.abs(y2 - y1) * 0.35;
+
+  ui.arc.hidden = false;
+  ui.arc.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  ui.arcPath.setAttribute("d", `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 - lift} ${x2} ${y2}`);
+  ui.arcPath.setAttribute("stroke", "var(--accent-warm)");
 }
 
 function askChoice(question, choices) {
@@ -915,6 +1020,7 @@ function startDuel(requested) {
   resetLifePointTracking();
   attackFrom = null;
   ui.log.innerHTML = "";
+  logLines = [];
   ui.prompt.hidden = true;
   duelEvents = [];
   duelSteps = [];
@@ -935,7 +1041,8 @@ function startDuel(requested) {
   ].filter(Boolean).filter(playable);
   introShown = true;
   cinema.enqueue(planTiers(opening, { videoBudget: opening.length }));
-  logEvent(ui.log, { type: "phase", phase: "draw", side: "player", turn: 1 }, state);
+  logLines.push(lineFor({ type: "phase", phase: "draw", side: "player", turn: 1 }, state));
+  drawLog();
   speakBanter(openingExchange(state));
   renderAll();
 }
@@ -965,6 +1072,8 @@ function bind() {
   });
   ui.skip.addEventListener("click", () => { cinema.skip(); renderAll(); });
   ui.resume.addEventListener("click", resume);
+  el("preview-confirm").addEventListener("click", confirmAttack);
+  el("preview-cancel").addEventListener("click", clearAttackPreview);
   ui.share.addEventListener("click", openShareCard);
   el("share-send").addEventListener("click", sendShare);
   el("share-copy").addEventListener("click", copyImage);
@@ -979,8 +1088,11 @@ function bind() {
   });
   ui.stage.addEventListener("click", () => { if (cinema.busy) { cinema.skip(); renderAll(); } });
   document.addEventListener("keydown", (e) => {
+    if (handleZoneKeys(e)) return;
     if (e.key === " " && cinema.busy) { e.preventDefault(); cinema.skip(); renderAll(); }
     if (e.key === "Escape") {
+      if (pendingAttack) { clearAttackPreview(); return; }
+      hover.unpin();
       ui.modal.hidden = true;
       ui.shareModal.hidden = true;
       el("graveyard-modal").hidden = true;
@@ -1002,6 +1114,41 @@ function bind() {
   el("graveyard-modal").hidden = true;
 }
 
+// Full keyboard play: arrows walk the board, Enter selects, Escape cancels.
+// Zones are real buttons, so focus and activation come for free; this only adds
+// the movement between them.
+function handleZoneKeys(event) {
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return false;
+  const zones = [...document.querySelectorAll(".zone:not(:disabled)")];
+  if (!zones.length) return false;
+  const active = document.activeElement;
+  const at = zones.indexOf(active);
+  if (at < 0) {
+    zones[0].focus();
+    event.preventDefault();
+    return true;
+  }
+  const row = active.parentElement;
+  const inRow = [...row.querySelectorAll(".zone:not(:disabled)")];
+  const rowAt = inRow.indexOf(active);
+
+  let next = null;
+  if (event.key === "ArrowLeft") next = inRow[rowAt - 1];
+  else if (event.key === "ArrowRight") next = inRow[rowAt + 1];
+  else {
+    // Up and down step between rows, keeping roughly the same column.
+    const rows = [...document.querySelectorAll(".zones")];
+    const rowIndex = rows.indexOf(row);
+    const target = rows[rowIndex + (event.key === "ArrowUp" ? -1 : 1)];
+    const candidates = target ? [...target.querySelectorAll(".zone:not(:disabled)")] : [];
+    next = candidates[Math.min(rowAt, candidates.length - 1)];
+  }
+  if (!next) return false;
+  next.focus();
+  event.preventDefault();
+  return true;
+}
+
 function showRules() {
   const cap = getCapability();
   ui.modalBody.innerHTML = `
@@ -1014,8 +1161,10 @@ function showRules() {
       your field to change its position. A monster changes position once per
       turn, and flipping a set monster face-up puts it in Attack Position so it
       can attack that turn.</li>
-      <li>Hover any card on the field to read it. Click a GY counter to see both
-      Graveyards and what Monster Reborn would revive.</li>
+      <li>Hover any card on the field to read it, or right-click to pin the
+      panel on a touch screen. Click a GY counter to see both Graveyards.</li>
+      <li>Keyboard: arrow keys move between zones, Enter selects, Escape cancels
+      a targeting step, Space skips a scene.</li>
       <li>Battle Phase — click a glowing monster, then an enemy monster, or attack directly.</li>
       <li>End turn to pass. Hand limit is 6.</li>
     </ul>
@@ -1044,7 +1193,8 @@ function loadReplay(recording) {
   duelSeed = recording.seed;
   duelEvents = played.events;
   cinema.clear();
-  for (const event of played.events) logEvent(ui.log, event, state);
+  logLines = played.events.map((event) => lineFor(event, state)).filter(Boolean);
+  drawLog();
   renderAll();
   if (state.winner) announceWinner();
   ui.hint.textContent = "Replay of a shared duel. Start a new duel to play.";

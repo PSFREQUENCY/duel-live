@@ -38,7 +38,9 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
@@ -98,13 +100,14 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 
 .arena-wrap {
   position: relative; z-index: 1;
+  flex: 1; min-height: 0;
   display: grid; grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 16px; padding: 16px clamp(12px, 3vw, 28px) 0;
-  align-items: start;
+  gap: 14px; padding: 12px clamp(12px, 3vw, 28px) 0;
+  align-items: stretch;
 }
 
 .arena {
-  position: relative; aspect-ratio: 16 / 9; width: 100%;
+  position: relative; width: 100%; height: 100%; min-height: 0;
   border: 1px solid var(--line); border-radius: var(--radius);
   overflow: hidden; box-shadow: var(--shadow); background: #070b18;
 }
@@ -188,6 +191,12 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 }
 .hover-stats .is-modified { color: var(--good); }
 .hover-text { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ink-dim); }
+.hover-blocked {
+  margin: 8px 0 0; font-size: 11px; line-height: 1.4;
+  color: var(--accent-warm); border-top: 1px solid rgba(244, 197, 49, 0.25); padding-top: 7px;
+}
+.hover-card { pointer-events: none; }
+.hover-card.is-pinned { pointer-events: auto; }
 .hover-note {
   margin: 8px 0 0; font-family: var(--mono); font-size: 9.5px;
   letter-spacing: 0.06em; color: var(--accent); text-transform: uppercase;
@@ -217,17 +226,21 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
    the arena height and the zones take their width from their card ratio. */
 .zones {
   position: absolute; z-index: 3; left: 50%; transform: translateX(-50%);
-  display: flex; justify-content: center; align-items: stretch;
-  gap: clamp(4px, 0.9vw, 10px); height: 15%; width: 88%;
+  display: flex; justify-content: center; align-items: center;
+  gap: clamp(4px, 0.9vw, 10px); height: 17%; width: 88%;
 }
-.zones--foe { top: 11%; }
-.zones--foe-monsters { top: 28%; }
-.zones--me-monsters { bottom: 28%; }
-.zones--me { bottom: 11%; }
+/* Monster zones are portrait and tall; spell and trap zones are short and wide.
+   A player should tell them apart peripherally, without reading a label. */
+.zone--monsters { height: 100%; aspect-ratio: 59 / 86; }
+.zone--backrow { height: 68%; aspect-ratio: 86 / 59; }
+.zones--foe { top: 9%; }
+.zones--foe-monsters { top: 27%; }
+.zones--me-monsters { bottom: 27%; }
+.zones--me { bottom: 9%; }
 
 .zone {
-  position: relative; height: 100%; flex: none;
-  aspect-ratio: 59 / 86; border-radius: 5px;
+  position: relative; flex: none; padding: 0; font: inherit; color: inherit;
+  border-radius: 5px;
   border: 1px dashed rgba(140, 190, 255, 0.38);
   background: rgba(18, 28, 54, 0.55);
   box-shadow: inset 0 0 12px rgba(90, 150, 220, 0.12);
@@ -247,6 +260,11 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .zone.is-defense { transform: rotate(-90deg) scale(0.84); }
 .zone.is-target { cursor: pointer; border-color: var(--danger); box-shadow: 0 0 16px -2px var(--danger); }
 .zone.is-ready { cursor: pointer; border-color: var(--accent-warm); box-shadow: 0 0 16px -2px var(--accent-warm); }
+/* While a target is being chosen, everything illegal recedes. */
+.zones.is-choosing .zone:not(.is-target) { opacity: 0.35; }
+.zone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 4; }
+.zone:disabled { cursor: default; }
+.zone.is-cited { border-color: var(--accent); box-shadow: 0 0 18px -2px var(--accent); }
 .zone.is-attacking { animation: lunge 0.45s ease; }
 @keyframes lunge {
   0%, 100% { transform: none; }
@@ -341,13 +359,40 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   background: var(--link-accent); color: #04121c;
 }
 
+/* ------------------------------------------------------------- attacks --- */
+
+.attack-arc { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+
+/* Undo is impossible in this game, so the preview is what replaces it. */
+.attack-preview {
+  position: absolute; z-index: 7; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); text-align: center;
+  padding: 14px 20px; border-radius: 10px; min-width: 260px;
+  background: rgba(5, 8, 18, 0.94); backdrop-filter: blur(8px);
+  border: 1px solid var(--preview-accent, var(--accent));
+  animation: caption-in 0.16s ease;
+}
+.preview-sum {
+  display: block; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.08em; color: var(--ink-faint); margin-bottom: 5px;
+}
+.attack-preview strong { display: block; font-size: 15px; color: var(--ink); line-height: 1.35; }
+.preview-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.attack-preview.is-good { --preview-accent: var(--good); }
+.attack-preview.is-bad { --preview-accent: var(--danger); }
+.attack-preview.is-risky { --preview-accent: var(--accent-warm); }
+.attack-preview.is-neutral { --preview-accent: var(--ink-faint); }
+.attack-preview.is-lethal strong { color: var(--good); }
+
 /* -------------------------------------------------------------- banter --- */
 
 .banter {
-  position: absolute; z-index: 6; left: 50%; bottom: 17%;
-  transform: translateX(-50%); width: min(660px, 80%);
+  position: absolute; z-index: 6; left: 50%; bottom: 50%;
+  /* The horizon band between the two boards is the only strip that never holds
+     a card. A subtitle anywhere else covers somebody's monsters. */
+  transform: translate(-50%, 50%); width: min(660px, 80%);
   padding: 9px 16px; border-radius: 10px;
-  /* Sits over the backrow like a subtitle: readable, but the board reads through. */
+  pointer-events: none;
   background: linear-gradient(180deg, rgba(5, 8, 18, 0.82), rgba(5, 8, 18, 0.62));
   box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.8);
   border: 1px solid var(--banter-accent, var(--line));
@@ -356,8 +401,8 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   animation: banter-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 @keyframes banter-in {
-  from { opacity: 0; transform: translate(-50%, 10px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from { opacity: 0; transform: translate(-50%, calc(50% + 10px)); }
+  to { opacity: 1; transform: translate(-50%, 50%); }
 }
 .banter-who {
   display: block; font-family: var(--mono); font-size: 9.5px;
@@ -367,6 +412,9 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .banter-text {
   margin: 0; font-size: clamp(13px, 1.5vw, 16px); line-height: 1.35;
   font-style: italic; color: var(--ink);
+  /* Two lines is the whole budget; a third would reach the monster rows. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .log li.is-banter {
@@ -377,9 +425,9 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 /* ---------------------------------------------------------------- side --- */
 
 .side {
-  display: flex; flex-direction: column; gap: 11px;
-  padding: 13px; border: 1px solid var(--line-soft); border-radius: var(--radius);
-  background: rgba(9, 13, 26, 0.6); max-height: calc(100vh - 150px);
+  display: flex; flex-direction: column; gap: 10px; min-height: 0;
+  padding: 12px; border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: rgba(9, 13, 26, 0.6); overflow: hidden;
 }
 .phase-turn {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -423,20 +471,49 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
 }
 .log {
-  list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
-  font-size: 11.5px; display: flex; flex-direction: column; gap: 5px; min-height: 90px;
+  margin: 0; padding: 0; overflow-y: auto; flex: 1;
+  font-size: 11.5px; display: flex; flex-direction: column; gap: 6px; min-height: 0;
 }
-.log li {
-  padding: 5px 8px; border-radius: 5px; background: #101526;
-  border-left: 2px solid var(--line); color: var(--ink-dim);
+.log-turn { border-radius: 6px; overflow: hidden; background: #0d1220; }
+.log-turn > summary {
+  cursor: pointer; list-style: none; padding: 6px 9px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim);
+  background: #131a2e; border-left: 3px solid var(--turn-accent, var(--line));
 }
-.log li.is-me { border-left-color: var(--accent); }
-.log li.is-foe { border-left-color: var(--danger); }
-.log li.is-big { border-left-color: var(--accent-warm); color: var(--ink); font-weight: 600; }
+.log-turn > summary::-webkit-details-marker { display: none; }
+.log-turn > summary:hover { color: var(--ink); }
+.log-turn[open] > summary { color: var(--ink); }
+.log-lines { list-style: none; margin: 0; padding: 4px 0; display: flex; flex-direction: column; }
+
+/* Three weights: structural frames the turn, mechanical changes it, dialogue
+   colours it. They must not read as equally important. */
+.log-line { padding: 3px 10px; color: var(--ink-dim); line-height: 1.35; }
+.log-line.is-structural {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em;
+  color: var(--ink-faint); text-transform: uppercase;
+}
+.log-line.is-mechanical { color: var(--ink); }
+.log-line.is-dialogue { font-style: italic; color: var(--ink-dim); padding-left: 14px; }
+.log-line.is-muted { color: var(--ink-faint); }
+.log-line .log-detail { color: var(--accent-warm); font-family: var(--mono); font-size: 10px; }
+.log-line.is-linked { cursor: help; }
+.log-line.is-linked:hover { background: rgba(79, 201, 240, 0.08); }
+.log-line .log-chain {
+  font-family: var(--mono); font-size: 9px; color: var(--accent);
+  border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; margin-left: 5px;
+}
 
 /* ---------------------------------------------------------------- hand --- */
 
-.hand-rail { position: relative; z-index: 1; padding: 14px clamp(12px, 3vw, 28px) 24px; }
+/* The hand is the control surface: a fixed strip pinned to the bottom, never
+   below the fold. */
+.hand-rail {
+  position: relative; z-index: 1; flex: none;
+  padding: 10px clamp(12px, 3vw, 28px) 12px;
+  border-top: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(5, 6, 13, 0.4), rgba(5, 6, 13, 0.9));
+}
 .hand-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
 .hand-head h2 {
   margin: 0; font-family: var(--mono); font-size: 10px;
@@ -448,10 +525,10 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   margin-left: auto; font-family: var(--mono); font-size: 10px;
   letter-spacing: 0.06em; color: var(--good);
 }
-.hand { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 6px; }
+.hand { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 
 .card {
-  flex: none; width: 118px; padding: 8px; border-radius: 9px; cursor: pointer;
+  flex: none; width: 112px; padding: 7px; border-radius: 9px; cursor: pointer;
   background: linear-gradient(165deg, var(--bg-card), #0b0f1c);
   border: 1px solid var(--line); text-align: left;
   color: inherit; font: inherit;
@@ -462,7 +539,9 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   border-color: var(--card-accent, var(--accent));
   box-shadow: 0 10px 26px -8px var(--card-accent, var(--accent));
 }
-.card:disabled { opacity: 0.42; cursor: not-allowed; }
+.card.is-blocked { opacity: 0.45; }
+.card.is-blocked:hover { opacity: 0.75; transform: none; box-shadow: none; }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card-top { display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 5px; }
 .card-kind {
   font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em;
@@ -472,8 +551,8 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .card-name { font-size: 11.5px; font-weight: 600; line-height: 1.25; margin-bottom: 4px; }
 .card-stats { font-family: var(--mono); font-size: 9.5px; color: var(--ink-dim); }
 .card-text {
-  font-size: 9.5px; color: var(--ink-faint); line-height: 1.35; margin-top: 4px;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 9.5px; color: var(--ink-faint); line-height: 1.35; margin-top: 3px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
 /* --------------------------------------------------------------- modal --- */
@@ -529,15 +608,46 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .modal-body li { margin-bottom: 4px; }
 .modal-body code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
 
+/* Below 900px the board stacks and the side panel becomes a bottom sheet,
+   rather than the desktop layout scaled down until nothing is legible. */
 @media (max-width: 900px) {
-  .arena-wrap { grid-template-columns: minmax(0, 1fr); }
-  .side { max-height: none; }
-  .zones { width: 96%; height: 13%; gap: 4px; }
-  .duelist-bar { position: static; margin: 0; border-radius: 0; }
-  .arena { aspect-ratio: auto; min-height: 62vh; }
+  body { height: auto; min-height: 100vh; }
+  .arena-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 10px 0;
+  }
+  .arena { height: auto; aspect-ratio: 4 / 5; min-height: 58vh; }
+  .zones { width: 96%; height: 15%; gap: 4px; }
+  .zone--backrow { height: 62%; }
+  .duelist-bar { left: 6px; right: 6px; padding: 5px 8px; }
+  .duelist-id small { display: none; }
+  .counts { font-size: 9px; gap: 5px; }
+
+  .side {
+    position: sticky; bottom: 0; z-index: 20;
+    max-height: 42vh; border-radius: var(--radius) var(--radius) 0 0;
+    background: rgba(9, 13, 26, 0.96); backdrop-filter: blur(10px);
+    box-shadow: 0 -12px 32px -14px rgba(0, 0, 0, 0.9);
+  }
+  .phase { font-size: 7px; padding: 5px 1px; }
+  .hand-rail { padding: 8px 10px 10px; }
+  .card { width: 96px; }
+  .topbar { padding: 10px; gap: 8px; }
+  .topbar-actions { width: 100%; overflow-x: auto; }
+  .effect-rail { max-width: 128px; left: 6px; }
+  .chain-rail { flex-wrap: wrap; max-width: 92%; justify-content: center; }
+  .gy-columns { grid-template-columns: 1fr; }
 }
+/* Reduced motion removes the camera moves and cross-fades. The clips still
+   play: they are the content, not decoration. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .stage-media { transition: none; }
+  .orb { display: none; }
 }
 
 </style>
@@ -623,6 +733,19 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
         <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
         <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
 
+        <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
+          <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
+        </svg>
+
+        <div class="attack-preview" id="attack-preview" hidden role="status">
+          <span class="preview-sum" id="preview-sum"></span>
+          <strong id="preview-verdict"></strong>
+          <div class="preview-actions">
+            <button class="btn btn-accent" id="preview-confirm" type="button">Attack</button>
+            <button class="btn" id="preview-cancel" type="button">Cancel</button>
+          </div>
+        </div>
+
         <div class="banter" id="banter" hidden>
           <span class="banter-who" id="banter-who"></span>
           <p class="banter-text" id="banter-text"></p>
@@ -669,7 +792,7 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
           <div class="prompt-actions" id="prompt-actions"></div>
         </div>
         <h2 class="side-heading">Duel log</h2>
-        <ol class="log" id="log"></ol>
+        <div class="log" id="log" role="log" aria-live="polite" aria-label="Duel log"></div>
       </aside>
     </main>
 
@@ -739,7 +862,7 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
@@ -752,12 +875,15 @@ const { DUELISTS, getMatchup, MATCHUPS } = __req("./duelists.js");
 const { createCinema } = __req("./cinema/player.js");
 const { clearJobs, getCapability, hasClip, planTiers, prefetchResponses, probeCapability, setClipMode } = __req("./cinema/free-video.js");
 const { enableRemoteVoice, speak } = __req("./cinema/realtime-voice.js");
-const { el, logEvent, renderDuelists, renderHand, renderLifePoints, renderPhase, renderZones, resetLifePointTracking } = __req("./render.js");
+const { el, renderDuelists, renderHand, renderLifePoints, renderLog, renderPhase, renderZones, resetLifePointTracking } = __req("./render.js");
+const { dialogueLine, lineFor } = __req("./duel-log.js");
 const { reactionKeyFor } = __req("./cinema/archetypes.js");
 const { buildStoryboard, duelistShot, idleShot, titleShot } = __req("./cinema/storyboard.js");
 const { closingExchange, directBanter, openingExchange } = __req("./banter.js");
 const { createHoverPanel, showGraveyard } = __req("./inspect.js");
 const { decodeReplay, encodeReplay, record, replay } = __req("./duel-replay.js");
+const { whyNotPlayable } = __req("./why-not.js");
+const { isLethal, previewAttack } = __req("./attack-preview.js");
 const { activeEffects } = __req("./duel-effects-active.js");
 const { summariseDuel } = __req("./duel-stats.js");
 const { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } = __req("./share-card.js");
@@ -767,6 +893,8 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
+  arc: el("attack-arc"), arcPath: el("attack-arc-path"),
+  preview: el("attack-preview"), previewSum: el("preview-sum"), previewVerdict: el("preview-verdict"),
   effects: el("effect-rail"), chain: el("chain-rail"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
@@ -782,6 +910,7 @@ let introShown = false;
 let duelEvents = [];
 let duelSteps = [];
 let duelSeed = 0;
+let logLines = [];
 let cardFormat = DEFAULT_FORMAT;
 
 const hover = createHoverPanel();
@@ -801,6 +930,16 @@ const cinema = createCinema({
 });
 
 // ------------------------------------------------------------- rendering ---
+
+// Hovering a log line lights the zones it refers to.
+function highlightZones(zoneIds) {
+  const wanted = new Set(zoneIds);
+  for (const node of document.querySelectorAll(".zone")) {
+    node.classList.toggle("is-cited", wanted.has(node.dataset.zone));
+  }
+}
+
+const drawLog = () => renderLog(ui.log, logLines, { onHighlight: highlightZones });
 
 function renderAll() {
   if (!state) return;
@@ -823,9 +962,16 @@ function renderAll() {
   const choosingTributes = state.pending?.kind === "tribute" && state.pending.side === "player";
   const tributeReady = choosingTributes ? new Set(state.pending.options) : null;
 
-  const onZoneHover = (inst, side, zone) => hover.inspect(inst, side, zone, state);
+  // Hover on a pointer, tap to pin on a touch screen.
+  const onZoneHover = (inst, side, zone) => {
+    if (hover.isPinned) return;
+    hover.inspect(inst, side, zone, state);
+  };
+  const onZoneInspect = (inst, side, zone) => hover.inspect(inst, side, zone, state, { sticky: true });
   renderZones(state, "opponent", el("foe-backrow"), { row: "backrow", onZoneHover });
-  renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover });
+  renderZones(state, "opponent", el("foe-monsters"), {
+    row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover, onZoneInspect,
+  });
   renderZones(state, "player", el("my-monsters"), {
     row: "monsters",
     ready: tributeReady ?? actionable,
@@ -841,7 +987,15 @@ function renderAll() {
   renderZones(state, "player", el("my-backrow"), {
     row: "backrow", ready: backrowReady, onZoneClick: onMyBackrow, onZoneHover,
   });
-  renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
+  renderHand(state, ui.hand, {
+    actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"),
+    onPlay: onPlayCard,
+    whyNot: (inst) => whyNotPlayable(state, "player", inst),
+    onInspect: (inst, anchor, blocked) => {
+      if (hover.isPinned) return;
+      hover.inspect(inst, "player", anchor, state, { whyNot: blocked });
+    },
+  });
 
   renderEffects();
   updateControls(mine);
@@ -960,7 +1114,11 @@ function flashTemporaryMessage(text, ms = 2600) {
 
 function present(events) {
   duelEvents.push(...events);
-  for (const event of events) logEvent(ui.log, event, state);
+  for (const event of events) {
+    const line = lineFor(event, state);
+    if (line) logLines.push(line);
+  }
+  drawLog();
   const shots = buildStoryboard(events, state);
   if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
   speakBanter(directBanter(events, state));
@@ -997,12 +1155,8 @@ function showBanter(line) {
   void ui.banter.offsetWidth;
   ui.banter.classList.add("banter");
 
-  const li = document.createElement("li");
-  li.textContent = `${duelist.name}: “${line.text}”`;
-  li.classList.add("is-banter");
-  li.style.setProperty("--banter-accent", duelist.accent);
-  ui.log.prepend(li);
-  while (ui.log.children.length > 60) ui.log.lastChild?.remove();
+  logLines.push(dialogueLine(duelist.name, line.text, state?.turn ?? 1));
+  drawLog();
 
   playReaction(line);
   speak(line.text, line.duelistId, { muted });
@@ -1057,10 +1211,11 @@ function reportSnag(error) {
   console.error("duel step failed", error);
   cinema.clear();
   ui.prompt.hidden = true;
-  const li = document.createElement("li");
-  li.textContent = "The duel hit a snag — recovering. Press Resume if it does not continue.";
-  li.classList.add("is-big");
-  ui.log.prepend(li);
+  logLines.push({
+    weight: "structural", turn: state?.turn ?? 1, zones: [],
+    text: "The duel hit a snag — recovering. Press Resume if it does not continue.",
+  });
+  drawLog();
 }
 
 // The cinema is presentation, not gameplay: the engine has already decided the
@@ -1400,8 +1555,14 @@ function announceWinner() {
 
 // ----------------------------------------------------------------- input ---
 
-function onPlayCard(inst, options) {
+function onPlayCard(inst, options, blocked) {
   if (busy || !myTurn()) return;
+  if (!options.length) {
+    // A card that does nothing when clicked teaches nothing; say which rule
+    // is in the way.
+    if (blocked) flashTemporaryMessage(`${getCard(inst.cardId).name} — ${blocked}.`);
+    return;
+  }
   if (options.length === 1) {
     step("action", options[0]);
     return void run(() => applyAction(state, options[0]));
@@ -1435,7 +1596,7 @@ function onMyMonster(inst) {
   if (!options.length) return;
   if (attackFrom === inst.uid) { attackFrom = null; renderAll(); return; }
   const direct = options.find((a) => !a.targetUid);
-  if (direct) { step("action", direct); return void run(() => applyAction(state, direct)); }
+  if (direct) return void showAttackPreview(direct, null);
   attackFrom = inst.uid;
   renderAll();
 }
@@ -1462,9 +1623,76 @@ function onFoeMonster(inst) {
   if (busy || !attackFrom) return;
   const action = legalActions(state, "player")
     .find((a) => a.type === "attack" && a.uid === attackFrom && a.targetUid === inst.uid);
+  if (action) showAttackPreview(action, inst.uid);
+  else { attackFrom = null; renderAll(); }
+}
+
+// ---------------------------------------------------------- attack preview ---
+
+let pendingAttack = null;
+
+function showAttackPreview(action, targetUid) {
+  const preview = previewAttack(state, "player", action.uid, targetUid ?? null);
+  if (!preview) return;
+  pendingAttack = action;
+  const lethal = isLethal(state, "player", preview);
+
+  ui.preview.hidden = false;
+  ui.preview.className = `attack-preview is-${preview.tone}${lethal ? " is-lethal" : ""}`;
+  ui.previewSum.textContent = preview.kind === "direct"
+    ? `${preview.attackerName} — ${preview.atk} ATK, no blockers`
+    : preview.kind === "unknown"
+      ? `${preview.attackerName} ${preview.atk} ATK vs a face-down card`
+      : `${preview.attackerName} ${preview.atk} vs ${preview.defenderName} `
+        + `${preview.wall}${preview.inDefence ? " DEF" : " ATK"}`;
+  ui.previewVerdict.textContent = lethal
+    ? `${preview.verdict} — this wins the duel`
+    : preview.verdict;
+  drawArc(action.uid, targetUid);
+}
+
+function clearAttackPreview() {
+  pendingAttack = null;
   attackFrom = null;
-  if (action) { step("action", action); run(() => applyAction(state, action)); }
-  else renderAll();
+  ui.preview.hidden = true;
+  ui.arc.hidden = true;
+  renderAll();
+}
+
+function confirmAttack() {
+  const action = pendingAttack;
+  ui.preview.hidden = true;
+  ui.arc.hidden = true;
+  pendingAttack = null;
+  attackFrom = null;
+  if (!action) return;
+  step("action", action);
+  run(() => applyAction(state, action));
+}
+
+// A live arc from attacker to target, so the declaration reads as a movement
+// rather than as two disconnected clicks.
+function drawArc(attackerUid, targetUid) {
+  const from = document.querySelector(`#my-monsters .zone[data-uid="${attackerUid}"]`);
+  const to = targetUid
+    ? document.querySelector(`#foe-monsters .zone[data-uid="${targetUid}"]`)
+    : el("foe-lp");
+  const arena = ui.stage.parentElement;
+  if (!from || !to || !arena) return;
+
+  const box = arena.getBoundingClientRect();
+  const a = from.getBoundingClientRect();
+  const b = to.getBoundingClientRect();
+  const x1 = a.left + a.width / 2 - box.left;
+  const y1 = a.top + a.height / 2 - box.top;
+  const x2 = b.left + b.width / 2 - box.left;
+  const y2 = b.top + b.height / 2 - box.top;
+  const lift = Math.abs(y2 - y1) * 0.35;
+
+  ui.arc.hidden = false;
+  ui.arc.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  ui.arcPath.setAttribute("d", `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 - lift} ${x2} ${y2}`);
+  ui.arcPath.setAttribute("stroke", "var(--accent-warm)");
 }
 
 function askChoice(question, choices) {
@@ -1647,6 +1875,7 @@ function startDuel(requested) {
   resetLifePointTracking();
   attackFrom = null;
   ui.log.innerHTML = "";
+  logLines = [];
   ui.prompt.hidden = true;
   duelEvents = [];
   duelSteps = [];
@@ -1667,7 +1896,8 @@ function startDuel(requested) {
   ].filter(Boolean).filter(playable);
   introShown = true;
   cinema.enqueue(planTiers(opening, { videoBudget: opening.length }));
-  logEvent(ui.log, { type: "phase", phase: "draw", side: "player", turn: 1 }, state);
+  logLines.push(lineFor({ type: "phase", phase: "draw", side: "player", turn: 1 }, state));
+  drawLog();
   speakBanter(openingExchange(state));
   renderAll();
 }
@@ -1697,6 +1927,8 @@ function bind() {
   });
   ui.skip.addEventListener("click", () => { cinema.skip(); renderAll(); });
   ui.resume.addEventListener("click", resume);
+  el("preview-confirm").addEventListener("click", confirmAttack);
+  el("preview-cancel").addEventListener("click", clearAttackPreview);
   ui.share.addEventListener("click", openShareCard);
   el("share-send").addEventListener("click", sendShare);
   el("share-copy").addEventListener("click", copyImage);
@@ -1711,8 +1943,11 @@ function bind() {
   });
   ui.stage.addEventListener("click", () => { if (cinema.busy) { cinema.skip(); renderAll(); } });
   document.addEventListener("keydown", (e) => {
+    if (handleZoneKeys(e)) return;
     if (e.key === " " && cinema.busy) { e.preventDefault(); cinema.skip(); renderAll(); }
     if (e.key === "Escape") {
+      if (pendingAttack) { clearAttackPreview(); return; }
+      hover.unpin();
       ui.modal.hidden = true;
       ui.shareModal.hidden = true;
       el("graveyard-modal").hidden = true;
@@ -1734,6 +1969,41 @@ function bind() {
   el("graveyard-modal").hidden = true;
 }
 
+// Full keyboard play: arrows walk the board, Enter selects, Escape cancels.
+// Zones are real buttons, so focus and activation come for free; this only adds
+// the movement between them.
+function handleZoneKeys(event) {
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return false;
+  const zones = [...document.querySelectorAll(".zone:not(:disabled)")];
+  if (!zones.length) return false;
+  const active = document.activeElement;
+  const at = zones.indexOf(active);
+  if (at < 0) {
+    zones[0].focus();
+    event.preventDefault();
+    return true;
+  }
+  const row = active.parentElement;
+  const inRow = [...row.querySelectorAll(".zone:not(:disabled)")];
+  const rowAt = inRow.indexOf(active);
+
+  let next = null;
+  if (event.key === "ArrowLeft") next = inRow[rowAt - 1];
+  else if (event.key === "ArrowRight") next = inRow[rowAt + 1];
+  else {
+    // Up and down step between rows, keeping roughly the same column.
+    const rows = [...document.querySelectorAll(".zones")];
+    const rowIndex = rows.indexOf(row);
+    const target = rows[rowIndex + (event.key === "ArrowUp" ? -1 : 1)];
+    const candidates = target ? [...target.querySelectorAll(".zone:not(:disabled)")] : [];
+    next = candidates[Math.min(rowAt, candidates.length - 1)];
+  }
+  if (!next) return false;
+  next.focus();
+  event.preventDefault();
+  return true;
+}
+
 function showRules() {
   const cap = getCapability();
   ui.modalBody.innerHTML = `
@@ -1746,8 +2016,10 @@ function showRules() {
       your field to change its position. A monster changes position once per
       turn, and flipping a set monster face-up puts it in Attack Position so it
       can attack that turn.</li>
-      <li>Hover any card on the field to read it. Click a GY counter to see both
-      Graveyards and what Monster Reborn would revive.</li>
+      <li>Hover any card on the field to read it, or right-click to pin the
+      panel on a touch screen. Click a GY counter to see both Graveyards.</li>
+      <li>Keyboard: arrow keys move between zones, Enter selects, Escape cancels
+      a targeting step, Space skips a scene.</li>
       <li>Battle Phase — click a glowing monster, then an enemy monster, or attack directly.</li>
       <li>End turn to pass. Hand limit is 6.</li>
     </ul>
@@ -1776,7 +2048,8 @@ function loadReplay(recording) {
   duelSeed = recording.seed;
   duelEvents = played.events;
   cinema.clear();
-  for (const event of played.events) logEvent(ui.log, event, state);
+  logLines = played.events.map((event) => lineFor(event, state)).filter(Boolean);
+  drawLog();
   renderAll();
   if (state.winner) announceWinner();
   ui.hint.textContent = "Replay of a shared duel. Start a new duel to play.";
@@ -2894,6 +3167,9 @@ const isMainPhase = (state) => state.phase === "main1" || state.phase === "main2
 
 function legalActions(state, side = state.activeSide) {
   if (state.winner || state.pending) return [];
+  // Summoning, setting and attacking belong to the turn player. Responses are
+  // offered separately, through the chain.
+  if (side !== state.activeSide) return [];
   const s = state.sides[side];
   const out = [];
   if (isMainPhase(state)) {
@@ -3690,7 +3966,7 @@ const getMatchup = (id) => MATCHUPS[id];
 Object.assign(__exports, { DUELISTS, MATCHUPS, getDuelist, getMatchup });
 });
 
-__def("src/duel-targets.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+__def("src/duel-targets.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
 // Which cards an effect may be pointed at, and who decides.
 //
 // The engine used to pick for the player -- the strongest monster in the
@@ -3700,8 +3976,7 @@ __def("src/duel-targets.js", {"./cards/index.js":"src/cards/index.js","./duel-en
 // can never disagree about what is legal.
 
 const { getCard } = __req("./cards/index.js");
-const { effectiveStats, other } = __req("./duel-engine.js");
-const { monstersOn } = __req("./duel-state.js");
+const { effectiveStats, monstersOn, other } = __req("./duel-state.js");
 const isMonsterCard = (inst) => getCard(inst.cardId).kind === "monster";
 
 const POOLS = {
@@ -4436,6 +4711,11 @@ const { drawArena, drawBeam, drawImpact, drawMonster, drawScanlines } = __req(".
 const { prefetch, resolve } = __req("./free-video.js");
 const { speak, stopVoice } = __req("./realtime-voice.js");
 const byName = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
+
+// A viewer who has asked for less motion gets the clips without the camera
+// moves: the footage is the content, the drift and bob are decoration.
+const reducedMotion = () =>
+  globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
 const FACE_DOWN = { id: "facedown", attribute: "DARK", type: "Fiend", name: "?" };
 const card = (name) => byName[name] ?? FACE_DOWN;
 
@@ -4615,14 +4895,16 @@ function createCinema({ canvas, still, video, caption, getState, accents, onShot
     try {
       const state = getState();
       const [a, b] = accents();
-      drawArena(ctx, canvas.width, canvas.height, { accentA: a, accentB: b, t: now });
-      if (state) drawBoard(ctx, state, current, now);
+      // A frozen clock stops the arena drifting and the holograms bobbing.
+      const clock = reducedMotion() ? 0 : now;
+      drawArena(ctx, canvas.width, canvas.height, { accentA: a, accentB: b, t: clock });
+      if (state) drawBoard(ctx, state, current, clock);
       if (current) {
         const p = Math.min(1, (now - startedAt) / current.durationMs);
-        if (state) drawShotFx(ctx, current.shot, p, now);
+        if (state) drawShotFx(ctx, current.shot, p, clock);
         if (p >= 1) finishShot();
       }
-      drawScanlines(ctx, canvas.width, canvas.height, now);
+      drawScanlines(ctx, canvas.width, canvas.height, clock);
     } catch (error) {
       drawFailures += 1;
       if (drawFailures === 1) console.warn("cinema draw failed; continuing", error);
@@ -5550,14 +5832,16 @@ function stopVoice() {
 Object.assign(__exports, { enableRemoteVoice, speak, stopVoice });
 });
 
-__def("src/render.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {
+__def("src/render.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duel-board.js":"src/duel-board.js","./duelists.js":"src/duelists.js","./duel-log.js":"src/duel-log.js"}, function (__exports, __req) {
 // DOM rendering of everything outside the canvas: zones, hand, life points, log.
 // Reads duel state; never writes to it.
 
 const { CARDS, getCard } = __req("./cards/index.js");
 const { effectiveStats } = __req("./duel-engine.js");
 const { ATTRIBUTE_PALETTE } = __req("./cinema/procedural-stage.js");
+const { zoneId } = __req("./duel-board.js");
 const { DUELISTS, getMatchup } = __req("./duelists.js");
+const { groupByTurn } = __req("./duel-log.js");
 const el = (id) => document.getElementById(id);
 const KIND_LABEL = { monster: "MON", spell: "SPELL", trap: "TRAP" };
 
@@ -5568,13 +5852,20 @@ function accentFor(card) {
 }
 
 function renderZones(state, side, container, {
-  onZoneClick, onZoneHover, targets = new Set(), ready = new Set(), row = "monsters",
+  onZoneClick, onZoneHover, onZoneInspect,
+  targets = new Set(), ready = new Set(), row = "monsters",
 }) {
+  container.classList.toggle("is-choosing", targets.size > 0);
   container.innerHTML = "";
   state.sides[side][row].forEach((inst, index) => {
-    const zone = document.createElement("div");
-    zone.className = "zone";
+    // A real button: focusable, activatable by keyboard, and announced.
+    const zone = document.createElement("button");
+    zone.type = "button";
+    zone.className = `zone zone--${row}`;
     zone.dataset.index = String(index);
+    zone.dataset.zone = zoneId(side, row === "monsters" ? "mon" : "st", index);
+    zone.dataset.side = side;
+    if (inst) zone.dataset.uid = inst.uid;
     if (inst) {
       const card = getCard(inst.cardId);
       zone.classList.add("is-filled");
@@ -5596,7 +5887,8 @@ function renderZones(state, side, container, {
           zone.append(stat);
         }
       }
-      const canAct = ready.has(inst.uid);
+      const canAct = ready.has(inst.uid) || targets.has(inst.uid);
+      zone.setAttribute("aria-label", ariaFor(state, side, inst, row, index, canAct));
       zone.title = inst.faceDown
         ? (canAct ? "Face-down — click to flip into Attack Position" : "Face-down card")
         : `${card.name}${card.kind === "monster" ? ` — ${card.atk}/${card.def}` : ""}`
@@ -5605,13 +5897,41 @@ function renderZones(state, side, container, {
       if (onZoneHover) {
         zone.addEventListener("pointerenter", () => onZoneHover(inst, side, zone));
         zone.addEventListener("pointerleave", () => onZoneHover(null, side, zone));
+        zone.addEventListener("focus", () => onZoneHover(inst, side, zone));
       }
+      // A touch screen has no hover, so a long press pins the panel instead.
+      if (onZoneInspect) {
+        zone.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          onZoneInspect(inst, side, zone);
+        });
+      }
+    }
+    if (!inst) {
+      zone.disabled = true;
+      zone.setAttribute("aria-label",
+        `Empty ${row === "monsters" ? "monster" : "spell and trap"} zone ${index + 1}`);
     }
     container.append(zone);
   });
 }
 
-function renderHand(state, container, { onPlay, actions }) {
+// What a screen reader says about a zone: whose it is, what is in it, and
+// whether it can be acted on right now.
+function ariaFor(state, side, inst, row, index, canAct) {
+  const owner = DUELISTS[state.sides[side].duelistId]?.name ?? side;
+  const place = `${row === "monsters" ? "monster" : "spell and trap"} zone ${index + 1}`;
+  if (inst.faceDown) {
+    return `${owner}, ${place}: face-down card${canAct ? ", activatable" : ""}`;
+  }
+  const card = getCard(inst.cardId);
+  const stats = card.kind === "monster"
+    ? `, ${effectiveStats(state, side, inst).atk} attack, ${inst.position === "attack" ? "attack" : "defence"} position`
+    : "";
+  return `${owner}, ${place}: ${card.name}${stats}${canAct ? ", selectable" : ""}`;
+}
+
+function renderHand(state, container, { onPlay, onInspect, actions, whyNot }) {
   container.innerHTML = "";
   const byUid = new Map();
   for (const action of actions) {
@@ -5624,7 +5944,6 @@ function renderHand(state, container, { onPlay, actions }) {
     const button = document.createElement("button");
     button.className = "card";
     button.type = "button";
-    button.disabled = options.length === 0;
     button.style.setProperty("--card-accent", accentFor(card));
     button.innerHTML = `
       <div class="card-top">
@@ -5638,7 +5957,18 @@ function renderHand(state, container, { onPlay, actions }) {
     button.querySelector(".card-stats").textContent = card.kind === "monster"
       ? `${card.atk} ATK / ${card.def} DEF` : `${card.sub ?? ""}`.toUpperCase();
     button.querySelector(".card-text").textContent = card.text ?? card.art ?? "";
-    if (options.length) button.addEventListener("click", () => onPlay(inst, options));
+    // Why a card will not respond is the most useful thing the panel can say.
+    const blocked = options.length ? null : whyNot?.(inst);
+    button.disabled = false;              // a click must still explain itself
+    button.classList.toggle("is-blocked", Boolean(blocked));
+    button.setAttribute("aria-label",
+      `${card.name}${blocked ? `, unplayable: ${blocked}` : ", playable"}`);
+    button.addEventListener("click", () => onPlay(inst, options, blocked));
+    if (onInspect) {
+      button.addEventListener("pointerenter", () => onInspect(inst, button, blocked));
+      button.addEventListener("pointerleave", () => onInspect(null, button, null));
+      button.addEventListener("focus", () => onInspect(inst, button, blocked));
+    }
     container.append(button);
   }
 }
@@ -5701,52 +6031,265 @@ function renderPhase(phase, { locked = [] } = {}) {
   }
 }
 
-const BIG = new Set(["win", "fusion", "directAttack"]);
+/**
+ * Render the log as collapsible turns, newest first, with the current turn open.
+ * Rebuilt wholesale each time: the list is short and correctness beats a diff.
+ */
+function renderLog(container, lines, { onHighlight } = {}) {
+  const turns = groupByTurn(lines);
+  container.innerHTML = "";
 
-function logEvent(list, event, state) {
-  const text = describe(event, state);
-  if (!text) return;
-  const li = document.createElement("li");
-  li.textContent = text;
-  li.classList.add(event.side === "player" ? "is-me" : "is-foe");
-  if (BIG.has(event.type)) li.classList.add("is-big");
-  list.prepend(li);
-  while (list.children.length > 60) list.lastChild.remove();
+  for (const [i, turn] of [...turns].reverse().entries()) {
+    const block = document.createElement("details");
+    block.className = "log-turn";
+    block.open = i === 0;                    // the turn being played stays open
+    block.style.setProperty("--turn-accent",
+      turn.side === "player" ? "var(--accent)" : "var(--danger)");
+
+    const heading = document.createElement("summary");
+    heading.textContent = turn.heading;
+    const list = document.createElement("ul");
+    list.className = "log-lines";
+
+    for (const line of turn.lines) {
+      const row = document.createElement("li");
+      row.className = `log-line is-${line.weight}${line.muted ? " is-muted" : ""}`;
+      row.append(document.createTextNode(line.text));
+      if (line.detail) {
+        const detail = document.createElement("span");
+        detail.className = "log-detail";
+        detail.textContent = `  ${line.detail}`;
+        row.append(detail);
+      }
+      if (line.chainLink) {
+        const link = document.createElement("span");
+        link.className = "log-chain";
+        link.textContent = `CL${line.chainLink}`;
+        row.append(link);
+      }
+      if (onHighlight && line.zones?.length) {
+        row.classList.add("is-linked");
+        row.addEventListener("pointerenter", () => onHighlight(line.zones));
+        row.addEventListener("pointerleave", () => onHighlight([]));
+      }
+      list.append(row);
+    }
+    block.append(heading, list);
+    container.append(block);
+  }
+  container.scrollTop = 0;
 }
 
-function who(state, side) {
-  return DUELISTS[state.sides[side]?.duelistId]?.name ?? side;
+
+Object.assign(__exports, { renderZones, renderHand, renderDuelists, renderLifePoints, resetLifePointTracking, renderPhase, renderLog, el, CARDS });
+});
+
+__def("src/duel-board.js", {}, function (__exports, __req) {
+// The board.
+//
+// Every zone has a stable id, so the storyboard, the animation layer and the
+// targeting interface all address the same thing by name rather than by index
+// into whichever array happens to hold it. "Move a card from p0.mon.1 to p0.gy"
+// then becomes a sentence rather than a lookup.
+
+const SIDE_IDS = { player: "p0", opponent: "p1" };
+
+const ZONE_KINDS = ["mon", "st", "field", "deck", "extra", "gy", "banished", "hand"];
+
+const MONSTER_ZONES = 5;
+const SPELL_TRAP_ZONES = 5;
+
+/** `p0.mon.2`, `p1.st.0`, `p0.field`, `p1.gy`. */
+const zoneId = (side, kind, index) =>
+  index === undefined ? `${SIDE_IDS[side]}.${kind}` : `${SIDE_IDS[side]}.${kind}.${index}`;
+
+function parseZoneId(id) {
+  const [prefix, kind, index] = String(id).split(".");
+  const side = Object.keys(SIDE_IDS).find((key) => SIDE_IDS[key] === prefix);
+  if (!side || !ZONE_KINDS.includes(kind)) return null;
+  return { side, kind, index: index === undefined ? undefined : Number(index) };
 }
 
-function describe(event, state) {
-  const name = who(state, event.side);
+/**
+ * Board rows from the top of the screen down, with the local player at the
+ * bottom. The two monster rows must meet across the centre line, or every
+ * combat animation reads backwards.
+ */
+const ROW_ORDER = [
+  { id: "opponent-st", side: "opponent", kind: "st" },
+  { id: "opponent-mon", side: "opponent", kind: "mon" },
+  { id: "player-mon", side: "player", kind: "mon" },
+  { id: "player-st", side: "player", kind: "st" },
+];
+
+const CENTRE_LINE_AFTER = 1;   // index in ROW_ORDER the centre line follows
+
+/** Where a card instance currently sits, or null when it is nowhere. */
+function locate(state, uid) {
+  for (const side of ["player", "opponent"]) {
+    const s = state.sides[side];
+    for (const [kind, list] of [["mon", s.monsters], ["st", s.backrow]]) {
+      const index = list.findIndex((inst) => inst?.uid === uid);
+      if (index >= 0) return { side, kind, index, id: zoneId(side, kind, index) };
+    }
+    for (const [kind, list] of [["hand", s.hand], ["gy", s.graveyard],
+      ["extra", s.extra], ["deck", s.deck], ["banished", s.banished ?? []]]) {
+      if (list.some((inst) => inst.uid === uid)) return { side, kind, id: zoneId(side, kind) };
+    }
+    if (s.field?.uid === uid) return { side, kind: "field", id: zoneId(side, "field") };
+  }
+  return null;
+}
+
+/** A readable snapshot of every zone, for the interface and for tests. */
+function boardSnapshot(state) {
+  const rows = ROW_ORDER.map((row) => ({
+    ...row,
+    zones: (row.kind === "mon" ? state.sides[row.side].monsters : state.sides[row.side].backrow)
+      .map((inst, index) => ({ id: zoneId(row.side, row.kind, index), inst })),
+  }));
+  const piles = {};
+  for (const side of ["player", "opponent"]) {
+    const s = state.sides[side];
+    piles[side] = {
+      field: { id: zoneId(side, "field"), inst: s.field ?? null },
+      deck: { id: zoneId(side, "deck"), count: s.deck.length },
+      extra: { id: zoneId(side, "extra"), count: s.extra.length, cards: s.extra },
+      gy: { id: zoneId(side, "gy"), count: s.graveyard.length, cards: s.graveyard },
+      banished: { id: zoneId(side, "banished"), count: (s.banished ?? []).length,
+        cards: s.banished ?? [] },
+      hand: { id: zoneId(side, "hand"), count: s.hand.length },
+    };
+  }
+  return { rows, piles };
+}
+
+Object.assign(__exports, { parseZoneId, locate, boardSnapshot, SIDE_IDS, ZONE_KINDS, MONSTER_ZONES, SPELL_TRAP_ZONES, zoneId, ROW_ORDER, CENTRE_LINE_AFTER });
+});
+
+__def("src/duel-log.js", {"./cards/index.js":"src/cards/index.js","./duelists.js":"src/duelists.js","./duel-state.js":"src/duel-state.js","./duel-damage-step.js":"src/duel-damage-step.js"}, function (__exports, __req) {
+// The duel log.
+//
+// A flat list of sentences is hard to read back: it does not say which turn you
+// are looking at, it hides the arithmetic behind a summary, and it gives a line
+// of dialogue the same weight as a life point swing. This groups by turn and
+// tells the three apart.
+
+const { getCard } = __req("./cards/index.js");
+const { DUELISTS } = __req("./duelists.js");
+const { other } = __req("./duel-state.js");
+const { SUB_STEP_LABELS } = __req("./duel-damage-step.js");
+/** Structural beats frame the turn; mechanical ones change it; dialogue colours it. */
+const WEIGHTS = { structural: "structural", mechanical: "mechanical", dialogue: "dialogue" };
+
+const STRUCTURAL = new Set(["phase", "chainStart", "damageStep"]);
+const QUIET = new Set(["damageStep"]);
+
+const who = (state, side) => DUELISTS[state.sides[side]?.duelistId]?.name ?? side;
+
+/**
+ * One log line, or null for events not worth a line.
+ *
+ * `zones` names the board zones the line refers to, so hovering it can light
+ * them up.
+ */
+function lineFor(event, state) {
+  if (QUIET.has(event.type)) return null;
+  const weight = STRUCTURAL.has(event.type) ? "structural" : "mechanical";
+  const base = { weight, turn: state.turn, side: event.side, zones: [], chainLink: event.chainLink };
+
   switch (event.type) {
-    case "phase": return event.phase === "draw" ? `— Turn ${event.turn}: ${name} —` : null;
-    case "draw": return event.side === "player" ? `${name} draws ${event.card}.` : `${name} draws.`;
-    case "summon": return `${name} ${event.how === "fusion" ? "Fusion Summons" : event.how === "set" ? "sets a monster" : "summons"}${event.how === "set" ? "" : ` ${event.card}`}.`;
-    case "set": return `${name} sets a ${event.kind}.`;
-    case "activate": return `${name} activates ${event.card}.`;
-    case "declare": return `${event.card} attacks ${event.target === "direct" ? "directly" : event.target}.`;
-    case "clash": return `${event.attacker} (${event.attackerAtk}) meets ${event.defender} (${event.defenderValue}).`;
-    case "destroy": return `${event.card} is destroyed.`;
-    case "damage": return `${who(state, event.side)} takes ${event.amount} damage → ${event.lp} LP.`;
-    case "directAttack": return `Direct attack! ${event.damage} damage.`;
-    case "fusion": return `Fusion Summon: ${event.card}!`;
-    case "dice": return `Dice roll: ${event.roll}.`;
-    case "hats": return event.hit ? "The attack finds the real monster." : "The attack hits an empty hat.";
-    case "flip": return `${event.card} is flipped face-up.`;
-    case "position": return `${event.card} switches to ${event.position}.`;
-    case "fieldShift": return `${event.label} takes hold.`;
-    case "bounce": return `${event.card} returns to the hand.`;
-    case "win": return event.reason === "doubleKnockout"
-      ? "Both duelists hit zero at once — the duel is a draw."
-      : `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
+    case "phase":
+      return event.phase === "draw"
+        ? { ...base, text: `Turn ${event.turn} — ${who(state, event.side)}`, isTurnStart: true, turn: event.turn }
+        : { ...base, text: phaseName(event.phase), muted: true };
+
+    case "draw":
+      return { ...base, text: event.side === "player"
+        ? `draws ${event.card}` : `${who(state, event.side)} draws` };
+
+    case "summon": {
+      const how = event.how === "fusion" ? "Fusion Summons"
+        : event.how === "set" ? "sets a monster"
+          : event.how === "reborn" ? "revives" : "summons";
+      const name = event.how === "set" ? "" : ` ${event.card}`;
+      return { ...base, text: `${who(state, event.side)} ${how}${name}`,
+        detail: event.atk ? `${event.atk} ATK` : null };
+    }
+
+    case "set": return { ...base, text: `${who(state, event.side)} sets a ${event.kind}` };
+    case "activate":
+      return { ...base, text: `${who(state, event.side)} activates ${event.card}`,
+        detail: event.chainLink ? `Chain Link ${event.chainLink}` : null };
+
+    case "chainStart":
+      return { ...base, text: event.links > 1
+        ? `Chain of ${event.links} — resolving last to first` : "Chain" };
+
+    case "declare":
+      return { ...base, text: `${event.card} attacks ${event.target === "direct" ? "directly" : event.target}` };
+
+    // The arithmetic is the interesting part, so show it rather than a summary.
+    case "clash":
+      return { ...base,
+        text: `${event.attacker} ${event.attackerAtk} vs ${event.defender} ${event.defenderValue}`,
+        detail: outcome(event) };
+
+    case "damage":
+      return { ...base, text: `${who(state, event.side)} takes ${event.amount}`,
+        detail: `${event.lp} LP left` };
+
+    case "directAttack":
+      return { ...base, text: `Direct attack — ${event.damage}` };
+
+    case "destroy": return { ...base, text: `${event.card} is destroyed`, muted: true };
+    case "flip": return { ...base, text: `${event.card} is flipped face-up` };
+    case "position": return { ...base, text: `${event.card} switches to ${event.position}` };
+    case "fusion": return { ...base, text: `Fusion Summon: ${event.card}` };
+    case "dice": return { ...base, text: `Dice roll: ${event.roll}` };
+    case "hats": return { ...base, text: event.hit ? "The attack finds the real monster" : "The attack hits an empty hat" };
+    case "fieldShift": return { ...base, text: `${event.label} takes hold` };
+    case "bounce": return { ...base, text: `${event.card} returns to the hand`, muted: true };
+    case "win":
+      return { ...base, weight: "structural", text: event.reason === "doubleKnockout"
+        ? "Both duelists hit zero — a draw"
+        : `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}` };
     default: return null;
   }
 }
 
+function outcome(event) {
+  const { attackerAtk: a, defenderValue: d, defenderPosition } = event;
+  if (a > d) {
+    return defenderPosition === "attack" ? `→ ${a - d} damage` : "→ destroyed, no damage";
+  }
+  if (a < d) return `→ ${d - a} back at the attacker`;
+  return "→ both destroyed";
+}
 
-Object.assign(__exports, { renderZones, renderHand, renderDuelists, renderLifePoints, resetLifePointTracking, renderPhase, logEvent, describe, el, CARDS });
+const phaseName = (phase) => ({
+  standby: "Standby Phase", main1: "Main Phase 1", battle: "Battle Phase",
+  main2: "Main Phase 2", end: "End Phase",
+}[phase] ?? phase);
+
+/** Group lines into turns, newest turn first, so the log reads back sensibly. */
+function groupByTurn(lines) {
+  const turns = [];
+  for (const line of lines) {
+    if (line.isTurnStart || !turns.length) {
+      turns.push({ turn: line.turn, side: line.side, heading: line.isTurnStart ? line.text : `Turn ${line.turn}`, lines: [] });
+      if (line.isTurnStart) continue;
+    }
+    turns[turns.length - 1].lines.push(line);
+  }
+  return turns;
+}
+
+const dialogueLine = (name, text, turn) =>
+  ({ weight: "dialogue", text: `${name}: “${text}”`, turn, zones: [] });
+
+
+Object.assign(__exports, { lineFor, groupByTurn, WEIGHTS, dialogueLine, SUB_STEP_LABELS });
 });
 
 __def("src/cinema/storyboard.js", {"../cards/index.js":"src/cards/index.js","../duelists.js":"src/duelists.js","./world.js":"src/cinema/world.js"}, function (__exports, __req) {
@@ -6290,13 +6833,15 @@ function accentFor(cardId) {
 function createHoverPanel() {
   const panel = el("hover-card");
   let showing = null;
+  let pinned = false;
 
   function hide() {
     panel.hidden = true;
     showing = null;
+    pinned = false;
   }
 
-  function show(detail, cardId, anchor) {
+  function show(detail, cardId, anchor, whyNot) {
     panel.hidden = false;
     panel.style.setProperty("--hover-accent", accentFor(cardId));
     panel.innerHTML = "";
@@ -6331,6 +6876,13 @@ function createHoverPanel() {
       note.textContent = detail.note;
       panel.append(note);
     }
+    // The single most useful line on the panel: why a click will do nothing.
+    if (whyNot) {
+      const blocked = document.createElement("p");
+      blocked.className = "hover-blocked";
+      blocked.textContent = `Can't play — ${whyNot}.`;
+      panel.append(blocked);
+    }
     position(anchor);
     showing = cardId;
   }
@@ -6353,14 +6905,18 @@ function createHoverPanel() {
   return {
     hide,
     /** Show the panel for a card instance, unless it is a face-down enemy card. */
-    inspect(inst, side, anchor, state) {
+    inspect(inst, side, anchor, state, { whyNot = null, sticky = false } = {}) {
       if (!inst) return hide();
       // A face-down card you do not own stays a mystery.
       if (inst.faceDown && side !== "player") return hide();
-      if (showing === inst.uid) return;
-      show(describeCard(inst.cardId, { state, side, inst }), inst.cardId, anchor);
+      if (showing === inst.uid && !sticky) return;
+      show(describeCard(inst.cardId, { state, side, inst }), inst.cardId, anchor, whyNot);
       showing = inst.uid;
+      pinned = sticky;
     },
+    /** Pinned by a tap; a hover must not steal it away. */
+    get isPinned() { return pinned; },
+    unpin() { pinned = false; },
   };
 }
 
@@ -6603,6 +7159,174 @@ const replayLink = (recording, base = "") =>
   `${base}?duel=${encodeReplay(recording)}`;
 
 Object.assign(__exports, { applyStep, replay, turnMarkers, encodeReplay, decodeReplay, REPLAY_VERSION, record, replayLink });
+});
+
+__def("src/why-not.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duel-targets.js":"src/duel-targets.js"}, function (__exports, __req) {
+// Why a card in your hand will not respond to a click.
+//
+// A card that simply does nothing when clicked teaches nothing. Saying which
+// rule is in the way teaches the rules better than a tutorial would.
+
+const { getCard } = __req("./cards/index.js");
+const { canNormalSummon, isMainPhase, legalActions, requirementMet, tributesRequired } = __req("./duel-engine.js");
+const { monstersOn } = __req("./duel-state.js");
+const { needsChoice, targetOptions, targetSpecFor } = __req("./duel-targets.js");
+/**
+ * Null when the card's own action is available; otherwise the reason it is not.
+ *
+ * A Trap or Spell can almost always be *set*, so asking whether anything at all
+ * is legal answers the wrong question. The player wants to know why they cannot
+ * summon this monster or activate this spell.
+ */
+function whyNotPlayable(state, side, inst) {
+  if (!state || !inst) return null;
+  const card = getCard(inst.cardId);
+  const wanted = card.kind === "monster" ? "summon" : "activate";
+  const available = legalActions(state, side)
+    .some((action) => action.uid === inst.uid && action.type === wanted);
+  if (available) return null;
+  if (state.winner) return "the duel is over";
+  if (state.activeSide !== side) return "it is not your turn";
+  if (state.pending) return "there is a choice to answer first";
+  if (!isMainPhase(state)) {
+    return state.phase === "battle"
+      ? "cards are played in a Main Phase, not the Battle Phase"
+      : `cards are played in a Main Phase, not the ${state.phase} phase`;
+  }
+
+  if (card.kind === "monster") return whyNotMonster(state, side, card);
+  return whyNotSpell(state, side, card);
+}
+
+function whyNotMonster(state, side, card) {
+  if (card.fusion) return "Fusion Monsters are summoned with Polymerization, not from the hand";
+  if (card.noNormalSummon) return `${card.name} cannot be Normal Summoned`;
+  if (state.sides[side].normalSummonUsed) return "you have already Normal Summoned this turn";
+  if (monstersOn(state, side).length >= 5) return "your monster zones are full";
+
+  const need = tributesRequired(card);
+  if (need > 0) {
+    const have = monstersOn(state, side).length;
+    return have === 0
+      ? `Level ${card.level} needs ${need} tribute${need > 1 ? "s" : ""}, and you control none`
+      : `Level ${card.level} needs ${need} tributes; you control ${have}`;
+  }
+  return "it cannot be summoned right now";
+}
+
+function whyNotSpell(state, side, card) {
+  const s = state.sides[side];
+  if (card.kind === "trap") {
+    return s.backrow.every(Boolean)
+      ? "your spell and trap zones are full"
+      : "a Trap is set face-down and fires on its own trigger";
+  }
+  if (s.backrow.every(Boolean) && card.sub === "equip") return "your spell and trap zones are full";
+  if (!requirementMet(state, side, card)) return requirementText(card);
+
+  const spec = targetSpecFor(card);
+  if (spec && !targetOptions(state, side, spec, card).length) {
+    return `there is nothing for ${card.name} to target`;
+  }
+  if (card.effect?.op === "fusionSummon") return "you do not hold the materials for a Fusion Summon";
+  if (card.effect?.op === "revive") return "there is no monster in either Graveyard to revive";
+  if (card.effect?.op === "takeControl") {
+    return s.lp <= (card.effect.cost ?? 0)
+      ? `you cannot pay ${card.effect.cost} Life Points`
+      : "your opponent controls no monster to take";
+  }
+  if (card.effect?.op === "tokens" || card.effect?.op === "summonFromDeck") {
+    return "your monster zones are full";
+  }
+  return "it has no legal effect right now";
+}
+
+function requirementText(card) {
+  const required = card.effect?.requires;
+  const name = typeof required === "string" ? getCard(required)?.name : null;
+  return name ? `you need ${name} on the field` : "its requirement is not met";
+}
+
+/** Whether a click on this card in hand will do anything at all. */
+const isPlayable = (state, side, inst) => whyNotPlayable(state, side, inst) === null;
+
+
+Object.assign(__exports, { whyNotPlayable, isPlayable, needsChoice });
+});
+
+__def("src/attack-preview.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// What an attack will actually do, before it is declared.
+//
+// Undo is impossible in this game, so a preview is what replaces it. Every
+// number here comes from the same functions the engine uses to resolve the
+// battle, so the preview cannot promise something the engine will not deliver.
+
+const { getCard } = __req("./cards/index.js");
+const { effectiveStats, monstersOn, other } = __req("./duel-state.js");
+/**
+ * The outcome of an attack, worked out the way resolveBattle works it out.
+ * Returns null when the attack is not legal.
+ */
+function previewAttack(state, side, attackerUid, targetUid = null) {
+  const attacker = monstersOn(state, side).find((m) => m.uid === attackerUid);
+  if (!attacker) return null;
+  const foe = other(side);
+  const atk = effectiveStats(state, side, attacker).atk;
+  const attackerName = getCard(attacker.cardId).name;
+
+  if (!targetUid) {
+    return {
+      kind: "direct", attackerName, atk,
+      damage: atk, damageTo: foe,
+      verdict: `${atk} damage, straight through`,
+      tone: "good",
+    };
+  }
+
+  const defender = monstersOn(state, foe).find((m) => m.uid === targetUid);
+  if (!defender) return null;
+
+  // A face-down target is a gamble: its defence is not known until it flips.
+  if (defender.faceDown) {
+    return {
+      kind: "unknown", attackerName, atk, defenderName: "Face-down card",
+      verdict: "Face-down — its defence is unknown until it flips",
+      tone: "risky",
+    };
+  }
+
+  const stats = effectiveStats(state, foe, defender);
+  const inDefence = defender.position === "defense";
+  const wall = inDefence ? stats.def : stats.atk;
+  const defenderName = getCard(defender.cardId).name;
+  const base = { kind: "clash", attackerName, atk, defenderName, wall, inDefence };
+
+  if (atk > wall) {
+    return inDefence
+      ? { ...base, verdict: `${defenderName} destroyed, no damage`, tone: "good" }
+      : { ...base, damage: atk - wall, damageTo: foe,
+        verdict: `${defenderName} destroyed, ${atk - wall} damage`, tone: "good" };
+  }
+  if (atk < wall) {
+    const backlash = wall - atk;
+    return inDefence
+      ? { ...base, damage: backlash, damageTo: side,
+        verdict: `Blocked — ${backlash} damage back at you`, tone: "bad" }
+      : { ...base, damage: backlash, damageTo: side, losesAttacker: true,
+        verdict: `${attackerName} destroyed, ${backlash} damage back at you`, tone: "bad" };
+  }
+  return inDefence
+    ? { ...base, verdict: "Nothing happens — equal values", tone: "neutral" }
+    : { ...base, losesAttacker: true, verdict: "Both destroyed", tone: "neutral" };
+}
+
+/** True when the attack would end the duel in the attacker's favour. */
+function isLethal(state, side, preview) {
+  if (!preview?.damage || preview.damageTo === side) return false;
+  return state.sides[preview.damageTo].lp <= preview.damage;
+}
+
+Object.assign(__exports, { previewAttack, isLethal });
 });
 
 __def("src/duel-effects-active.js", {"./duelists.js":"src/duelists.js","./duel-engine.js":"src/duel-engine.js"}, function (__exports, __req) {

@@ -29,7 +29,9 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
@@ -89,13 +91,14 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 
 .arena-wrap {
   position: relative; z-index: 1;
+  flex: 1; min-height: 0;
   display: grid; grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 16px; padding: 16px clamp(12px, 3vw, 28px) 0;
-  align-items: start;
+  gap: 14px; padding: 12px clamp(12px, 3vw, 28px) 0;
+  align-items: stretch;
 }
 
 .arena {
-  position: relative; aspect-ratio: 16 / 9; width: 100%;
+  position: relative; width: 100%; height: 100%; min-height: 0;
   border: 1px solid var(--line); border-radius: var(--radius);
   overflow: hidden; box-shadow: var(--shadow); background: #070b18;
 }
@@ -179,6 +182,12 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 }
 .hover-stats .is-modified { color: var(--good); }
 .hover-text { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ink-dim); }
+.hover-blocked {
+  margin: 8px 0 0; font-size: 11px; line-height: 1.4;
+  color: var(--accent-warm); border-top: 1px solid rgba(244, 197, 49, 0.25); padding-top: 7px;
+}
+.hover-card { pointer-events: none; }
+.hover-card.is-pinned { pointer-events: auto; }
 .hover-note {
   margin: 8px 0 0; font-family: var(--mono); font-size: 9.5px;
   letter-spacing: 0.06em; color: var(--accent); text-transform: uppercase;
@@ -208,17 +217,21 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
    the arena height and the zones take their width from their card ratio. */
 .zones {
   position: absolute; z-index: 3; left: 50%; transform: translateX(-50%);
-  display: flex; justify-content: center; align-items: stretch;
-  gap: clamp(4px, 0.9vw, 10px); height: 15%; width: 88%;
+  display: flex; justify-content: center; align-items: center;
+  gap: clamp(4px, 0.9vw, 10px); height: 17%; width: 88%;
 }
-.zones--foe { top: 11%; }
-.zones--foe-monsters { top: 28%; }
-.zones--me-monsters { bottom: 28%; }
-.zones--me { bottom: 11%; }
+/* Monster zones are portrait and tall; spell and trap zones are short and wide.
+   A player should tell them apart peripherally, without reading a label. */
+.zone--monsters { height: 100%; aspect-ratio: 59 / 86; }
+.zone--backrow { height: 68%; aspect-ratio: 86 / 59; }
+.zones--foe { top: 9%; }
+.zones--foe-monsters { top: 27%; }
+.zones--me-monsters { bottom: 27%; }
+.zones--me { bottom: 9%; }
 
 .zone {
-  position: relative; height: 100%; flex: none;
-  aspect-ratio: 59 / 86; border-radius: 5px;
+  position: relative; flex: none; padding: 0; font: inherit; color: inherit;
+  border-radius: 5px;
   border: 1px dashed rgba(140, 190, 255, 0.38);
   background: rgba(18, 28, 54, 0.55);
   box-shadow: inset 0 0 12px rgba(90, 150, 220, 0.12);
@@ -238,6 +251,11 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .zone.is-defense { transform: rotate(-90deg) scale(0.84); }
 .zone.is-target { cursor: pointer; border-color: var(--danger); box-shadow: 0 0 16px -2px var(--danger); }
 .zone.is-ready { cursor: pointer; border-color: var(--accent-warm); box-shadow: 0 0 16px -2px var(--accent-warm); }
+/* While a target is being chosen, everything illegal recedes. */
+.zones.is-choosing .zone:not(.is-target) { opacity: 0.35; }
+.zone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 4; }
+.zone:disabled { cursor: default; }
+.zone.is-cited { border-color: var(--accent); box-shadow: 0 0 18px -2px var(--accent); }
 .zone.is-attacking { animation: lunge 0.45s ease; }
 @keyframes lunge {
   0%, 100% { transform: none; }
@@ -332,13 +350,40 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   background: var(--link-accent); color: #04121c;
 }
 
+/* ------------------------------------------------------------- attacks --- */
+
+.attack-arc { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+
+/* Undo is impossible in this game, so the preview is what replaces it. */
+.attack-preview {
+  position: absolute; z-index: 7; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); text-align: center;
+  padding: 14px 20px; border-radius: 10px; min-width: 260px;
+  background: rgba(5, 8, 18, 0.94); backdrop-filter: blur(8px);
+  border: 1px solid var(--preview-accent, var(--accent));
+  animation: caption-in 0.16s ease;
+}
+.preview-sum {
+  display: block; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.08em; color: var(--ink-faint); margin-bottom: 5px;
+}
+.attack-preview strong { display: block; font-size: 15px; color: var(--ink); line-height: 1.35; }
+.preview-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.attack-preview.is-good { --preview-accent: var(--good); }
+.attack-preview.is-bad { --preview-accent: var(--danger); }
+.attack-preview.is-risky { --preview-accent: var(--accent-warm); }
+.attack-preview.is-neutral { --preview-accent: var(--ink-faint); }
+.attack-preview.is-lethal strong { color: var(--good); }
+
 /* -------------------------------------------------------------- banter --- */
 
 .banter {
-  position: absolute; z-index: 6; left: 50%; bottom: 17%;
-  transform: translateX(-50%); width: min(660px, 80%);
+  position: absolute; z-index: 6; left: 50%; bottom: 50%;
+  /* The horizon band between the two boards is the only strip that never holds
+     a card. A subtitle anywhere else covers somebody's monsters. */
+  transform: translate(-50%, 50%); width: min(660px, 80%);
   padding: 9px 16px; border-radius: 10px;
-  /* Sits over the backrow like a subtitle: readable, but the board reads through. */
+  pointer-events: none;
   background: linear-gradient(180deg, rgba(5, 8, 18, 0.82), rgba(5, 8, 18, 0.62));
   box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.8);
   border: 1px solid var(--banter-accent, var(--line));
@@ -347,8 +392,8 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   animation: banter-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 @keyframes banter-in {
-  from { opacity: 0; transform: translate(-50%, 10px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from { opacity: 0; transform: translate(-50%, calc(50% + 10px)); }
+  to { opacity: 1; transform: translate(-50%, 50%); }
 }
 .banter-who {
   display: block; font-family: var(--mono); font-size: 9.5px;
@@ -358,6 +403,9 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .banter-text {
   margin: 0; font-size: clamp(13px, 1.5vw, 16px); line-height: 1.35;
   font-style: italic; color: var(--ink);
+  /* Two lines is the whole budget; a third would reach the monster rows. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .log li.is-banter {
@@ -368,9 +416,9 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 /* ---------------------------------------------------------------- side --- */
 
 .side {
-  display: flex; flex-direction: column; gap: 11px;
-  padding: 13px; border: 1px solid var(--line-soft); border-radius: var(--radius);
-  background: rgba(9, 13, 26, 0.6); max-height: calc(100vh - 150px);
+  display: flex; flex-direction: column; gap: 10px; min-height: 0;
+  padding: 12px; border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: rgba(9, 13, 26, 0.6); overflow: hidden;
 }
 .phase-turn {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -414,20 +462,49 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   letter-spacing: 0.16em; color: var(--ink-faint); text-transform: uppercase;
 }
 .log {
-  list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
-  font-size: 11.5px; display: flex; flex-direction: column; gap: 5px; min-height: 90px;
+  margin: 0; padding: 0; overflow-y: auto; flex: 1;
+  font-size: 11.5px; display: flex; flex-direction: column; gap: 6px; min-height: 0;
 }
-.log li {
-  padding: 5px 8px; border-radius: 5px; background: #101526;
-  border-left: 2px solid var(--line); color: var(--ink-dim);
+.log-turn { border-radius: 6px; overflow: hidden; background: #0d1220; }
+.log-turn > summary {
+  cursor: pointer; list-style: none; padding: 6px 9px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim);
+  background: #131a2e; border-left: 3px solid var(--turn-accent, var(--line));
 }
-.log li.is-me { border-left-color: var(--accent); }
-.log li.is-foe { border-left-color: var(--danger); }
-.log li.is-big { border-left-color: var(--accent-warm); color: var(--ink); font-weight: 600; }
+.log-turn > summary::-webkit-details-marker { display: none; }
+.log-turn > summary:hover { color: var(--ink); }
+.log-turn[open] > summary { color: var(--ink); }
+.log-lines { list-style: none; margin: 0; padding: 4px 0; display: flex; flex-direction: column; }
+
+/* Three weights: structural frames the turn, mechanical changes it, dialogue
+   colours it. They must not read as equally important. */
+.log-line { padding: 3px 10px; color: var(--ink-dim); line-height: 1.35; }
+.log-line.is-structural {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em;
+  color: var(--ink-faint); text-transform: uppercase;
+}
+.log-line.is-mechanical { color: var(--ink); }
+.log-line.is-dialogue { font-style: italic; color: var(--ink-dim); padding-left: 14px; }
+.log-line.is-muted { color: var(--ink-faint); }
+.log-line .log-detail { color: var(--accent-warm); font-family: var(--mono); font-size: 10px; }
+.log-line.is-linked { cursor: help; }
+.log-line.is-linked:hover { background: rgba(79, 201, 240, 0.08); }
+.log-line .log-chain {
+  font-family: var(--mono); font-size: 9px; color: var(--accent);
+  border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; margin-left: 5px;
+}
 
 /* ---------------------------------------------------------------- hand --- */
 
-.hand-rail { position: relative; z-index: 1; padding: 14px clamp(12px, 3vw, 28px) 24px; }
+/* The hand is the control surface: a fixed strip pinned to the bottom, never
+   below the fold. */
+.hand-rail {
+  position: relative; z-index: 1; flex: none;
+  padding: 10px clamp(12px, 3vw, 28px) 12px;
+  border-top: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(5, 6, 13, 0.4), rgba(5, 6, 13, 0.9));
+}
 .hand-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
 .hand-head h2 {
   margin: 0; font-family: var(--mono); font-size: 10px;
@@ -439,10 +516,10 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   margin-left: auto; font-family: var(--mono); font-size: 10px;
   letter-spacing: 0.06em; color: var(--good);
 }
-.hand { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 6px; }
+.hand { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 
 .card {
-  flex: none; width: 118px; padding: 8px; border-radius: 9px; cursor: pointer;
+  flex: none; width: 112px; padding: 7px; border-radius: 9px; cursor: pointer;
   background: linear-gradient(165deg, var(--bg-card), #0b0f1c);
   border: 1px solid var(--line); text-align: left;
   color: inherit; font: inherit;
@@ -453,7 +530,9 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   border-color: var(--card-accent, var(--accent));
   box-shadow: 0 10px 26px -8px var(--card-accent, var(--accent));
 }
-.card:disabled { opacity: 0.42; cursor: not-allowed; }
+.card.is-blocked { opacity: 0.45; }
+.card.is-blocked:hover { opacity: 0.75; transform: none; box-shadow: none; }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card-top { display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 5px; }
 .card-kind {
   font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em;
@@ -463,8 +542,8 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .card-name { font-size: 11.5px; font-weight: 600; line-height: 1.25; margin-bottom: 4px; }
 .card-stats { font-family: var(--mono); font-size: 9.5px; color: var(--ink-dim); }
 .card-text {
-  font-size: 9.5px; color: var(--ink-faint); line-height: 1.35; margin-top: 4px;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 9.5px; color: var(--ink-faint); line-height: 1.35; margin-top: 3px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
 /* --------------------------------------------------------------- modal --- */
@@ -520,13 +599,44 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .modal-body li { margin-bottom: 4px; }
 .modal-body code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
 
+/* Below 900px the board stacks and the side panel becomes a bottom sheet,
+   rather than the desktop layout scaled down until nothing is legible. */
 @media (max-width: 900px) {
-  .arena-wrap { grid-template-columns: minmax(0, 1fr); }
-  .side { max-height: none; }
-  .zones { width: 96%; height: 13%; gap: 4px; }
-  .duelist-bar { position: static; margin: 0; border-radius: 0; }
-  .arena { aspect-ratio: auto; min-height: 62vh; }
+  body { height: auto; min-height: 100vh; }
+  .arena-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 10px 0;
+  }
+  .arena { height: auto; aspect-ratio: 4 / 5; min-height: 58vh; }
+  .zones { width: 96%; height: 15%; gap: 4px; }
+  .zone--backrow { height: 62%; }
+  .duelist-bar { left: 6px; right: 6px; padding: 5px 8px; }
+  .duelist-id small { display: none; }
+  .counts { font-size: 9px; gap: 5px; }
+
+  .side {
+    position: sticky; bottom: 0; z-index: 20;
+    max-height: 42vh; border-radius: var(--radius) var(--radius) 0 0;
+    background: rgba(9, 13, 26, 0.96); backdrop-filter: blur(10px);
+    box-shadow: 0 -12px 32px -14px rgba(0, 0, 0, 0.9);
+  }
+  .phase { font-size: 7px; padding: 5px 1px; }
+  .hand-rail { padding: 8px 10px 10px; }
+  .card { width: 96px; }
+  .topbar { padding: 10px; gap: 8px; }
+  .topbar-actions { width: 100%; overflow-x: auto; }
+  .effect-rail { max-width: 128px; left: 6px; }
+  .chain-rail { flex-wrap: wrap; max-width: 92%; justify-content: center; }
+  .gy-columns { grid-template-columns: 1fr; }
 }
+/* Reduced motion removes the camera moves and cross-fades. The clips still
+   play: they are the content, not decoration. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .stage-media { transition: none; }
+  .orb { display: none; }
 }

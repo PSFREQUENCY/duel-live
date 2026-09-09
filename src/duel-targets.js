@@ -7,8 +7,7 @@
 // can never disagree about what is legal.
 
 import { getCard } from "./cards/index.js";
-import { effectiveStats, other } from "./duel-engine.js";
-import { monstersOn } from "./duel-state.js";
+import { effectiveStats, monstersOn, other } from "./duel-state.js";
 
 const isMonsterCard = (inst) => getCard(inst.cardId).kind === "monster";
 

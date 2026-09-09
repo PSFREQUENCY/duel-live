@@ -4,7 +4,9 @@
 import { CARDS, getCard } from "./cards/index.js";
 import { effectiveStats } from "./duel-engine.js";
 import { ATTRIBUTE_PALETTE } from "./cinema/procedural-stage.js";
+import { zoneId } from "./duel-board.js";
 import { DUELISTS, getMatchup } from "./duelists.js";
+import { groupByTurn } from "./duel-log.js";
 
 const el = (id) => document.getElementById(id);
 const KIND_LABEL = { monster: "MON", spell: "SPELL", trap: "TRAP" };
@@ -16,13 +18,20 @@ function accentFor(card) {
 }
 
 export function renderZones(state, side, container, {
-  onZoneClick, onZoneHover, targets = new Set(), ready = new Set(), row = "monsters",
+  onZoneClick, onZoneHover, onZoneInspect,
+  targets = new Set(), ready = new Set(), row = "monsters",
 }) {
+  container.classList.toggle("is-choosing", targets.size > 0);
   container.innerHTML = "";
   state.sides[side][row].forEach((inst, index) => {
-    const zone = document.createElement("div");
-    zone.className = "zone";
+    // A real button: focusable, activatable by keyboard, and announced.
+    const zone = document.createElement("button");
+    zone.type = "button";
+    zone.className = `zone zone--${row}`;
     zone.dataset.index = String(index);
+    zone.dataset.zone = zoneId(side, row === "monsters" ? "mon" : "st", index);
+    zone.dataset.side = side;
+    if (inst) zone.dataset.uid = inst.uid;
     if (inst) {
       const card = getCard(inst.cardId);
       zone.classList.add("is-filled");
@@ -44,7 +53,8 @@ export function renderZones(state, side, container, {
           zone.append(stat);
         }
       }
-      const canAct = ready.has(inst.uid);
+      const canAct = ready.has(inst.uid) || targets.has(inst.uid);
+      zone.setAttribute("aria-label", ariaFor(state, side, inst, row, index, canAct));
       zone.title = inst.faceDown
         ? (canAct ? "Face-down — click to flip into Attack Position" : "Face-down card")
         : `${card.name}${card.kind === "monster" ? ` — ${card.atk}/${card.def}` : ""}`
@@ -53,13 +63,41 @@ export function renderZones(state, side, container, {
       if (onZoneHover) {
         zone.addEventListener("pointerenter", () => onZoneHover(inst, side, zone));
         zone.addEventListener("pointerleave", () => onZoneHover(null, side, zone));
+        zone.addEventListener("focus", () => onZoneHover(inst, side, zone));
       }
+      // A touch screen has no hover, so a long press pins the panel instead.
+      if (onZoneInspect) {
+        zone.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          onZoneInspect(inst, side, zone);
+        });
+      }
+    }
+    if (!inst) {
+      zone.disabled = true;
+      zone.setAttribute("aria-label",
+        `Empty ${row === "monsters" ? "monster" : "spell and trap"} zone ${index + 1}`);
     }
     container.append(zone);
   });
 }
 
-export function renderHand(state, container, { onPlay, actions }) {
+// What a screen reader says about a zone: whose it is, what is in it, and
+// whether it can be acted on right now.
+function ariaFor(state, side, inst, row, index, canAct) {
+  const owner = DUELISTS[state.sides[side].duelistId]?.name ?? side;
+  const place = `${row === "monsters" ? "monster" : "spell and trap"} zone ${index + 1}`;
+  if (inst.faceDown) {
+    return `${owner}, ${place}: face-down card${canAct ? ", activatable" : ""}`;
+  }
+  const card = getCard(inst.cardId);
+  const stats = card.kind === "monster"
+    ? `, ${effectiveStats(state, side, inst).atk} attack, ${inst.position === "attack" ? "attack" : "defence"} position`
+    : "";
+  return `${owner}, ${place}: ${card.name}${stats}${canAct ? ", selectable" : ""}`;
+}
+
+export function renderHand(state, container, { onPlay, onInspect, actions, whyNot }) {
   container.innerHTML = "";
   const byUid = new Map();
   for (const action of actions) {
@@ -72,7 +110,6 @@ export function renderHand(state, container, { onPlay, actions }) {
     const button = document.createElement("button");
     button.className = "card";
     button.type = "button";
-    button.disabled = options.length === 0;
     button.style.setProperty("--card-accent", accentFor(card));
     button.innerHTML = `
       <div class="card-top">
@@ -86,7 +123,18 @@ export function renderHand(state, container, { onPlay, actions }) {
     button.querySelector(".card-stats").textContent = card.kind === "monster"
       ? `${card.atk} ATK / ${card.def} DEF` : `${card.sub ?? ""}`.toUpperCase();
     button.querySelector(".card-text").textContent = card.text ?? card.art ?? "";
-    if (options.length) button.addEventListener("click", () => onPlay(inst, options));
+    // Why a card will not respond is the most useful thing the panel can say.
+    const blocked = options.length ? null : whyNot?.(inst);
+    button.disabled = false;              // a click must still explain itself
+    button.classList.toggle("is-blocked", Boolean(blocked));
+    button.setAttribute("aria-label",
+      `${card.name}${blocked ? `, unplayable: ${blocked}` : ", playable"}`);
+    button.addEventListener("click", () => onPlay(inst, options, blocked));
+    if (onInspect) {
+      button.addEventListener("pointerenter", () => onInspect(inst, button, blocked));
+      button.addEventListener("pointerleave", () => onInspect(null, button, null));
+      button.addEventListener("focus", () => onInspect(inst, button, blocked));
+    }
     container.append(button);
   }
 }
@@ -149,48 +197,53 @@ export function renderPhase(phase, { locked = [] } = {}) {
   }
 }
 
-const BIG = new Set(["win", "fusion", "directAttack"]);
+/**
+ * Render the log as collapsible turns, newest first, with the current turn open.
+ * Rebuilt wholesale each time: the list is short and correctness beats a diff.
+ */
+export function renderLog(container, lines, { onHighlight } = {}) {
+  const turns = groupByTurn(lines);
+  container.innerHTML = "";
 
-export function logEvent(list, event, state) {
-  const text = describe(event, state);
-  if (!text) return;
-  const li = document.createElement("li");
-  li.textContent = text;
-  li.classList.add(event.side === "player" ? "is-me" : "is-foe");
-  if (BIG.has(event.type)) li.classList.add("is-big");
-  list.prepend(li);
-  while (list.children.length > 60) list.lastChild.remove();
-}
+  for (const [i, turn] of [...turns].reverse().entries()) {
+    const block = document.createElement("details");
+    block.className = "log-turn";
+    block.open = i === 0;                    // the turn being played stays open
+    block.style.setProperty("--turn-accent",
+      turn.side === "player" ? "var(--accent)" : "var(--danger)");
 
-function who(state, side) {
-  return DUELISTS[state.sides[side]?.duelistId]?.name ?? side;
-}
+    const heading = document.createElement("summary");
+    heading.textContent = turn.heading;
+    const list = document.createElement("ul");
+    list.className = "log-lines";
 
-export function describe(event, state) {
-  const name = who(state, event.side);
-  switch (event.type) {
-    case "phase": return event.phase === "draw" ? `— Turn ${event.turn}: ${name} —` : null;
-    case "draw": return event.side === "player" ? `${name} draws ${event.card}.` : `${name} draws.`;
-    case "summon": return `${name} ${event.how === "fusion" ? "Fusion Summons" : event.how === "set" ? "sets a monster" : "summons"}${event.how === "set" ? "" : ` ${event.card}`}.`;
-    case "set": return `${name} sets a ${event.kind}.`;
-    case "activate": return `${name} activates ${event.card}.`;
-    case "declare": return `${event.card} attacks ${event.target === "direct" ? "directly" : event.target}.`;
-    case "clash": return `${event.attacker} (${event.attackerAtk}) meets ${event.defender} (${event.defenderValue}).`;
-    case "destroy": return `${event.card} is destroyed.`;
-    case "damage": return `${who(state, event.side)} takes ${event.amount} damage → ${event.lp} LP.`;
-    case "directAttack": return `Direct attack! ${event.damage} damage.`;
-    case "fusion": return `Fusion Summon: ${event.card}!`;
-    case "dice": return `Dice roll: ${event.roll}.`;
-    case "hats": return event.hit ? "The attack finds the real monster." : "The attack hits an empty hat.";
-    case "flip": return `${event.card} is flipped face-up.`;
-    case "position": return `${event.card} switches to ${event.position}.`;
-    case "fieldShift": return `${event.label} takes hold.`;
-    case "bounce": return `${event.card} returns to the hand.`;
-    case "win": return event.reason === "doubleKnockout"
-      ? "Both duelists hit zero at once — the duel is a draw."
-      : `${who(state, event.side)} wins — ${event.reason === "deckout" ? "deck out" : "life points depleted"}.`;
-    default: return null;
+    for (const line of turn.lines) {
+      const row = document.createElement("li");
+      row.className = `log-line is-${line.weight}${line.muted ? " is-muted" : ""}`;
+      row.append(document.createTextNode(line.text));
+      if (line.detail) {
+        const detail = document.createElement("span");
+        detail.className = "log-detail";
+        detail.textContent = `  ${line.detail}`;
+        row.append(detail);
+      }
+      if (line.chainLink) {
+        const link = document.createElement("span");
+        link.className = "log-chain";
+        link.textContent = `CL${line.chainLink}`;
+        row.append(link);
+      }
+      if (onHighlight && line.zones?.length) {
+        row.classList.add("is-linked");
+        row.addEventListener("pointerenter", () => onHighlight(line.zones));
+        row.addEventListener("pointerleave", () => onHighlight([]));
+      }
+      list.append(row);
+    }
+    block.append(heading, list);
+    container.append(block);
   }
+  container.scrollTop = 0;
 }
 
 export { el, CARDS };

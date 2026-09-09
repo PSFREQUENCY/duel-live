@@ -51,16 +51,29 @@ test("the voice toggle flips both label and aria state", async () => {
 });
 
 test("advancing phases drives the duel forward through real turns", async () => {
+  // An attack now asks for confirmation first, so answer any preview that opens.
+  const confirmAnyAttack = async () => {
+    if (node("attack-preview").hidden === false) {
+      await fire("preview-confirm");
+      await settle(90);
+    }
+  };
   const startTurn = node("turn-counter").textContent;
   for (let i = 0; i < 14; i += 1) {
     await fire("advance-btn");
     await settle(90);
+    await confirmAnyAttack();
   }
   const turn = Number(node("turn-counter").textContent);
   assert.ok(turn > Number(startTurn), `turn counter stuck at ${turn}`);
   const lp = Number(node("me-lp").textContent) + Number(node("foe-lp").textContent);
   assert.ok(lp < 16000, "after 14 phase advances someone should have taken damage");
-  assert.ok(node("log").children.length > 5, "the duel log should be filling up");
+  // The log groups by turn, so its children are turn blocks; count the lines
+  // inside them rather than the blocks.
+  const logLines = node("log").children
+    .flatMap((turn) => turn.children.flatMap((child) => child.children ?? []));
+  assert.ok(node("log").children.length >= 2, "the log should have several turns by now");
+  assert.ok(logLines.length > 5, "and those turns should contain lines");
 });
 
 test("switching to the second duel reseats both duelists", async () => {

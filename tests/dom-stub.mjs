@@ -87,6 +87,7 @@ export function installGlobals({
   globalThis.document = {
     getElementById: (id) => nodes.get(id) ?? null,
     createElement: () => makeNode(),
+    createTextNode: (text) => ({ textContent: String(text), nodeType: 3 }),
     querySelectorAll: (sel) => (sel === ".phase" ? phaseNodes : []),
     addEventListener(type, fn) { listeners.set(`document:${type}`, fn); },
   };

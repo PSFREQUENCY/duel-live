@@ -18,13 +18,15 @@ function accentFor(cardId) {
 export function createHoverPanel() {
   const panel = el("hover-card");
   let showing = null;
+  let pinned = false;
 
   function hide() {
     panel.hidden = true;
     showing = null;
+    pinned = false;
   }
 
-  function show(detail, cardId, anchor) {
+  function show(detail, cardId, anchor, whyNot) {
     panel.hidden = false;
     panel.style.setProperty("--hover-accent", accentFor(cardId));
     panel.innerHTML = "";
@@ -59,6 +61,13 @@ export function createHoverPanel() {
       note.textContent = detail.note;
       panel.append(note);
     }
+    // The single most useful line on the panel: why a click will do nothing.
+    if (whyNot) {
+      const blocked = document.createElement("p");
+      blocked.className = "hover-blocked";
+      blocked.textContent = `Can't play — ${whyNot}.`;
+      panel.append(blocked);
+    }
     position(anchor);
     showing = cardId;
   }
@@ -81,14 +90,18 @@ export function createHoverPanel() {
   return {
     hide,
     /** Show the panel for a card instance, unless it is a face-down enemy card. */
-    inspect(inst, side, anchor, state) {
+    inspect(inst, side, anchor, state, { whyNot = null, sticky = false } = {}) {
       if (!inst) return hide();
       // A face-down card you do not own stays a mystery.
       if (inst.faceDown && side !== "player") return hide();
-      if (showing === inst.uid) return;
-      show(describeCard(inst.cardId, { state, side, inst }), inst.cardId, anchor);
+      if (showing === inst.uid && !sticky) return;
+      show(describeCard(inst.cardId, { state, side, inst }), inst.cardId, anchor, whyNot);
       showing = inst.uid;
+      pinned = sticky;
     },
+    /** Pinned by a tap; a hover must not steal it away. */
+    get isPinned() { return pinned; },
+    unpin() { pinned = false; },
   };
 }
 

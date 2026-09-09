@@ -8,6 +8,11 @@ import { prefetch, resolve } from "./free-video.js";
 import { speak, stopVoice } from "./realtime-voice.js";
 
 const byName = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
+
+// A viewer who has asked for less motion gets the clips without the camera
+// moves: the footage is the content, the drift and bob are decoration.
+const reducedMotion = () =>
+  globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
 const FACE_DOWN = { id: "facedown", attribute: "DARK", type: "Fiend", name: "?" };
 const card = (name) => byName[name] ?? FACE_DOWN;
 
@@ -187,14 +192,16 @@ export function createCinema({ canvas, still, video, caption, getState, accents,
     try {
       const state = getState();
       const [a, b] = accents();
-      drawArena(ctx, canvas.width, canvas.height, { accentA: a, accentB: b, t: now });
-      if (state) drawBoard(ctx, state, current, now);
+      // A frozen clock stops the arena drifting and the holograms bobbing.
+      const clock = reducedMotion() ? 0 : now;
+      drawArena(ctx, canvas.width, canvas.height, { accentA: a, accentB: b, t: clock });
+      if (state) drawBoard(ctx, state, current, clock);
       if (current) {
         const p = Math.min(1, (now - startedAt) / current.durationMs);
-        if (state) drawShotFx(ctx, current.shot, p, now);
+        if (state) drawShotFx(ctx, current.shot, p, clock);
         if (p >= 1) finishShot();
       }
-      drawScanlines(ctx, canvas.width, canvas.height, now);
+      drawScanlines(ctx, canvas.width, canvas.height, clock);
     } catch (error) {
       drawFailures += 1;
       if (drawFailures === 1) console.warn("cinema draw failed; continuing", error);
