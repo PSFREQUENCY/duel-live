@@ -130,9 +130,14 @@ export function resetLifePointTracking() {
   lastLp.opponent = null;
 }
 
-export function renderPhase(phase) {
+export function renderPhase(phase, { locked = [] } = {}) {
+  const order = ["draw", "standby", "main1", "battle", "main2", "end"];
+  const at = order.indexOf(phase);
   for (const node of document.querySelectorAll(".phase")) {
+    const index = order.indexOf(node.dataset.phase);
     node.classList.toggle("is-now", node.dataset.phase === phase);
+    node.classList.toggle("is-past", index >= 0 && index < at);
+    node.classList.toggle("is-locked", locked.includes(node.dataset.phase));
   }
 }
 

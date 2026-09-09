@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  applyAction, createDuel, defaultTributes, endTurn, respondToTribute, tributesCover,
+  applyAction, createDuel, defaultTributes, endTurn, respondToDiscard,
+  respondToTribute, tributesCover,
 } from "../src/duel-engine.js";
 import { activeEffects, effectSummary } from "../src/duel-effects-active.js";
 import { applyEffect } from "../src/duel-effects.js";
@@ -112,12 +113,20 @@ test("the counter ticks down with the turns, and the effect leaves when it expir
   applyEffect(state, "player", CARDS.swordsOfRevealingLight.effect, ctx());
   const left = () => activeEffects(state, "player").find((e) => e.id.startsWith("swords"))?.turnsLeft ?? 0;
 
+  // A full hand pauses the End Phase on a discard choice; answer it and move on.
+  const pass = (start) => {
+    let next = endTurn(start).state;
+    if (next.pending?.kind === "discard") {
+      next = respondToDiscard(next, next.pending.options.slice(0, next.pending.need)).state;
+    }
+    return next;
+  };
   assert.equal(left(), 3);
-  state = endTurn(state).state;            // opponent's turn — the locked side
+  state = pass(state);                     // opponent's turn — the locked side
   assert.equal(left(), 2);
-  state = endTurn(endTurn(state).state).state;
+  state = pass(pass(state));
   assert.equal(left(), 1);
-  state = endTurn(endTurn(state).state).state;
+  state = pass(pass(state));
   assert.equal(
     activeEffects(state, "player").some((e) => e.id.startsWith("swords")), false,
     "an expired effect must disappear from the rail, not sit at zero",

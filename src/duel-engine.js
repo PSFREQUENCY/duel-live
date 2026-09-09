@@ -6,6 +6,7 @@ import {
   applyEffect, dealDamage, findFusion, placeMonster, sendToGraveyard,
 } from "./duel-effects.js";
 import { autoTargets, needsChoice, targetOptions, targetSpecFor } from "./duel-targets.js";
+import { autoAdvance, canTransition, PHASES as PHASE_ORDER } from "./duel-phases.js";
 import {
   cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone,
   monstersOn, mulberry32, other, SIDES,
@@ -13,7 +14,7 @@ import {
 
 export { createDuel, SIDES, other, effectiveStats, cardOf };
 
-const PHASES = ["draw", "main1", "battle", "end"];
+export { PHASES, PHASE_LABELS, canEnterBattlePhase, nextPhases } from "./duel-phases.js";
 const clone = (state) => structuredClone(state);
 
 function rngFor(state) {
@@ -146,8 +147,36 @@ function actSummon(state, side, action, ctx) {
   completeSummon(state, side, inst, action, ctx);
 }
 
+/** Finish the End Phase once the player has chosen what to discard. */
+export function respondToDiscard(state, uids) {
+  const next = clone(state);
+  const pending = next.pending;
+  if (!pending || pending.kind !== "discard") return { state: next, events: [] };
+  const chosen = uids ?? [];
+  if (chosen.length !== pending.need) return { state: next, events: [] };
+
+  next.pending = null;
+  const ctx = newCtx(next);
+  const hand = next.sides[pending.side].hand;
+  for (const uid of chosen) {
+    const index = hand.findIndex((c) => c.uid === uid);
+    if (index >= 0) sendToGraveyard(next, pending.side, hand.splice(index, 1)[0], ctx, "handLimit");
+  }
+  return finishTurn(next, ctx);
+}
+
+function finishTurn(next, ctx) {
+  endOfTurnCleanup(next, ctx);
+  next.activeSide = other(next.activeSide);
+  next.turn += 1;
+  next.phase = "draw";
+  startTurn(next, ctx);
+  checkWin(next, ctx);
+  return { state: next, events: ctx.events };
+}
+
 /** Finish an activation the player paused to choose targets for. */
-export function respondToTarget(state, uids) {
+export function respondToTarget(state, uids, { position } = {}) {
   const next = clone(state);
   const pending = next.pending;
   if (!pending || pending.kind !== "target") return { state: next, events: [] };
@@ -163,6 +192,7 @@ export function respondToTarget(state, uids) {
     ?? s.backrow.find((c) => c && c.uid === pending.activateUid);
   if (!held) return { state: next, events: ctx.events };
   const card = cardOf(held);
+  ctx.position = position === "defense" ? "defense" : "attack";
   actActivateResolved(next, side, { uid: pending.activateUid, targets: chosen }, ctx, targetSpecFor(card), card);
   checkWin(next, ctx);
   return { state: next, events: ctx.events };
@@ -193,6 +223,7 @@ function actSetBackrow(state, side, action, ctx) {
   if (zone < 0) return;
   const inst = s.hand.splice(s.hand.findIndex((c) => c.uid === action.uid), 1)[0];
   inst.faceDown = true;
+  inst.setOnTurn = state.turn;
   s.backrow[zone] = inst;
   ctx.events.push({ type: "set", side, kind: cardOf(inst).kind });
 }
@@ -209,6 +240,7 @@ function actActivate(state, side, action, ctx) {
     state.pending = {
       kind: "target", side, activateUid: action.uid, card: card.name,
       prompt: spec.prompt, need: spec.count, optional: Boolean(spec.optional),
+      choosePosition: Boolean(spec.choosePosition),
       options: targetOptionsFor(state, side, card),
     };
     return;
@@ -227,6 +259,7 @@ function actActivateResolved(state, side, action, ctx, spec, card) {
   const inst = fromHand >= 0 ? s.hand.splice(fromHand, 1)[0] : s.backrow.find((c) => c && c.uid === action.uid);
   if (!inst) return;
   ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text });
+  ctx.sourceUid = inst.uid;
   ctx.targets = action.targets ?? (spec && !spec.after ? autoTargets(state, side, spec, card) : null);
   if (card.sub === "equip") {
     const zone = fromHand >= 0 ? emptyBackrowZone(state, side) : s.backrow.indexOf(inst);
@@ -379,6 +412,8 @@ function actAttack(state, side, action, ctx) {
 export function trapWindow(state, side, trigger) {
   return state.sides[side].backrow.filter((inst) => {
     if (!inst || !inst.faceDown) return false;
+    // A trap set this turn cannot be activated this turn.
+    if (inst.setOnTurn !== undefined && inst.setOnTurn >= state.turn) return false;
     const card = cardOf(inst);
     return card.kind === "trap" && card.trigger === trigger;
   });
@@ -399,9 +434,14 @@ function endOfTurnCleanup(state, ctx) {
         if (zone >= 0) home.monsters[zone] = inst; else home.graveyard.push(inst);
       }
     }
-    while (s.hand.length > 6) sendToGraveyard(state, side, s.hand.pop(), ctx, "handLimit");
   }
 }
+
+export const HAND_LIMIT = 6;
+
+/** How many cards the turn player must discard, if any. */
+export const excessHand = (state, side = state.activeSide) =>
+  Math.max(0, state.sides[side].hand.length - HAND_LIMIT);
 
 function startTurn(state, ctx) {
   const side = state.activeSide;
@@ -415,11 +455,15 @@ function startTurn(state, ctx) {
     inst.positionChanged = false;
     inst.bound = false;
   }
+  state.phase = "draw";
   ctx.events.push({ type: "phase", phase: "draw", side, turn: state.turn });
   const card = drawInto(s);
   if (!card) { finish(state, other(side), "deckout", ctx); return; }
   ctx.events.push({ type: "draw", side, card: cardOf(card).name, uid: card.uid });
+  state.phase = "standby";
+  ctx.events.push({ type: "phase", phase: "standby", side, turn: state.turn });
   state.phase = "main1";
+  ctx.events.push({ type: "phase", phase: "main1", side, turn: state.turn });
 }
 
 function finish(state, winner, reason, ctx) {
@@ -438,20 +482,35 @@ function checkWin(state, ctx) {
 export function endTurn(state) {
   const next = clone(state);
   const ctx = newCtx(next);
-  endOfTurnCleanup(next, ctx);
-  next.activeSide = other(next.activeSide);
-  next.turn += 1;
-  next.phase = "draw";
-  startTurn(next, ctx);
-  checkWin(next, ctx);
-  return { state: next, events: ctx.events };
+  const side = next.activeSide;
+
+  // Which cards go is the player's decision, so pause and ask.
+  if (excessHand(next, side) > 0) {
+    next.pending = {
+      kind: "discard", side, need: excessHand(next, side),
+      options: next.sides[side].hand.map((c) => c.uid),
+    };
+    return { state: next, events: ctx.events };
+  }
+  return finishTurn(next, ctx);
 }
 
 export function setPhase(state, phase) {
-  if (!PHASES.includes(phase)) throw new Error(`Unknown phase: ${phase}`);
+  if (!PHASE_ORDER.includes(phase)) throw new Error(`Unknown phase: ${phase}`);
   const next = clone(state);
+  if (!canTransition(next, phase)) {
+    return { state: next, events: [], refused: `cannot move from ${next.phase} to ${phase}` };
+  }
   next.phase = phase;
-  return { state: next, events: [{ type: "phase", phase, side: next.activeSide, turn: next.turn }] };
+  const events = [{ type: "phase", phase, side: next.activeSide, turn: next.turn }];
+  // Draw and Standby are bookkeeping, not decisions; walk through them.
+  let auto = autoAdvance(next);
+  while (auto) {
+    next.phase = auto;
+    events.push({ type: "phase", phase: auto, side: next.activeSide, turn: next.turn });
+    auto = autoAdvance(next);
+  }
+  return { state: next, events };
 }
 
 const HANDLERS = {
@@ -518,11 +577,13 @@ export function respondToTrapWindow(state, choiceUid) {
 
 // ------------------------------------------------------------ legal moves ---
 
+export const isMainPhase = (state) => state.phase === "main1" || state.phase === "main2";
+
 export function legalActions(state, side = state.activeSide) {
   if (state.winner || state.pending) return [];
   const s = state.sides[side];
   const out = [];
-  if (state.phase === "main1") {
+  if (isMainPhase(state)) {
     for (const inst of s.hand) {
       const card = cardOf(inst);
       if (card.kind === "monster") {
@@ -537,6 +598,18 @@ export function legalActions(state, side = state.activeSide) {
         out.push({ type: "setBackrow", uid: inst.uid, label: `Set ${card.name}` });
       }
     }
+    // A Spell set face-down is still yours to use. Without this a set Dark Hole
+    // sits in the backrow for the rest of the duel.
+    for (const inst of s.backrow) {
+      if (!inst || !inst.faceDown) continue;
+      const card = cardOf(inst);
+      if (card.kind !== "spell") continue;
+      // Quick-Play Spells cannot be activated the turn they were Set.
+      if (card.sub === "quick" && inst.setOnTurn !== undefined && inst.setOnTurn >= state.turn) continue;
+      if (!playableSpell(state, side, inst)) continue;
+      out.push({ type: "activate", uid: inst.uid, label: `Activate ${card.name}` });
+    }
+
     for (const inst of monstersOn(state, side)) {
       if (!canChangePosition(state, side, inst)) continue;
       const label = inst.faceDown

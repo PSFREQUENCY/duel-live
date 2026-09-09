@@ -4,8 +4,10 @@
 import { getCard } from "./cards/index.js";
 import {
   applyAction, createDuel, endTurn, legalActions, positionBlockedBecause,
-  respondToTarget, respondToTrapWindow, respondToTribute, setPhase, trapWindow, tributesCover,
+  respondToDiscard, respondToTarget, respondToTrapWindow, respondToTribute,
+  setPhase, trapWindow, tributesCover,
 } from "./duel-engine.js";
+import { nextPhases, PHASE_LABELS } from "./duel-phases.js";
 import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
 import { createCinema } from "./cinema/player.js";
@@ -68,7 +70,8 @@ function renderAll() {
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
-  renderPhase(state.phase);
+  renderPhase(state.phase, { locked: lockedPhases() });
+  renderPhaseNote();
 
   const mine = myTurn() ? legalActions(state, "player") : [];
   // Monsters you can act on right now: attack in the Battle Phase, reposition
@@ -129,9 +132,9 @@ const repositionable = (actions) =>
 
 function updateControls(mine) {
   const over = Boolean(state.winner);
-  ui.advance.disabled = busy || over || !myTurn();
-  ui.advance.textContent = over ? "Duel over"
-    : state.phase === "main1" ? "To Battle Phase" : "End turn";
+  const step = nextStep();
+  ui.advance.disabled = busy || over || !myTurn() || !step;
+  ui.advance.textContent = over ? "Duel over" : (step?.label ?? "End turn");
   ui.skip.hidden = !cinema.busy;
   ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
@@ -146,6 +149,48 @@ function updateControls(mine) {
 }
 
 const myTurn = () => state && state.activeSide === "player" && !state.winner;
+
+// The next phase the player may move to, read from the transition table so the
+// button can never offer a move the engine would refuse.
+// Main 2 is unreachable once the Battle Phase has been skipped, and there is no
+// Battle Phase at all on turn 1.
+function lockedPhases() {
+  if (!state) return [];
+  const locked = [];
+  if (state.phase === "main1" && !nextPhases(state).some((e) => e.to === "battle" && e.allowed)) {
+    locked.push("battle", "main2");
+  } else if (state.phase === "end" || state.phase === "main2") {
+    // nothing further to lock
+  } else if (state.phase === "main1") {
+    locked.push("main2");
+  }
+  return locked;
+}
+
+function renderPhaseNote() {
+  const note = el("phase-note");
+  if (!state || state.winner) { note.textContent = ""; return; }
+  if (!myTurn()) { note.textContent = "Opponent's turn."; return; }
+  const legal = legalActions(state, "player");
+  const kinds = new Set(legal.map((a) => a.type));
+  const parts = [];
+  if (kinds.has("summon") || kinds.has("set")) parts.push("summon or set a monster");
+  if (kinds.has("activate")) parts.push("activate a card");
+  if (kinds.has("setBackrow")) parts.push("set a spell or trap");
+  if (kinds.has("position")) parts.push("change a monster's position");
+  if (kinds.has("attack")) parts.push("declare an attack");
+  note.textContent = parts.length
+    ? `You may ${parts.join(", ")}.`
+    : "Nothing to do here — advance the phase.";
+}
+
+function nextStep() {
+  if (!state) return null;
+  const edges = nextPhases(state).filter((edge) => edge.allowed);
+  const forward = edges.find((edge) => edge.to !== "draw");
+  if (!forward) return { to: "draw", label: "End turn", endsTurn: true };
+  return { ...forward, label: forward.to === "end" ? "To End Phase" : `To ${PHASE_LABELS[forward.to]}` };
+}
 
 // A click that legitimately does nothing still has to say why, or the game
 // looks broken. Restores whatever the hint line was showing afterwards.
@@ -282,11 +327,20 @@ function settle(capMs = SETTLE_CAP_MS) {
 }
 
 async function maybePending() {
-  while (state.pending?.kind === "target") {
+  while (state.pending?.kind === "discard") {
     const uids = state.pending.side === "player"
+      ? await askDiscard(state.pending)
+      : state.sides[state.pending.side].hand.slice(0, state.pending.need).map((c) => c.uid);
+    const result = respondToDiscard(state, uids);
+    state = result.state;
+    present(result.events);
+    await settle();
+  }
+  while (state.pending?.kind === "target") {
+    const answer = state.pending.side === "player"
       ? await askTargets(state.pending)
-      : chooseTargets(state);
-    const result = respondToTarget(state, uids);
+      : { uids: chooseTargets(state), position: "attack" };
+    const result = respondToTarget(state, answer.uids, { position: answer.position });
     state = result.state;
     present(result.events);
     await settle();
@@ -572,7 +626,9 @@ function askChoice(question, choices) {
 function askTargets(pending) {
   return new Promise((done) => {
     const picks = [];
-    const finish = (uids) => { ui.prompt.hidden = true; renderAll(); done(uids); };
+    const finish = (uids, position = "attack") => {
+      ui.prompt.hidden = true; renderAll(); done({ uids, position });
+    };
     const paint = () => {
       ui.prompt.hidden = false;
       ui.promptText.textContent = `${pending.card} — ${pending.prompt}`
@@ -589,17 +645,34 @@ function askTargets(pending) {
         button.addEventListener("click", () => {
           if (chosen) picks.splice(picks.indexOf(option.uid), 1);
           else if (picks.length < pending.need) picks.push(option.uid);
-          if (picks.length === pending.need && pending.need === 1) finish(picks.slice());
-          else paint();
+          // A special summon still has a position to choose, so never skip
+          // straight to resolving.
+          if (picks.length === pending.need && pending.need === 1 && !pending.choosePosition) {
+            finish(picks.slice());
+          } else paint();
         });
         ui.promptActions.append(button);
       }
-      if (pending.need > 1 || pending.optional) {
+      const ready = pending.optional || picks.length === pending.need;
+      if (pending.choosePosition) {
+        for (const [text, position] of [
+          ["Summon in Attack Position", "attack"],
+          ["Summon in Defence Position", "defense"],
+        ]) {
+          const button = document.createElement("button");
+          button.className = "btn btn-accent";
+          button.type = "button";
+          button.textContent = text;
+          button.disabled = !ready;
+          button.addEventListener("click", () => finish(picks.slice(), position));
+          ui.promptActions.append(button);
+        }
+      } else if (pending.need > 1 || pending.optional) {
         const confirm = document.createElement("button");
         confirm.className = "btn btn-accent";
         confirm.type = "button";
         confirm.textContent = "Confirm";
-        confirm.disabled = !pending.optional && picks.length !== pending.need;
+        confirm.disabled = !ready;
         confirm.addEventListener("click", () => finish(picks.slice()));
         ui.promptActions.append(confirm);
       }
@@ -646,6 +719,42 @@ function toggleTribute(inst) {
     ? tributePicks.filter((uid) => uid !== inst.uid)
     : [...tributePicks, inst.uid];
   askTributes.repaint?.();
+}
+
+function askDiscard(pending) {
+  return new Promise((done) => {
+    const picks = [];
+    const paint = () => {
+      ui.prompt.hidden = false;
+      ui.promptText.textContent =
+        `Hand limit is 6. Choose ${pending.need} card${pending.need > 1 ? "s" : ""} to discard `
+        + `— ${picks.length} chosen.`;
+      ui.promptActions.innerHTML = "";
+      for (const uid of pending.options) {
+        const inst = state.sides.player.hand.find((c) => c.uid === uid);
+        if (!inst) continue;
+        const button = document.createElement("button");
+        button.className = "btn";
+        button.type = "button";
+        const chosen = picks.includes(uid);
+        button.textContent = `${chosen ? "✓ " : ""}${getCard(inst.cardId).name}`;
+        button.addEventListener("click", () => {
+          if (chosen) picks.splice(picks.indexOf(uid), 1);
+          else if (picks.length < pending.need) picks.push(uid);
+          paint();
+        });
+        ui.promptActions.append(button);
+      }
+      const confirm = document.createElement("button");
+      confirm.className = "btn btn-accent";
+      confirm.type = "button";
+      confirm.textContent = "Discard";
+      confirm.disabled = picks.length !== pending.need;
+      confirm.addEventListener("click", () => { ui.prompt.hidden = true; done(picks.slice()); });
+      ui.promptActions.append(confirm);
+    };
+    paint();
+  });
 }
 
 function askTrap(pending) {
@@ -701,9 +810,15 @@ function startDuel(requested) {
 function bind() {
   ui.advance.addEventListener("click", () => {
     if (busy || !myTurn()) return;
-    if (state.phase === "main1") { advance("battle"); renderAll(); return; }
+    const step = nextStep();
+    if (!step) return;
     attackFrom = null;
-    run(() => endTurn(state));
+    if (step.endsTurn) { run(() => endTurn(state)); return; }
+    // Moving through phases is not a turn action, so it does not run the
+    // opponent -- except entering the End Phase, which hands the turn over.
+    if (step.to === "end") { advance("end"); run(() => endTurn(state)); return; }
+    advance(step.to);
+    renderAll();
   });
   el("restart-btn").addEventListener("click", () => startDuel(el("matchup-select").value));
   el("matchup-select").addEventListener("change", (e) => startDuel(e.target.value));

@@ -3,8 +3,9 @@
 
 import {
   applyAction, createDuel, endTurn, legalActions, respondToTrapWindow,
-  respondToTarget, respondToTribute, setPhase,
+  respondToDiscard, respondToTarget, respondToTribute, setPhase,
 } from "../src/duel-engine.js";
+import { nextPhases } from "../src/duel-phases.js";
 import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "../src/duel-ai.js";
 import { mulberry32 } from "../src/duel-state.js";
 
@@ -19,6 +20,15 @@ export function playDuel(matchupId, seed, { maxTurns = 120 } = {}) {
 
   while (!state.winner && state.turn <= maxTurns && guard < 4000) {
     guard += 1;
+    if (state.pending?.kind === "discard") {
+      const { side, need, options } = state.pending;
+      // Throw away the least useful cards: lowest ATK first.
+      const hand = state.sides[side].hand;
+      const worst = [...hand].sort((a, b) => (a.cardId.length - b.cardId.length)).slice(0, need);
+      const r = respondToDiscard(state, worst.map((c) => c.uid) ?? options.slice(0, need));
+      state = r.state; events.push(...r.events);
+      continue;
+    }
     if (state.pending?.kind === "target") {
       const r = respondToTarget(state, chooseTargets(state));
       state = r.state; events.push(...r.events);
@@ -40,7 +50,16 @@ export function playDuel(matchupId, seed, { maxTurns = 120 } = {}) {
       state = r.state; events.push(...r.events);
       continue;
     }
-    if (state.phase === "main1") { const r = setPhase(state, "battle"); state = r.state; events.push(...r.events); continue; }
+    // Walk the phase table: attack when possible, otherwise end the turn.
+    const edges = nextPhases(state).filter((edge) => edge.allowed);
+    const preferred = edges.find((edge) => edge.to === "battle")
+      ?? edges.find((edge) => edge.to === "main2")
+      ?? edges.find((edge) => edge.to === "end");
+    if (preferred) {
+      const r = setPhase(state, preferred.to);
+      state = r.state; events.push(...r.events);
+      continue;
+    }
     const r = endTurn(state);
     state = r.state; events.push(...r.events);
   }

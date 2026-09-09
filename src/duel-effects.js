@@ -109,6 +109,9 @@ const OPS = {
       const sd = state.sides[s];
       sd.backrow.forEach((inst, i) => {
         if (!inst) return;
+        // The card doing the bouncing is resolving; returning it to hand would
+        // let it be set and activated again forever.
+        if (inst.uid === ctx.sourceUid) return;
         sd.backrow[i] = null;
         inst.faceDown = false;
         sd.hand.push(inst);
@@ -124,7 +127,9 @@ const OPS = {
       ? pool.find((c) => c.uid === ctx.targets[0])
       : pool.sort((a, b) => cardOf(b).atk - cardOf(a).atk)[0];
     if (!chosen) return;
-    placeMonster(state, side, pullFromAnywhere(state, side, chosen.uid), ctx, { how: "reborn" });
+    placeMonster(state, side, pullFromAnywhere(state, side, chosen.uid), ctx, {
+      how: "reborn", position: ctx.position ?? "attack",
+    });
   },
 
   tokens(state, side, effect, ctx) {
@@ -229,7 +234,7 @@ const OPS = {
     for (const inst of ordered.slice(0, effect.count)) {
       if (left <= 0 || emptyMonsterZone(state, side) < 0) break;
       hand.splice(hand.indexOf(inst), 1);
-      placeMonster(state, side, inst, ctx, { how: "flute" });
+      placeMonster(state, side, inst, ctx, { how: "flute", position: ctx.position ?? "attack" });
       left -= 1;
     }
   },

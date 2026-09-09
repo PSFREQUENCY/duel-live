@@ -229,6 +229,13 @@ that last until something removes them.
 
 ### Rules implemented
 
+**Phases.** Draw → Standby → Main 1 → Battle → Main 2 → End, as an explicit
+transition table. **Main 2 is reachable only through the Battle Phase** — skip
+battle and you forfeit your second main, which is what gives "attack now or set
+up first" a cost. The player who goes first neither draws nor conducts a Battle
+Phase on turn 1. The rail greys out what you can no longer reach, and a line
+under it says what is legal right now.
+
 8000 Life Points · one Normal Summon per turn · tributes at Level 5 and 7 · Attack and
 Defence positions with face-down sets · Fusion Summoning from hand and field · Spells
 (normal, continuous, quick-play, equip) · Traps that open a real response window when you
@@ -271,7 +278,8 @@ length; both matchups resolve in ~15 turns and finish essentially every time.
 ## Limitations
 
 - Chains, priority windows, and simultaneous trap activation are simplified: one response
-  window per attack, one card in it.
+  window per trigger, one card in it. The Damage Step is not decomposed into sub-steps.
+  See `DUEL-LIVE-V2-SPEC.md` WP2 and WP3.
 - The AI scores the engine's own legal actions. It plays a coherent game and uses its
   signature cards, but it does not search ahead.
 - Video generation is slow everywhere. Tier 2 is budgeted per exchange and prefetched behind

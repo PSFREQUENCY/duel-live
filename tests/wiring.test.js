@@ -72,7 +72,10 @@ test("a shot caption reports the tier, not internal bookkeeping", () => {
   assert.doesNotMatch(player, /· generating/, "the caption should not narrate the pipeline");
 });
 
-test("phase rail markup covers every phase the engine can report", () => {
-  const phases = [...html.matchAll(/data-phase="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(phases, ["draw", "main1", "battle", "end"]);
+test("phase rail markup covers every phase the engine can report, in order", async () => {
+  const { PHASES } = await import("../src/duel-phases.js");
+  const rail = [...html.matchAll(/data-phase="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(rail, PHASES,
+    "the rail must show every phase the machine can be in, in turn order");
+  assert.ok(htmlIds.has("phase-note"), "the rail needs a line saying what is legal now");
 });

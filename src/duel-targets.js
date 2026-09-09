@@ -65,7 +65,10 @@ export function targetSpecFor(card) {
     case "takeControl":
       return { pool: "foeMonster", count: 1, prompt: "Choose a monster to take control of" };
     case "revive":
-      return { pool: "graveyardMonster", count: 1, prompt: "Choose a monster to revive" };
+      return {
+        pool: "graveyardMonster", count: 1,
+        prompt: "Choose a monster to revive", choosePosition: true,
+      };
     case "ringOfDestruction":
       return { pool: "anyMonster", count: 1, prompt: "Choose a monster to destroy" };
     case "modifyAtk":
@@ -84,7 +87,10 @@ export function targetSpecFor(card) {
         }
         : null;
     case "summonFromHand":
-      return { pool: "handDragon", count: effect.count, prompt: "Choose Dragons to summon", optional: true };
+      return {
+        pool: "handDragon", count: effect.count,
+        prompt: "Choose Dragons to summon", optional: true, choosePosition: true,
+      };
     case "draw":
       return effect.discard
         ? { pool: "hand", count: effect.discard, prompt: "Choose cards to discard", after: "draw" }

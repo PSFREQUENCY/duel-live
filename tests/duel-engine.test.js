@@ -53,6 +53,7 @@ test("one normal summon per turn", () => {
 
 test("attack position battle destroys the weaker monster and deals the difference", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "darkMagician");     // 2500
   const defender = put(state, "opponent", "battleOx");        // 1700
@@ -64,6 +65,7 @@ test("attack position battle destroys the weaker monster and deals the differenc
 
 test("attacking into a bigger monster destroys the attacker", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "battleOx");          // 1700
   const defender = put(state, "opponent", "blueEyes");        // 3000
@@ -75,6 +77,7 @@ test("attacking into a bigger monster destroys the attacker", () => {
 
 test("attacking into a higher DEF wall costs the attacker life points", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "darkMagician");                        // 2500
   const wall = put(state, "opponent", "bigShieldGardna", { position: "defense" }); // 2600 DEF
@@ -85,6 +88,7 @@ test("attacking into a higher DEF wall costs the attacker life points", () => {
 
 test("direct attack lands full ATK when the field is empty", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "blueEyes");
   const { state: after, events } = applyAction(state, { type: "attack", uid: attacker.uid });
@@ -94,6 +98,7 @@ test("direct attack lands full ATK when the field is empty", () => {
 
 test("reducing life points to zero ends the duel", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   state.sides.opponent.lp = 2000;
   const attacker = put(state, "player", "blueEyes");
@@ -131,6 +136,7 @@ test("Harpie's Pet Dragon scales with each Harpie Lady on the field", () => {
 
 test("an attack opens a trap window and Mirror Force wipes the attackers", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "darkMagician");
   const trap = makeInstance("mirrorForce", "kaiba");
@@ -148,6 +154,7 @@ test("an attack opens a trap window and Mirror Force wipes the attackers", () =>
 
 test("declining the trap window lets the attack resolve", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "darkMagician");
   const trap = makeInstance("mirrorForce", "kaiba");
@@ -160,7 +167,13 @@ test("declining the trap window lets the attack resolve", () => {
 
 test("phase changes are reported and gated", () => {
   const state = seed();
-  const { state: battle, events } = setPhase(state, "battle");
+  // Turn 1 has no Battle Phase for the player who goes first.
+  assert.equal(setPhase(state, "battle").refused !== undefined, true);
+  assert.equal(setPhase(state, "main2").refused !== undefined, true,
+    "Main 2 is reachable only through the Battle Phase");
+
+  const later = { ...state, turn: 3 };
+  const { state: battle, events } = setPhase(later, "battle");
   assert.equal(battle.phase, "battle");
   assert.equal(events[0].type, "phase");
   assert.throws(() => setPhase(state, "nonsense"), /Unknown phase/);
@@ -217,6 +230,7 @@ test("a monster changes position only once per turn", () => {
 
 test("a monster that has attacked cannot then drop into defence", () => {
   const state = seed();
+  state.turn = 3;
   state.phase = "battle";
   const attacker = put(state, "player", "darkMagician");
   attacker.summonedThisTurn = false;

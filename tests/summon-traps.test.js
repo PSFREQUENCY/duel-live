@@ -94,7 +94,7 @@ test("Gravity Bind stops Level 4 and up from attacking", () => {
   const small = makeInstance("timeWizard", "joey");  // Level 2
   state.sides.player.monsters[0] = big;
   state.sides.player.monsters[1] = small;
-  const battle = setPhase(state, "battle").state;
+  const battle = setPhase({ ...state, turn: 3 }, "battle").state;
   assert.equal(canAttack(battle, "player", battle.sides.player.monsters[0]), false);
   assert.equal(canAttack(battle, "player", battle.sides.player.monsters[1]), true);
 });
