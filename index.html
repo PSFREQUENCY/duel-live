@@ -131,8 +131,14 @@
 
     <div class="modal" id="share-modal" hidden>
       <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="share-title">
-        <h2 id="share-title">Duel result</h2>
-        <canvas id="share-canvas" class="share-canvas" width="1200" height="630"></canvas>
+        <div class="share-head">
+          <h2 id="share-title">Duel result</h2>
+          <div class="format-toggle" role="group" aria-label="Card format">
+            <button class="format-btn is-on" id="format-landscape" type="button" aria-pressed="true">16:9</button>
+            <button class="format-btn" id="format-portrait" type="button" aria-pressed="false">9:16</button>
+          </div>
+        </div>
+        <div class="share-stage"><canvas id="share-canvas" class="share-canvas"></canvas></div>
         <p class="share-caption" id="share-caption"></p>
         <div class="share-actions">
           <button class="btn btn-accent" id="share-send" type="button" hidden>Share…</button>

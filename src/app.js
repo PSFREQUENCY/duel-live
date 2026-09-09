@@ -18,7 +18,7 @@ import { reactionKeyFor } from "./cinema/archetypes.js";
 import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
 import { summariseDuel } from "./duel-stats.js";
-import { drawShareCard, shareFilename, shareText } from "./share-card.js";
+import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
 
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
@@ -37,6 +37,7 @@ let attackFrom = null;
 let stalledTicks = 0;
 let introShown = false;
 let duelEvents = [];
+let cardFormat = DEFAULT_FORMAT;
 
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
@@ -287,9 +288,26 @@ function advance(phase) {
 
 // ------------------------------------------------------------- share card ---
 
-function openShareCard() {
+function renderCard() {
   const stats = summariseDuel(duelEvents, state);
-  drawShareCard(ui.shareCanvas, stats);
+  drawShareCard(ui.shareCanvas, stats, cardFormat);
+  for (const id of ["landscape", "portrait"]) {
+    const button = el(`format-${id}`);
+    button.classList.toggle("is-on", id === cardFormat);
+    button.setAttribute("aria-pressed", String(id === cardFormat));
+  }
+  return stats;
+}
+
+function setFormat(id) {
+  if (cardFormat === id) return;
+  cardFormat = id;
+  renderCard();
+  shareNote(`Switched to ${getFormat(id).label}.`);
+}
+
+function openShareCard() {
+  const stats = renderCard();
   ui.shareCaption.textContent = shareText(stats);
   ui.shareHint.textContent = "";
   ui.shareHint.classList.remove("is-warn");
@@ -313,7 +331,7 @@ function shareNote(text, warn = false) {
 async function sendShare() {
   const stats = summariseDuel(duelEvents, state);
   const blob = await cardBlob();
-  const file = new File([blob], shareFilename(stats), { type: "image/png" });
+  const file = new File([blob], shareFilename(stats, cardFormat), { type: "image/png" });
   try {
     await navigator.share({ files: [file], text: shareText(stats), title: "Duel Live" });
   } catch (error) {
@@ -356,7 +374,7 @@ const DOWNLOAD_MESSAGE = {
 
 async function downloadCard() {
   const stats = summariseDuel(duelEvents, state);
-  const filename = shareFilename(stats);
+  const filename = shareFilename(stats, cardFormat);
   const blob = await cardBlob();
 
   const host = await downloads();
@@ -506,6 +524,8 @@ function bind() {
   el("share-copy-text").addEventListener("click", copyCardText);
   el("share-download").addEventListener("click", downloadCard);
   el("share-close").addEventListener("click", () => { ui.shareModal.hidden = true; });
+  el("format-landscape").addEventListener("click", () => setFormat("landscape"));
+  el("format-portrait").addEventListener("click", () => setFormat("portrait"));
   ui.shareModal.addEventListener("click", (e) => {
     if (e.target === ui.shareModal) ui.shareModal.hidden = true;
   });

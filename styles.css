@@ -358,8 +358,28 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .modal-card--wide { width: min(940px, 100%); }
 .modal-card h2 { margin: 0 0 12px; font-size: 17px; }
 
+.share-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.share-head h2 { margin: 0; }
+.format-toggle {
+  display: flex; gap: 2px; padding: 2px; border-radius: 8px;
+  background: #101526; border: 1px solid var(--line);
+}
+.format-btn {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+  padding: 6px 12px; border-radius: 6px; border: 0; cursor: pointer;
+  background: transparent; color: var(--ink-faint);
+}
+.format-btn:hover { color: var(--ink); }
+.format-btn.is-on { background: var(--accent); color: #04121c; font-weight: 700; }
+
+/* The portrait card is tall, so the stage caps height rather than width. */
+.share-stage {
+  display: grid; place-items: center; margin-top: 12px;
+  max-height: 52vh; overflow: auto;
+}
 .share-canvas {
-  display: block; width: 100%; height: auto; border-radius: 10px;
+  display: block; max-width: 100%; max-height: 52vh;
+  width: auto; height: auto; border-radius: 10px;
   border: 1px solid var(--line); background: #080c1a;
 }
 .share-caption {

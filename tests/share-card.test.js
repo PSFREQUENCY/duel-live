@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { headline, statTiles, summariseDuel } from "../src/duel-stats.js";
-import { CARD_HEIGHT, CARD_WIDTH, shareFilename, shareText } from "../src/share-card.js";
+import { FORMATS, getFormat, shareFilename, shareText } from "../src/share-card.js";
 import { playDuel } from "../scripts/selfplay.mjs";
 import { getMatchup } from "../src/duelists.js";
 
@@ -99,17 +99,32 @@ test("the share text states the result without inventing anything", () => {
   if (stats.biggestHit?.card) assert.match(text, /Biggest hit/);
 });
 
-test("the filename identifies the duel and is filesystem-safe", () => {
+test("the filename identifies the duel and its format, and is filesystem-safe", () => {
   const { stats } = duel();
-  const name = shareFilename(stats);
-  assert.match(name, /^duel-live-joey-mai-(player|opponent)\.png$/);
-  assert.doesNotMatch(name, /[\s/\\:*?"<>|]/);
+  for (const [id, expected] of [["landscape", "16x9"], ["portrait", "9x16"]]) {
+    const name = shareFilename(stats, id);
+    assert.match(name, new RegExp(`^duel-live-joey-mai-(player|opponent)-${expected}\\.png$`));
+    assert.doesNotMatch(name, /[\s/\\:*?"<>|]/, `${id} filename is not filesystem-safe`);
+  }
+  assert.notEqual(shareFilename(stats, "landscape"), shareFilename(stats, "portrait"),
+    "the two formats must not overwrite each other on disk");
 });
 
-test("the card is a standard social preview size", () => {
-  assert.equal(CARD_WIDTH, 1200);
-  assert.equal(CARD_HEIGHT, 630);
-  assert.equal((CARD_WIDTH / CARD_HEIGHT).toFixed(2), "1.90");
+test("both formats are exactly the aspect ratios they claim", () => {
+  assert.equal((FORMATS.landscape.width / FORMATS.landscape.height).toFixed(4), (16 / 9).toFixed(4));
+  assert.equal((FORMATS.portrait.width / FORMATS.portrait.height).toFixed(4), (9 / 16).toFixed(4));
+  assert.equal(FORMATS.landscape.label, "16:9");
+  assert.equal(FORMATS.portrait.label, "9:16");
+  // Portrait is a taller, narrower canvas, so it gets fewer stat columns.
+  assert.ok(FORMATS.portrait.columns < FORMATS.landscape.columns);
+});
+
+test("an unknown format falls back rather than producing a zero-sized canvas", () => {
+  assert.equal(getFormat("nonsense").id, "landscape");
+  assert.equal(getFormat(undefined).id, "landscape");
+  for (const format of Object.values(FORMATS)) {
+    assert.ok(format.width > 0 && format.height > 0);
+  }
 });
 
 test("an unfinished duel produces a card that does not claim a winner", () => {

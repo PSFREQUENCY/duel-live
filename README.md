@@ -167,10 +167,17 @@ Thousand Dragon and Black Skull Dragon.
 
 ### Share card
 
-Win a duel and **Share result** renders a 1200×630 card on a canvas: the headline,
-six stat tiles, the biggest single hit of the duel, and the winner's ace as a
-holographic projection. It is drawn rather than screenshotted, so it stays legible
-at thumbnail size on a timeline where a capture of the game UI would be a smear.
+Win a duel and **Share result** renders a card on a canvas: the headline, six stat
+tiles, the biggest single hit of the duel, and the winner's ace as a holographic
+projection. It is drawn rather than screenshotted, so it stays legible at thumbnail
+size on a timeline where a capture of the game UI would be a smear.
+
+Two formats, toggled in the panel: **16:9** (1280×720) for a timeline and **9:16**
+(1080×1920) for a story. They are separate compositions rather than one layout
+stretched — landscape sets the ace beside the numbers, portrait stacks them and
+drops to two stat columns. Blocks flow from the bottom of the one above, so a
+headline that wraps to two lines pushes what follows instead of colliding with it.
+Each format saves under its own filename so the two never overwrite each other.
 
 Every number comes from the engine's own event log, and the arithmetic reconciles:
 for both duelists, `life points + damage taken + life paid` equals the starting
