@@ -8,6 +8,9 @@ import {
 import { autoTargets, needsChoice, targetOptions, targetSpecFor } from "./duel-targets.js";
 import { autoAdvance, canTransition, PHASES as PHASE_ORDER } from "./duel-phases.js";
 import {
+  chainClosed, legalResponses, openWindow, PASS, resolutionOrder, respond, spellSpeed,
+} from "./duel-chain.js";
+import {
   cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone,
   monstersOn, mulberry32, other, SIDES,
 } from "./duel-state.js";
@@ -110,14 +113,9 @@ function completeSummon(state, side, inst, action, ctx) {
 function offerSummonResponse(state, side, inst, ctx) {
   // A monster placed face-down was Set, not summoned, so nothing triggers.
   if (inst.faceDown || ctx.skipTrapWindow) return;
-  const foe = other(side);
-  const window = trapWindow(state, foe, "onSummon");
-  if (!window.length) return;
-  state.pending = {
-    kind: "trapWindow", side: foe, trigger: "onSummon",
-    options: window.map((c) => c.uid),
-    resume: { summonedUid: inst.uid, summonedSide: side },
-  };
+  offerWindow(state, other(side), {
+    kind: "summon", summonedSide: side, summonedUid: inst.uid,
+  });
 }
 
 function actSummon(state, side, action, ctx) {
@@ -392,13 +390,12 @@ function actAttack(state, side, action, ctx) {
   attacker.hasAttacked = true;
   ctx.events.push({ type: "declare", side, card: cardOf(attacker).name, target: defender ? cardOf(defender).name : "direct" });
 
-  const window = trapWindow(state, foe, "onAttack");
-  if (window.length && !ctx.skipTrapWindow) {
-    state.pending = {
-      kind: "trapWindow", side: foe, options: window.map((c) => c.uid),
-      resume: { action, attackerUid: attacker.uid, defenderUid: defender?.uid ?? null },
-    };
-    return;
+  if (!ctx.skipTrapWindow) {
+    const opened = offerWindow(state, foe, {
+      kind: "attack", attackerSide: side,
+      attackerUid: attacker.uid, defenderUid: defender?.uid ?? null,
+    });
+    if (opened) return;
   }
   if (state.sides[foe].hats && targets.length) {
     const hit = ctx.rng() < 1 / state.sides[foe].hats.odds;
@@ -407,6 +404,22 @@ function actAttack(state, side, action, ctx) {
     if (!hit) return;
   }
   resolveBattle(state, side, attacker, defender, ctx);
+}
+
+/**
+ * Offer a response window. Returns true when someone can answer, in which case
+ * the caller must stop and let the chain run before resolving anything.
+ */
+function offerWindow(state, respondingSide, trigger) {
+  openWindow(state, respondingSide, trigger);
+  if (!legalResponses(state, respondingSide).length) {
+    // Nothing to answer with, so no window at all.
+    // Nobody can answer, so there is no window to hold the game open for.
+    state.chain = null;
+    return false;
+  }
+  state.pending = { kind: "chain", side: respondingSide };
+  return true;
 }
 
 export function trapWindow(state, side, trigger) {
@@ -529,51 +542,134 @@ export function applyAction(state, action) {
   return { state: next, events: ctx.events };
 }
 
-function revealTrap(state, side, choiceUid, target, ctx) {
-  const inst = state.sides[side].backrow.find((c) => c && c.uid === choiceUid);
+/**
+ * What a chain link points at by default: the monster whose arrival or attack
+ * opened the window. Trap Hole needs the summoned monster; Mirror Force and
+ * Magic Cylinder need the attacker.
+ */
+function triggerSubject(state, trigger) {
+  if (!trigger) return null;
+  if (trigger.kind === "summon") {
+    return monstersOn(state, trigger.summonedSide)
+      .find((m) => m.uid === trigger.summonedUid) ?? null;
+  }
+  if (trigger.kind === "attack") {
+    return monstersOn(state, trigger.attackerSide)
+      .find((m) => m.uid === trigger.attackerUid) ?? null;
+  }
+  return null;
+}
+
+/** Put one link's card face-up and resolve its effect. */
+function resolveLink(state, link, ctx, subject) {
+  const side = link.controller;
+  const s = state.sides[side];
+  const fromHand = s.hand.findIndex((c) => c.uid === link.uid);
+  const inst = fromHand >= 0
+    ? s.hand.splice(fromHand, 1)[0]
+    : s.backrow.find((c) => c && c.uid === link.uid);
   if (!inst) return;
+
   const card = cardOf(inst);
   inst.faceDown = false;
-  ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
+  ctx.events.push({
+    type: "activate", side, card: card.name, art: card.art, text: card.text,
+    reveal: true, chainLink: link.index,
+  });
+
   const spec = targetSpecFor(card);
   applyEffect(state, side, card.effect, Object.assign(ctx, {
-    target,
-    targets: spec ? autoTargets(state, side, spec, card) : null,
+    target: link.target ?? subject ?? null,
+    targets: link.targets ?? (spec ? autoTargets(state, side, spec, card) : null),
+    sourceUid: inst.uid,
   }));
+
   if (card.sub !== "continuous") {
-    state.sides[side].backrow[state.sides[side].backrow.indexOf(inst)] = null;
-    state.sides[side].graveyard.push(inst);
+    const zone = s.backrow.indexOf(inst);
+    if (zone >= 0) s.backrow[zone] = null;
+    s.graveyard.push(inst);
   }
 }
 
-export function respondToTrapWindow(state, choiceUid) {
-  const next = clone(state);
-  const pending = next.pending;
-  if (!pending || pending.kind !== "trapWindow") return { state: next, events: [] };
-  next.pending = null;
-  const ctx = newCtx(next);
-  const side = pending.side;
+/**
+ * Resolve the chain backwards -- last link first -- then pick up whatever the
+ * chain interrupted. One event per link, so the storyboard can cut a shot each.
+ */
+function resolveChain(state, ctx) {
+  const chain = state.chain;
+  state.chain = null;
+  if (!chain) return;
 
-  if (pending.trigger === "onSummon") {
-    const summoned = monstersOn(next, pending.resume.summonedSide)
-      .find((m) => m.uid === pending.resume.summonedUid) ?? null;
-    if (choiceUid) revealTrap(next, side, choiceUid, summoned, ctx);
+  const links = resolutionOrder(chain);
+  links.forEach((link, i) => { link.index = links.length - i; });
+  if (links.length) {
+    ctx.events.push({ type: "chainStart", links: links.length });
+  }
+  for (const link of links) {
+    resolveLink(state, link, ctx, triggerSubject(state, chain.trigger));
+    // A negation earlier in the resolution can stop what is left.
+    if (ctx.chainNegated) break;
+  }
+
+  const trigger = chain.trigger;
+  if (!trigger) return;
+
+  if (trigger.kind === "attack") {
+    const attacker = monstersOn(state, trigger.attackerSide)
+      .find((m) => m.uid === trigger.attackerUid);
+    const defender = monstersOn(state, other(trigger.attackerSide))
+      .find((m) => m.uid === trigger.defenderUid) ?? null;
+    if (!ctx.negateAttack && attacker) {
+      resolveBattle(state, trigger.attackerSide, attacker, defender, ctx);
+    }
+    if (ctx.endBattlePhase) state.phase = "main2";
+  }
+}
+
+/** Answer an open chain: add a card, or pass. */
+export function respondToChain(state, uid) {
+  const next = clone(state);
+  if (!next.chain || next.pending?.kind !== "chain") return { state: next, events: [] };
+  const ctx = newCtx(next);
+  const side = next.chain.respondingSide;
+
+  const inst = uid
+    ? (next.sides[side].backrow.find((c) => c && c.uid === uid)
+      ?? next.sides[side].hand.find((c) => c.uid === uid))
+    : null;
+
+  // An empty window that the first player passes on has nothing to resolve.
+  const wasEmpty = next.chain.links.length === 0;
+  respond(next, side, inst ?? PASS);
+  if (wasEmpty && !inst) next.chain.passCount = 2;
+
+  if (chainClosed(next.chain)) {
+    next.pending = null;
+    resolveChain(next, ctx);
     checkWin(next, ctx);
     return { state: next, events: ctx.events };
   }
 
-  const attackerSide = other(side);
-  const attacker = monstersOn(next, attackerSide).find((m) => m.uid === pending.resume.attackerUid);
-  const defender = monstersOn(next, side).find((m) => m.uid === pending.resume.defenderUid) ?? null;
-
-  if (choiceUid) revealTrap(next, side, choiceUid, attacker, ctx);
-  if (!ctx.negateAttack && attacker && next.sides[attackerSide].monsters.includes(attacker)) {
-    resolveBattle(next, attackerSide, attacker, defender, ctx);
+  // Nobody is asked to pass on a window they cannot answer.
+  let guard = 0;
+  while (!chainClosed(next.chain) && guard < 8
+    && !legalResponses(next, next.chain.respondingSide).length) {
+    guard += 1;
+    respond(next, next.chain.respondingSide, PASS);
   }
-  if (ctx.endBattlePhase) next.phase = "end";
-  checkWin(next, ctx);
+
+  if (chainClosed(next.chain)) {
+    next.pending = null;
+    resolveChain(next, ctx);
+    checkWin(next, ctx);
+    return { state: next, events: ctx.events };
+  }
+  next.pending = { kind: "chain", side: next.chain.respondingSide };
   return { state: next, events: ctx.events };
 }
+
+/** Kept for callers that still speak the old one-window language. */
+export const respondToTrapWindow = respondToChain;
 
 // ------------------------------------------------------------ legal moves ---
 

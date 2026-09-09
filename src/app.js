@@ -4,11 +4,12 @@
 import { getCard } from "./cards/index.js";
 import {
   applyAction, createDuel, endTurn, legalActions, positionBlockedBecause,
-  respondToDiscard, respondToTarget, respondToTrapWindow, respondToTribute,
-  setPhase, trapWindow, tributesCover,
+  respondToChain, respondToDiscard, respondToTarget, respondToTribute,
+  setPhase, tributesCover,
 } from "./duel-engine.js";
+import { legalResponses, resolutionOrder } from "./duel-chain.js";
 import { nextPhases, PHASE_LABELS } from "./duel-phases.js";
-import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "./duel-ai.js";
+import { chooseAction, chooseChainResponse, chooseTargets, chooseTributes } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
 import { createCinema } from "./cinema/player.js";
 import { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } from "./cinema/free-video.js";
@@ -31,7 +32,7 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
-  effects: el("effect-rail"),
+  effects: el("effect-rail"), chain: el("chain-rail"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -362,20 +363,56 @@ async function maybePending() {
 }
 
 async function maybeTrapWindow() {
-  while (state.pending?.kind === "trapWindow") {
-    if (state.pending.side === "player") {
-      const choice = await askTrap(state.pending);
-      const result = respondToTrapWindow(state, choice);
-      state = result.state;
-      present(result.events);
-    } else {
-      const choice = chooseTrapResponse(state, Math.random);
-      const result = respondToTrapWindow(state, choice);
-      state = result.state;
-      present(result.events);
-    }
+  let guard = 0;
+  while (state.pending?.kind === "chain" && guard < 20) {
+    guard += 1;
+    renderChain();
+    const choice = state.pending.side === "player"
+      ? await askChainResponse(state)
+      : chooseChainResponse(state, Math.random);
+    const result = respondToChain(state, choice);
+    state = result.state;
+    present(result.events);
     await settle();
   }
+  renderChain();
+}
+
+// A chain resolves backwards, which is the least intuitive rule in the game.
+// Showing the links, and lighting them up in resolution order, is the whole
+// reason it is legible.
+function renderChain() {
+  const rail = ui.chain;
+  const chain = state?.chain;
+  if (!chain?.links.length) { rail.hidden = true; rail.innerHTML = ""; return; }
+  rail.hidden = false;
+  rail.innerHTML = "";
+  chain.links.forEach((link, i) => {
+    const node = document.createElement("li");
+    node.className = `chain-link is-${link.controller}`;
+    node.innerHTML = "";
+    const index = document.createElement("span");
+    index.className = "chain-index";
+    index.textContent = String(i + 1);
+    const name = document.createElement("span");
+    name.textContent = link.name;
+    node.append(index, name);
+    node.title = `Chain Link ${i + 1} · Spell Speed ${link.spellSpeed}`;
+    rail.append(node);
+  });
+}
+
+function askChainResponse(current) {
+  const options = legalResponses(current, "player");
+  if (!options.length) return Promise.resolve(null);
+  const links = current.chain?.links.length ?? 0;
+  const question = links
+    ? `Chain Link ${links + 1}? Your opponent played ${current.chain.links.at(-1).name}.`
+    : "Respond?";
+  return askChoice(question, options.map((option) => ({
+    label: `Activate ${option.name} (Spell Speed ${option.spellSpeed})`,
+    value: option.uid,
+  })));
 }
 
 async function maybeOpponentTurn() {

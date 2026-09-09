@@ -313,6 +313,32 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .effect-chip.is-against { --chip-accent: var(--danger); }
 .effect-chip.is-favour { --chip-accent: var(--good); }
 
+/* --------------------------------------------------------------- chain --- */
+
+.chain-rail {
+  position: absolute; z-index: 6; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  list-style: none; margin: 0; padding: 0;
+  display: flex; gap: 8px; align-items: center;
+}
+.chain-link {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 600;
+  background: rgba(6, 10, 20, 0.92); backdrop-filter: blur(6px);
+  border: 1px solid var(--link-accent, var(--accent));
+  color: var(--ink);
+  animation: chain-in 0.2s ease;
+}
+@keyframes chain-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+.chain-link.is-player { --link-accent: var(--accent); }
+.chain-link.is-opponent { --link-accent: var(--danger); }
+.chain-index {
+  min-width: 18px; height: 18px; border-radius: 4px;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px;
+  background: var(--link-accent); color: #04121c;
+}
+
 /* -------------------------------------------------------------- banter --- */
 
 .banter {
@@ -581,6 +607,7 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
         <div class="zones zones--me" id="my-backrow" aria-label="Your spell and trap zones"></div>
 
         <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
+        <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
 
         <div class="banter" id="banter" hidden>
           <span class="banter-who" id="banter-who"></span>
@@ -690,14 +717,15 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
 const { getCard } = __req("./cards/index.js");
-const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, respondToDiscard, respondToTarget, respondToTrapWindow, respondToTribute, setPhase, trapWindow, tributesCover } = __req("./duel-engine.js");
+const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, respondToChain, respondToDiscard, respondToTarget, respondToTribute, setPhase, tributesCover } = __req("./duel-engine.js");
+const { legalResponses, resolutionOrder } = __req("./duel-chain.js");
 const { nextPhases, PHASE_LABELS } = __req("./duel-phases.js");
-const { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } = __req("./duel-ai.js");
+const { chooseAction, chooseChainResponse, chooseTargets, chooseTributes } = __req("./duel-ai.js");
 const { DUELISTS, getMatchup, MATCHUPS } = __req("./duelists.js");
 const { createCinema } = __req("./cinema/player.js");
 const { clearJobs, getCapability, hasClip, planTiers, probeCapability, setClipMode } = __req("./cinema/free-video.js");
@@ -716,7 +744,7 @@ const ui = {
   hint: el("hand-hint"), modal: el("modal"), modalBody: el("modal-body"),
   skip: el("skip-btn"), resume: el("resume-btn"), stage: el("stage"),
   banter: el("banter"), banterWho: el("banter-who"), banterText: el("banter-text"),
-  effects: el("effect-rail"),
+  effects: el("effect-rail"), chain: el("chain-rail"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -1047,20 +1075,56 @@ async function maybePending() {
 }
 
 async function maybeTrapWindow() {
-  while (state.pending?.kind === "trapWindow") {
-    if (state.pending.side === "player") {
-      const choice = await askTrap(state.pending);
-      const result = respondToTrapWindow(state, choice);
-      state = result.state;
-      present(result.events);
-    } else {
-      const choice = chooseTrapResponse(state, Math.random);
-      const result = respondToTrapWindow(state, choice);
-      state = result.state;
-      present(result.events);
-    }
+  let guard = 0;
+  while (state.pending?.kind === "chain" && guard < 20) {
+    guard += 1;
+    renderChain();
+    const choice = state.pending.side === "player"
+      ? await askChainResponse(state)
+      : chooseChainResponse(state, Math.random);
+    const result = respondToChain(state, choice);
+    state = result.state;
+    present(result.events);
     await settle();
   }
+  renderChain();
+}
+
+// A chain resolves backwards, which is the least intuitive rule in the game.
+// Showing the links, and lighting them up in resolution order, is the whole
+// reason it is legible.
+function renderChain() {
+  const rail = ui.chain;
+  const chain = state?.chain;
+  if (!chain?.links.length) { rail.hidden = true; rail.innerHTML = ""; return; }
+  rail.hidden = false;
+  rail.innerHTML = "";
+  chain.links.forEach((link, i) => {
+    const node = document.createElement("li");
+    node.className = `chain-link is-${link.controller}`;
+    node.innerHTML = "";
+    const index = document.createElement("span");
+    index.className = "chain-index";
+    index.textContent = String(i + 1);
+    const name = document.createElement("span");
+    name.textContent = link.name;
+    node.append(index, name);
+    node.title = `Chain Link ${i + 1} · Spell Speed ${link.spellSpeed}`;
+    rail.append(node);
+  });
+}
+
+function askChainResponse(current) {
+  const options = legalResponses(current, "player");
+  if (!options.length) return Promise.resolve(null);
+  const links = current.chain?.links.length ?? 0;
+  const question = links
+    ? `Chain Link ${links + 1}? Your opponent played ${current.chain.links.at(-1).name}.`
+    : "Respond?";
+  return askChoice(question, options.map((option) => ({
+    label: `Activate ${option.name} (Spell Speed ${option.spellSpeed})`,
+    value: option.uid,
+  })));
 }
 
 async function maybeOpponentTurn() {
@@ -1972,7 +2036,7 @@ const TRAPS = {
 Object.assign(__exports, { TRAPS });
 });
 
-__def("src/duel-engine.js", {"./cards/index.js":"src/cards/index.js","./duel-effects.js":"src/duel-effects.js","./duel-targets.js":"src/duel-targets.js","./duel-phases.js":"src/duel-phases.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+__def("src/duel-engine.js", {"./duel-phases.js":"src/duel-phases.js","./cards/index.js":"src/cards/index.js","./duel-effects.js":"src/duel-effects.js","./duel-targets.js":"src/duel-targets.js","./duel-chain.js":"src/duel-chain.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
 // The rules engine. It owns every outcome in a duel; the cinema layer only ever
 // renders the events it emits. Actions are pure: apply* clones before mutating.
 
@@ -1980,9 +2044,10 @@ const { getCard } = __req("./cards/index.js");
 const { applyEffect, dealDamage, findFusion, placeMonster, sendToGraveyard } = __req("./duel-effects.js");
 const { autoTargets, needsChoice, targetOptions, targetSpecFor } = __req("./duel-targets.js");
 const { autoAdvance, canTransition, PHASES: PHASE_ORDER } = __req("./duel-phases.js");
+const { chainClosed, legalResponses, openWindow, PASS, resolutionOrder, respond, spellSpeed } = __req("./duel-chain.js");
 const { cardOf, createDuel, drawInto, effectiveStats, emptyBackrowZone, emptyMonsterZone, monstersOn, mulberry32, other, SIDES } = __req("./duel-state.js");
 
-{ PHASES, PHASE_LABELS, canEnterBattlePhase, nextPhases } from "./duel-phases.js";
+const { PHASES, PHASE_LABELS, canEnterBattlePhase, nextPhases } = __req("./duel-phases.js");
 const clone = (state) => structuredClone(state);
 
 function rngFor(state) {
@@ -2078,14 +2143,9 @@ function completeSummon(state, side, inst, action, ctx) {
 function offerSummonResponse(state, side, inst, ctx) {
   // A monster placed face-down was Set, not summoned, so nothing triggers.
   if (inst.faceDown || ctx.skipTrapWindow) return;
-  const foe = other(side);
-  const window = trapWindow(state, foe, "onSummon");
-  if (!window.length) return;
-  state.pending = {
-    kind: "trapWindow", side: foe, trigger: "onSummon",
-    options: window.map((c) => c.uid),
-    resume: { summonedUid: inst.uid, summonedSide: side },
-  };
+  offerWindow(state, other(side), {
+    kind: "summon", summonedSide: side, summonedUid: inst.uid,
+  });
 }
 
 function actSummon(state, side, action, ctx) {
@@ -2360,13 +2420,12 @@ function actAttack(state, side, action, ctx) {
   attacker.hasAttacked = true;
   ctx.events.push({ type: "declare", side, card: cardOf(attacker).name, target: defender ? cardOf(defender).name : "direct" });
 
-  const window = trapWindow(state, foe, "onAttack");
-  if (window.length && !ctx.skipTrapWindow) {
-    state.pending = {
-      kind: "trapWindow", side: foe, options: window.map((c) => c.uid),
-      resume: { action, attackerUid: attacker.uid, defenderUid: defender?.uid ?? null },
-    };
-    return;
+  if (!ctx.skipTrapWindow) {
+    const opened = offerWindow(state, foe, {
+      kind: "attack", attackerSide: side,
+      attackerUid: attacker.uid, defenderUid: defender?.uid ?? null,
+    });
+    if (opened) return;
   }
   if (state.sides[foe].hats && targets.length) {
     const hit = ctx.rng() < 1 / state.sides[foe].hats.odds;
@@ -2375,6 +2434,22 @@ function actAttack(state, side, action, ctx) {
     if (!hit) return;
   }
   resolveBattle(state, side, attacker, defender, ctx);
+}
+
+/**
+ * Offer a response window. Returns true when someone can answer, in which case
+ * the caller must stop and let the chain run before resolving anything.
+ */
+function offerWindow(state, respondingSide, trigger) {
+  openWindow(state, respondingSide, trigger);
+  if (!legalResponses(state, respondingSide).length) {
+    // Nothing to answer with, so no window at all.
+    // Nobody can answer, so there is no window to hold the game open for.
+    state.chain = null;
+    return false;
+  }
+  state.pending = { kind: "chain", side: respondingSide };
+  return true;
 }
 
 function trapWindow(state, side, trigger) {
@@ -2497,51 +2572,134 @@ function applyAction(state, action) {
   return { state: next, events: ctx.events };
 }
 
-function revealTrap(state, side, choiceUid, target, ctx) {
-  const inst = state.sides[side].backrow.find((c) => c && c.uid === choiceUid);
+/**
+ * What a chain link points at by default: the monster whose arrival or attack
+ * opened the window. Trap Hole needs the summoned monster; Mirror Force and
+ * Magic Cylinder need the attacker.
+ */
+function triggerSubject(state, trigger) {
+  if (!trigger) return null;
+  if (trigger.kind === "summon") {
+    return monstersOn(state, trigger.summonedSide)
+      .find((m) => m.uid === trigger.summonedUid) ?? null;
+  }
+  if (trigger.kind === "attack") {
+    return monstersOn(state, trigger.attackerSide)
+      .find((m) => m.uid === trigger.attackerUid) ?? null;
+  }
+  return null;
+}
+
+/** Put one link's card face-up and resolve its effect. */
+function resolveLink(state, link, ctx, subject) {
+  const side = link.controller;
+  const s = state.sides[side];
+  const fromHand = s.hand.findIndex((c) => c.uid === link.uid);
+  const inst = fromHand >= 0
+    ? s.hand.splice(fromHand, 1)[0]
+    : s.backrow.find((c) => c && c.uid === link.uid);
   if (!inst) return;
+
   const card = cardOf(inst);
   inst.faceDown = false;
-  ctx.events.push({ type: "activate", side, card: card.name, art: card.art, text: card.text, reveal: true });
+  ctx.events.push({
+    type: "activate", side, card: card.name, art: card.art, text: card.text,
+    reveal: true, chainLink: link.index,
+  });
+
   const spec = targetSpecFor(card);
   applyEffect(state, side, card.effect, Object.assign(ctx, {
-    target,
-    targets: spec ? autoTargets(state, side, spec, card) : null,
+    target: link.target ?? subject ?? null,
+    targets: link.targets ?? (spec ? autoTargets(state, side, spec, card) : null),
+    sourceUid: inst.uid,
   }));
+
   if (card.sub !== "continuous") {
-    state.sides[side].backrow[state.sides[side].backrow.indexOf(inst)] = null;
-    state.sides[side].graveyard.push(inst);
+    const zone = s.backrow.indexOf(inst);
+    if (zone >= 0) s.backrow[zone] = null;
+    s.graveyard.push(inst);
   }
 }
 
-function respondToTrapWindow(state, choiceUid) {
-  const next = clone(state);
-  const pending = next.pending;
-  if (!pending || pending.kind !== "trapWindow") return { state: next, events: [] };
-  next.pending = null;
-  const ctx = newCtx(next);
-  const side = pending.side;
+/**
+ * Resolve the chain backwards -- last link first -- then pick up whatever the
+ * chain interrupted. One event per link, so the storyboard can cut a shot each.
+ */
+function resolveChain(state, ctx) {
+  const chain = state.chain;
+  state.chain = null;
+  if (!chain) return;
 
-  if (pending.trigger === "onSummon") {
-    const summoned = monstersOn(next, pending.resume.summonedSide)
-      .find((m) => m.uid === pending.resume.summonedUid) ?? null;
-    if (choiceUid) revealTrap(next, side, choiceUid, summoned, ctx);
+  const links = resolutionOrder(chain);
+  links.forEach((link, i) => { link.index = links.length - i; });
+  if (links.length) {
+    ctx.events.push({ type: "chainStart", links: links.length });
+  }
+  for (const link of links) {
+    resolveLink(state, link, ctx, triggerSubject(state, chain.trigger));
+    // A negation earlier in the resolution can stop what is left.
+    if (ctx.chainNegated) break;
+  }
+
+  const trigger = chain.trigger;
+  if (!trigger) return;
+
+  if (trigger.kind === "attack") {
+    const attacker = monstersOn(state, trigger.attackerSide)
+      .find((m) => m.uid === trigger.attackerUid);
+    const defender = monstersOn(state, other(trigger.attackerSide))
+      .find((m) => m.uid === trigger.defenderUid) ?? null;
+    if (!ctx.negateAttack && attacker) {
+      resolveBattle(state, trigger.attackerSide, attacker, defender, ctx);
+    }
+    if (ctx.endBattlePhase) state.phase = "main2";
+  }
+}
+
+/** Answer an open chain: add a card, or pass. */
+function respondToChain(state, uid) {
+  const next = clone(state);
+  if (!next.chain || next.pending?.kind !== "chain") return { state: next, events: [] };
+  const ctx = newCtx(next);
+  const side = next.chain.respondingSide;
+
+  const inst = uid
+    ? (next.sides[side].backrow.find((c) => c && c.uid === uid)
+      ?? next.sides[side].hand.find((c) => c.uid === uid))
+    : null;
+
+  // An empty window that the first player passes on has nothing to resolve.
+  const wasEmpty = next.chain.links.length === 0;
+  respond(next, side, inst ?? PASS);
+  if (wasEmpty && !inst) next.chain.passCount = 2;
+
+  if (chainClosed(next.chain)) {
+    next.pending = null;
+    resolveChain(next, ctx);
     checkWin(next, ctx);
     return { state: next, events: ctx.events };
   }
 
-  const attackerSide = other(side);
-  const attacker = monstersOn(next, attackerSide).find((m) => m.uid === pending.resume.attackerUid);
-  const defender = monstersOn(next, side).find((m) => m.uid === pending.resume.defenderUid) ?? null;
-
-  if (choiceUid) revealTrap(next, side, choiceUid, attacker, ctx);
-  if (!ctx.negateAttack && attacker && next.sides[attackerSide].monsters.includes(attacker)) {
-    resolveBattle(next, attackerSide, attacker, defender, ctx);
+  // Nobody is asked to pass on a window they cannot answer.
+  let guard = 0;
+  while (!chainClosed(next.chain) && guard < 8
+    && !legalResponses(next, next.chain.respondingSide).length) {
+    guard += 1;
+    respond(next, next.chain.respondingSide, PASS);
   }
-  if (ctx.endBattlePhase) next.phase = "end";
-  checkWin(next, ctx);
+
+  if (chainClosed(next.chain)) {
+    next.pending = null;
+    resolveChain(next, ctx);
+    checkWin(next, ctx);
+    return { state: next, events: ctx.events };
+  }
+  next.pending = { kind: "chain", side: next.chain.respondingSide };
   return { state: next, events: ctx.events };
 }
+
+/** Kept for callers that still speak the old one-window language. */
+const respondToTrapWindow = respondToChain;
 
 // ------------------------------------------------------------ legal moves ---
 
@@ -2620,7 +2778,74 @@ function playableSpell(state, side, inst) {
   return true;
 }
 
-Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToDiscard, respondToTarget, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, gravityBindLevel, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToTrapWindow, legalActions, HAND_LIMIT, excessHand, isMainPhase, createDuel, SIDES, other, effectiveStats, cardOf });
+Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToDiscard, respondToTarget, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, gravityBindLevel, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToChain, legalActions, HAND_LIMIT, excessHand, respondToTrapWindow, isMainPhase, createDuel, SIDES, other, effectiveStats, cardOf, PHASES, PHASE_LABELS, canEnterBattlePhase, nextPhases });
+});
+
+__def("src/duel-phases.js", {}, function (__exports, __req) {
+// The phase machine.
+//
+// Modelled as an explicit transition table rather than conditionals scattered
+// through the engine, so the legal shape of a turn is one readable thing that
+// tests can assert against.
+
+const PHASES = ["draw", "standby", "main1", "battle", "main2", "end"];
+
+const PHASE_LABELS = {
+  draw: "Draw", standby: "Standby", main1: "Main 1",
+  battle: "Battle", main2: "Main 2", end: "End",
+};
+
+/**
+ * Legal moves out of each phase.
+ *
+ * There is deliberately no `main1 → main2` edge. Skipping the Battle Phase
+ * forfeits the second Main Phase, which is what makes "attack now or set up
+ * first" a real decision rather than a free choice.
+ */
+const TRANSITIONS = {
+  draw: [{ to: "standby", auto: true }],
+  standby: [{ to: "main1", auto: true }],
+  main1: [
+    { to: "battle", when: "canEnterBattlePhase" },
+    { to: "end", label: "Skip battle and end the turn" },
+  ],
+  battle: [{ to: "main2" }],
+  main2: [{ to: "end" }],
+  end: [{ to: "draw", endsTurn: true }],
+};
+
+/**
+ * The player who goes first conducts no Battle Phase on the opening turn.
+ */
+function canEnterBattlePhase(state) {
+  return state.turn > 1;
+}
+
+const GUARDS = { canEnterBattlePhase };
+
+/** Where a duel can legally go from here, with the reason when it cannot. */
+function nextPhases(state) {
+  return (TRANSITIONS[state.phase] ?? []).map((edge) => ({
+    ...edge,
+    allowed: edge.when ? GUARDS[edge.when](state) : true,
+  }));
+}
+
+function canTransition(state, to) {
+  return nextPhases(state).some((edge) => edge.to === to && edge.allowed);
+}
+
+/** The phase a duel moves to on its own, or null when the player must choose. */
+function autoAdvance(state) {
+  const auto = (TRANSITIONS[state.phase] ?? []).find((edge) => edge.auto);
+  return auto?.to ?? null;
+}
+
+/** Main 2 is reachable only through the Battle Phase. */
+const isReachable = (from, to) =>
+  (TRANSITIONS[from] ?? []).some((edge) => edge.to === to);
+
+Object.assign(__exports, { canEnterBattlePhase, nextPhases, canTransition, autoAdvance, PHASES, PHASE_LABELS, TRANSITIONS, isReachable });
 });
 
 __def("src/duel-effects.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
@@ -3420,74 +3645,145 @@ function needsChoice(state, side, spec, card) {
 Object.assign(__exports, { targetSpecFor, targetOptions, autoTargets, needsChoice });
 });
 
-__def("src/duel-phases.js", {}, function (__exports, __req) {
-// The phase machine.
+__def("src/duel-chain.js", {"./cards/index.js":"src/cards/index.js","./duel-state.js":"src/duel-state.js"}, function (__exports, __req) {
+// The chain.
 //
-// Modelled as an explicit transition table rather than conditionals scattered
-// through the engine, so the legal shape of a turn is one readable thing that
-// tests can assert against.
+// Cards do not resolve when they are activated. They stack, the other player
+// gets to answer, and the stack resolves backwards. That ordering is the most
+// confusing thing about the real card game and the thing that makes a trap feel
+// like a trap, so it is modelled properly rather than as one response window.
 
-const PHASES = ["draw", "standby", "main1", "battle", "main2", "end"];
-
-const PHASE_LABELS = {
-  draw: "Draw", standby: "Standby", main1: "Main 1",
-  battle: "Battle", main2: "Main 2", end: "End",
-};
+const { getCard } = __req("./cards/index.js");
+const { other } = __req("./duel-state.js");
+const PASS = Symbol("pass");
 
 /**
- * Legal moves out of each phase.
+ * Spell Speed.
  *
- * There is deliberately no `main1 → main2` edge. Skipping the Battle Phase
- * forfeits the second Main Phase, which is what makes "attack now or set up
- * first" a real decision rather than a free choice.
+ * 1 — Normal, Continuous, Equip and Field Spells. Only from your own Main
+ *     Phase, only onto an empty chain, so a Speed 1 card is always Chain Link 1.
+ * 2 — Traps and Quick-Play Spells.
+ * 3 — Counter Traps, which may answer anything including each other.
  */
-const TRANSITIONS = {
-  draw: [{ to: "standby", auto: true }],
-  standby: [{ to: "main1", auto: true }],
-  main1: [
-    { to: "battle", when: "canEnterBattlePhase" },
-    { to: "end", label: "Skip battle and end the turn" },
-  ],
-  battle: [{ to: "main2" }],
-  main2: [{ to: "end" }],
-  end: [{ to: "draw", endsTurn: true }],
-};
+function spellSpeed(card) {
+  if (!card) return 1;
+  if (card.kind === "trap") return card.sub === "counter" ? 3 : 2;
+  if (card.kind === "spell") return card.sub === "quick" ? 2 : 1;
+  return 1;
+}
+
+/** A card may only be chained to one of equal or lower Spell Speed. */
+function canChainTo(card, chain) {
+  const speed = spellSpeed(card);
+  if (!chain?.links.length) return true;
+  if (speed < 2) return false;
+  const topSpeed = chain.links[chain.links.length - 1].spellSpeed;
+  return speed >= topSpeed;
+}
+
+function linkFor(state, side, inst) {
+  const card = getCard(inst.cardId);
+  return {
+    uid: inst.uid,
+    cardId: inst.cardId,
+    name: card.name,
+    controller: side,
+    spellSpeed: spellSpeed(card),
+    from: state.sides[side].hand.some((c) => c.uid === inst.uid) ? "hand" : "field",
+  };
+}
 
 /**
- * The player who goes first conducts no Battle Phase on the opening turn.
+ * Start a chain with its first link. `trigger` records what opened the window
+ * so the engine can resume it once the chain has resolved.
  */
-function canEnterBattlePhase(state) {
-  return state.turn > 1;
+function openChain(state, side, inst, trigger = null) {
+  state.chain = {
+    links: [linkFor(state, side, inst)],
+    respondingSide: other(side),
+    passCount: 0,
+    trigger,
+  };
+  return state.chain;
 }
 
-const GUARDS = { canEnterBattlePhase };
-
-/** Where a duel can legally go from here, with the reason when it cannot. */
-function nextPhases(state) {
-  return (TRANSITIONS[state.phase] ?? []).map((edge) => ({
-    ...edge,
-    allowed: edge.when ? GUARDS[edge.when](state) : true,
-  }));
+/** Open an empty chain, used when a trigger offers a window before any card. */
+function openWindow(state, respondingSide, trigger = null) {
+  state.chain = { links: [], respondingSide, passCount: 0, trigger };
+  return state.chain;
 }
 
-function canTransition(state, to) {
-  return nextPhases(state).some((edge) => edge.to === to && edge.allowed);
+/** Add a link, or pass. Two consecutive passes close the chain. */
+function respond(state, side, inst) {
+  const chain = state.chain;
+  if (!chain || chain.respondingSide !== side) return chain;
+  if (inst === PASS || !inst) {
+    chain.passCount += 1;
+  } else {
+    chain.links.push(linkFor(state, side, inst));
+    chain.passCount = 0;
+  }
+  chain.respondingSide = other(side);
+  return chain;
 }
 
-/** The phase a duel moves to on its own, or null when the player must choose. */
-function autoAdvance(state) {
-  const auto = (TRANSITIONS[state.phase] ?? []).find((edge) => edge.auto);
-  return auto?.to ?? null;
+/** A chain closes once both players have passed in a row. */
+const chainClosed = (chain) => Boolean(chain) && chain.passCount >= 2;
+
+/**
+ * The cards a player may add right now.
+ *
+ * One source of legality for both the interface and the opponent, so the two
+ * cannot disagree about what is playable.
+ */
+function legalResponses(state, side) {
+  const chain = state.chain;
+  if (!chain || chain.respondingSide !== side) return [];
+  const s = state.sides[side];
+  const out = [];
+  // A card already on the chain is waiting to resolve; it cannot be added twice.
+  const onChain = new Set(chain.links.map((link) => link.uid));
+
+  for (const inst of s.backrow) {
+    if (!inst || !inst.faceDown || onChain.has(inst.uid)) continue;
+    const card = getCard(inst.cardId);
+    if (card.kind !== "trap" && card.sub !== "quick") continue;
+    // Nothing set this turn is live yet.
+    if (inst.setOnTurn !== undefined && inst.setOnTurn >= state.turn) continue;
+    if (!canChainTo(card, chain)) continue;
+    out.push({ uid: inst.uid, name: card.name, spellSpeed: spellSpeed(card), from: "field" });
+  }
+
+  // A Quick-Play Spell may be played from the hand, but only on your own turn.
+  if (state.activeSide === side) {
+    for (const inst of s.hand) {
+      if (onChain.has(inst.uid)) continue;
+      const card = getCard(inst.cardId);
+      if (card.kind !== "spell" || card.sub !== "quick") continue;
+      if (!canChainTo(card, chain)) continue;
+      out.push({ uid: inst.uid, name: card.name, spellSpeed: spellSpeed(card), from: "hand" });
+    }
+  }
+  return out;
 }
 
-/** Main 2 is reachable only through the Battle Phase. */
-const isReachable = (from, to) =>
-  (TRANSITIONS[from] ?? []).some((edge) => edge.to === to);
+/**
+ * Simultaneous triggers go on the chain turn-player-first (SEGOC), each group
+ * in the order its controller chooses.
+ */
+function buildSimultaneousChain(triggers, turnPlayerSide) {
+  const mine = triggers.filter((t) => t.controller === turnPlayerSide);
+  const theirs = triggers.filter((t) => t.controller !== turnPlayerSide);
+  return [...mine, ...theirs];
+}
 
-Object.assign(__exports, { canEnterBattlePhase, nextPhases, canTransition, autoAdvance, PHASES, PHASE_LABELS, TRANSITIONS, isReachable });
+/** The links in the order they will resolve: last on, first off. */
+const resolutionOrder = (chain) => [...(chain?.links ?? [])].reverse();
+
+Object.assign(__exports, { spellSpeed, canChainTo, openChain, openWindow, respond, legalResponses, buildSimultaneousChain, PASS, chainClosed, resolutionOrder });
 });
 
-__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js","./cards/index.js":"src/cards/index.js","./duel-targets.js":"src/duel-targets.js"}, function (__exports, __req) {
+__def("src/duel-ai.js", {"./duel-engine.js":"src/duel-engine.js","./duel-state.js":"src/duel-state.js","./duelists.js":"src/duelists.js","./cards/index.js":"src/cards/index.js","./duel-targets.js":"src/duel-targets.js","./duel-chain.js":"src/duel-chain.js"}, function (__exports, __req) {
 // Opponent AI. Scores the legal actions the engine offers -- it never reaches
 // into duel state to invent a move the rules would not allow.
 
@@ -3496,6 +3792,7 @@ const { monstersOn } = __req("./duel-state.js");
 const { getDuelist } = __req("./duelists.js");
 const { CARDS } = __req("./cards/index.js");
 const { autoTargets, targetSpecFor } = __req("./duel-targets.js");
+const { legalResponses } = __req("./duel-chain.js");
 const CARDS_BY_NAME = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
 
 const TEMPERAMENT = {
@@ -3590,6 +3887,66 @@ function chooseTributes(state) {
   return defaultTributes(state, pending.side, pending.need);
 }
 
+/**
+ * Answer an open chain. Reads the same legality list the interface does, so the
+ * opponent can never play something a player could not.
+ */
+function chooseChainResponse(state, rng = Math.random) {
+  const chain = state.chain;
+  if (!chain) return null;
+  const side = chain.respondingSide;
+  const options = legalResponses(state, side);
+  if (!options.length) return null;
+  const style = styleOf(state, side);
+
+  const threat = chainThreat(state, chain, side);
+  // Answering a chain costs a card; only do it when there is something to answer.
+  if (threat < 500 && rng() > style.trapBias / 2) return null;
+
+  const ranked = options
+    .map((option) => ({ option, score: responseValue(state, side, option, chain, threat) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.option.uid ?? null;
+}
+
+// How much damage the thing being answered would do if it went through.
+function chainThreat(state, chain, side) {
+  const trigger = chain.trigger;
+  if (!trigger) return 0;
+  if (trigger.kind === "attack") {
+    const attacker = monstersOn(state, trigger.attackerSide)
+      .find((m) => m.uid === trigger.attackerUid);
+    if (!attacker) return 0;
+    const incoming = effectiveStats(state, trigger.attackerSide, attacker).atk;
+    const defender = monstersOn(state, side).find((m) => m.uid === trigger.defenderUid);
+    return defender
+      ? Math.max(0, incoming - effectiveStats(state, side, defender)[
+        defender.position === "attack" ? "atk" : "def"])
+      : incoming;
+  }
+  if (trigger.kind === "summon") {
+    const summoned = monstersOn(state, trigger.summonedSide)
+      .find((m) => m.uid === trigger.summonedUid);
+    return summoned ? effectiveStats(state, trigger.summonedSide, summoned).atk : 0;
+  }
+  return 0;
+}
+
+function responseValue(state, side, option, chain, threat) {
+  const card = CARDS_BY_NAME[option.name];
+  const effect = card?.effect ?? {};
+  // Never flip a card that cannot do anything to what it is answering.
+  if (effect.op === "destroySummoned") {
+    const trigger = chain.trigger;
+    if (trigger?.kind !== "summon" || threat < (effect.minAtk ?? 0)) return 0;
+  }
+  if (effect.op === "crushVirus" && !crushVirusFodder(state, side).length) return 0;
+  if (effect.op === "destroyFoeBackrow" && !state.sides[other(side)].backrow.some(Boolean)) return 0;
+  // A higher Spell Speed answers more, so it is worth more on a live chain.
+  return trapValue(card, threat) + (chain.links.length ? option.spellSpeed * 40 : 0);
+}
+
 function chooseTrapResponse(state, rng = Math.random) {
   const pending = state.pending;
   if (!pending || pending.kind !== "trapWindow") return null;
@@ -3657,7 +4014,7 @@ function trapValue(card, threat) {
   return 200;
 }
 
-Object.assign(__exports, { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse, crushVirusFodder });
+Object.assign(__exports, { chooseAction, chooseTargets, chooseTributes, chooseChainResponse, chooseTrapResponse, crushVirusFodder });
 });
 
 __def("src/cinema/player.js", {"../cards/index.js":"src/cards/index.js","./procedural-stage.js":"src/cinema/procedural-stage.js","./free-video.js":"src/cinema/free-video.js","./realtime-voice.js":"src/cinema/realtime-voice.js"}, function (__exports, __req) {

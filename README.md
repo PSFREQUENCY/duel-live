@@ -241,6 +241,25 @@ Defence positions with face-down sets · Fusion Summoning from hand and field ·
 (normal, continuous, quick-play, equip) · Traps that open a real response window when you
 are attacked · direct attacks · a six-card hand limit · deck-out.
 
+### Chains
+
+Cards do not resolve when they are activated. They stack as chain links, the
+other player may answer, and the stack **resolves backwards** — the last card
+played is the first to take effect. Spell Speed governs what may answer what:
+Normal, Continuous and Equip Spells are Speed 1 and can only ever be Chain Link
+1; Traps and Quick-Play Spells are Speed 2; Counter Traps are Speed 3 and can
+answer anything, including each other. You may only chain to a card of equal or
+lower Speed.
+
+A chain ribbon across the centre of the board shows the links as they build and
+names each one's Spell Speed, because the resolution order is the least
+intuitive rule in the game and showing it is the only way to teach it.
+
+`legalResponses(state, side)` is the single source of what may be played into an
+open chain — the interface and the opponent both read it, so they cannot
+disagree. A player who cannot answer is never asked to pass. Across 400 self-play
+duels, 1,933 chains form and a third of them run to more than one link.
+
 Traps respond to two triggers: an attack, and a summon. Trap Hole, Crush Card
 Virus, Gravity Bind and Dust Tornado all wait on a summon, and a test asserts
 each one actually fires in a real duel — a trap that can never trigger is dead
@@ -277,9 +296,8 @@ length; both matchups resolve in ~15 turns and finish essentially every time.
 
 ## Limitations
 
-- Chains, priority windows, and simultaneous trap activation are simplified: one response
-  window per trigger, one card in it. The Damage Step is not decomposed into sub-steps.
-  See `DUEL-LIVE-V2-SPEC.md` WP2 and WP3.
+- The Damage Step is not decomposed into sub-steps, so a card cannot yet declare that it
+  is activatable only during damage calculation. See `DUEL-LIVE-V2-SPEC.md` WP2.
 - The AI scores the engine's own legal actions. It plays a coherent game and uses its
   signature cards, but it does not search ahead.
 - Video generation is slow everywhere. Tier 2 is budgeted per exchange and prefetched behind

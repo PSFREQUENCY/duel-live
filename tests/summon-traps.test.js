@@ -6,8 +6,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  applyAction, canAttack, createDuel, gravityBindLevel, respondToTrapWindow, setPhase,
+  applyAction, canAttack, createDuel, gravityBindLevel, respondToChain, setPhase,
 } from "../src/duel-engine.js";
+import { legalResponses } from "../src/duel-chain.js";
 import { CARDS } from "../src/cards/index.js";
 import { makeInstance, monstersOn } from "../src/duel-state.js";
 import { playDuel } from "../scripts/selfplay.mjs";
@@ -29,15 +30,16 @@ function summon(state, monsterId, { set = false } = {}) {
 test("summoning a monster opens a response window for the opponent", () => {
   const { state } = armed("trapHole");
   const { state: after } = summon(state, "battleOx");
-  assert.equal(after.pending?.kind, "trapWindow");
-  assert.equal(after.pending.trigger, "onSummon");
+  assert.equal(after.pending?.kind, "chain");
+  assert.equal(after.chain?.trigger?.kind, "summon");
   assert.equal(after.pending.side, "opponent", "the opponent responds, not the summoner");
+  assert.equal(legalResponses(after, "opponent").length, 1, "the set trap is the one response");
 });
 
 test("Trap Hole destroys the monster that was just summoned", () => {
   const { state, trap } = armed("trapHole");
   const paused = summon(state, "battleOx").state;
-  const after = respondToTrapWindow(paused, trap.uid).state;
+  const after = respondToChain(paused, trap.uid).state;
   assert.equal(monstersOn(after, "player").length, 0);
   assert.deepEqual(after.sides.player.graveyard.map((g) => g.cardId), ["battleOx"]);
 });
@@ -45,7 +47,7 @@ test("Trap Hole destroys the monster that was just summoned", () => {
 test("Trap Hole spares a monster under its threshold", () => {
   const { state, trap } = armed("trapHole");
   const paused = summon(state, "kuriboh").state;    // 300 ATK, below 1000
-  const after = respondToTrapWindow(paused, trap.uid).state;
+  const after = respondToChain(paused, trap.uid).state;
   assert.equal(monstersOn(after, "player").length, 1, "the trap is spent but cannot destroy it");
 });
 
@@ -53,13 +55,14 @@ test("setting a monster is not a summon, so nothing triggers", () => {
   const { state } = armed("trapHole");
   const after = summon(state, "battleOx", { set: true }).state;
   assert.equal(after.pending, null, "a Set monster must not open a summon window");
+  assert.ok(!after.chain, "and no chain is started");
   assert.equal(monstersOn(after, "player").length, 1);
 });
 
 test("declining the window leaves the monster and the trap alone", () => {
   const { state, trap } = armed("trapHole");
   const paused = summon(state, "battleOx").state;
-  const after = respondToTrapWindow(paused, null).state;
+  const after = respondToChain(paused, null).state;
   assert.equal(monstersOn(after, "player").length, 1);
   assert.equal(after.sides.opponent.backrow[0]?.uid, trap.uid, "an unused trap stays set");
 });
@@ -67,14 +70,14 @@ test("declining the window leaves the monster and the trap alone", () => {
 test("Crush Card Virus costs a DARK monster with 1000 or less ATK", () => {
   // No fodder on Kaiba's field: the cost cannot be paid, so nothing happens.
   const bare = armed("crushCardVirus");
-  const unpaid = respondToTrapWindow(summon(bare.state, "battleOx").state, bare.trap.uid).state;
+  const unpaid = respondToChain(summon(bare.state, "battleOx").state, bare.trap.uid).state;
   assert.equal(unpaid.sides.player.virusTurns, 0, "an unpayable cost means no effect");
   assert.equal(monstersOn(unpaid, "player").length, 1, "and the summon survives");
 
   const armedWithFodder = armed("crushCardVirus");
   armedWithFodder.state.sides.opponent.monsters[0] = makeInstance("saggi", "kaiba"); // DARK, 600
   const paused = summon(armedWithFodder.state, "battleOx").state;   // 1700, over the threshold
-  const paid = respondToTrapWindow(paused, armedWithFodder.trap.uid).state;
+  const paid = respondToChain(paused, armedWithFodder.trap.uid).state;
 
   assert.equal(paid.sides.player.virusTurns, 3);
   assert.equal(monstersOn(paid, "player").length, 0, "Battle Ox is over 1500 ATK, so it goes");

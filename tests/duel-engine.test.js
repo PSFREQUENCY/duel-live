@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import {
   applyAction, canAttack, canNormalSummon, createDuel, effectiveStats, endTurn,
-  legalActions, respondToTrapWindow, setPhase, tributesRequired,
+  legalActions, respondToChain, setPhase, tributesRequired,
 } from "../src/duel-engine.js";
 import { makeInstance, monstersOn } from "../src/duel-state.js";
 import { getCard } from "../src/cards/index.js";
@@ -134,7 +134,7 @@ test("Harpie's Pet Dragon scales with each Harpie Lady on the field", () => {
   assert.equal(effectiveStats(state, "opponent", pet).atk, 2600);
 });
 
-test("an attack opens a trap window and Mirror Force wipes the attackers", () => {
+test("an attack opens a chain and Mirror Force wipes the attackers", () => {
   const state = seed();
   state.turn = 3;
   state.phase = "battle";
@@ -144,15 +144,20 @@ test("an attack opens a trap window and Mirror Force wipes the attackers", () =>
   state.sides.opponent.backrow[0] = trap;
 
   const declared = applyAction(state, { type: "attack", uid: attacker.uid }).state;
-  assert.equal(declared.pending?.kind, "trapWindow");
-  assert.deepEqual(declared.pending.options, [trap.uid]);
+  assert.equal(declared.pending?.kind, "chain");
+  assert.equal(declared.chain.trigger.kind, "attack");
 
-  const after = respondToTrapWindow(declared, trap.uid).state;
+  // Kaiba adds Mirror Force; Yugi may hold a Quick-Play he could chain, so the
+  // window comes back to him. Declining closes the chain and resolves it.
+  let after = respondToChain(declared, trap.uid).state;
+  if (after.pending?.kind === "chain") after = respondToChain(after, null).state;
+
   assert.equal(monstersOn(after, "player").length, 0, "the attacker is destroyed");
   assert.equal(after.sides.opponent.lp, 8000, "no damage gets through");
+  assert.equal(after.chain, null, "the chain is cleared once it has resolved");
 });
 
-test("declining the trap window lets the attack resolve", () => {
+test("declining the chain lets the attack resolve", () => {
   const state = seed();
   state.turn = 3;
   state.phase = "battle";
@@ -161,7 +166,7 @@ test("declining the trap window lets the attack resolve", () => {
   trap.faceDown = true;
   state.sides.opponent.backrow[0] = trap;
   const declared = applyAction(state, { type: "attack", uid: attacker.uid }).state;
-  const after = respondToTrapWindow(declared, null).state;
+  const after = respondToChain(declared, null).state;
   assert.equal(after.sides.opponent.lp, 5500);
 });
 

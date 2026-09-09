@@ -2,11 +2,13 @@
 // Used as an engine soak test -- `node scripts/selfplay.mjs 200`.
 
 import {
-  applyAction, createDuel, endTurn, legalActions, respondToTrapWindow,
-  respondToDiscard, respondToTarget, respondToTribute, setPhase,
+  applyAction, createDuel, endTurn, legalActions,
+  respondToChain, respondToDiscard, respondToTarget, respondToTribute, setPhase,
 } from "../src/duel-engine.js";
 import { nextPhases } from "../src/duel-phases.js";
-import { chooseAction, chooseTargets, chooseTributes, chooseTrapResponse } from "../src/duel-ai.js";
+import {
+  chooseAction, chooseChainResponse, chooseTargets, chooseTributes,
+} from "../src/duel-ai.js";
 import { mulberry32 } from "../src/duel-state.js";
 
 // Gravity Bind legitimately grinds a duel toward deck-out, and a deck-out in a
@@ -39,8 +41,8 @@ export function playDuel(matchupId, seed, { maxTurns = 120 } = {}) {
       state = r.state; events.push(...r.events);
       continue;
     }
-    if (state.pending) {
-      const r = respondToTrapWindow(state, chooseTrapResponse(state, rng));
+    if (state.pending?.kind === "chain") {
+      const r = respondToChain(state, chooseChainResponse(state, rng));
       state = r.state; events.push(...r.events);
       continue;
     }

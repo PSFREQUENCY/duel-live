@@ -304,6 +304,32 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
 .effect-chip.is-against { --chip-accent: var(--danger); }
 .effect-chip.is-favour { --chip-accent: var(--good); }
 
+/* --------------------------------------------------------------- chain --- */
+
+.chain-rail {
+  position: absolute; z-index: 6; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  list-style: none; margin: 0; padding: 0;
+  display: flex; gap: 8px; align-items: center;
+}
+.chain-link {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 600;
+  background: rgba(6, 10, 20, 0.92); backdrop-filter: blur(6px);
+  border: 1px solid var(--link-accent, var(--accent));
+  color: var(--ink);
+  animation: chain-in 0.2s ease;
+}
+@keyframes chain-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+.chain-link.is-player { --link-accent: var(--accent); }
+.chain-link.is-opponent { --link-accent: var(--danger); }
+.chain-index {
+  min-width: 18px; height: 18px; border-radius: 4px;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px;
+  background: var(--link-accent); color: #04121c;
+}
+
 /* -------------------------------------------------------------- banter --- */
 
 .banter {

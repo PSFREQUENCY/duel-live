@@ -11,6 +11,9 @@ const ENTRY = "src/app.js";
 
 const IMPORT_RE = /^import\s+(?:\{([^}]*)\}|(\w+))\s+from\s+["']([^"']+)["'];?\s*$/gm;
 const BARE_IMPORT_RE = /^import\s+["']([^"']+)["'];?\s*$/gm;
+// `export { a, b } from "./x.js"` -- a re-export, which is both an import and
+// an export and must be rewritten as both.
+const REEXPORT_RE = /^export\s*\{([^}]*)\}\s*from\s*["']([^"']+)["'];?\s*$/gm;
 
 function bindings(clause) {
   return clause.split(",").map((part) => part.trim()).filter(Boolean)
@@ -36,7 +39,19 @@ function collectExports(code) {
 
 function transform(code, id) {
   const deps = new Set();
-  let out = code
+  const reexported = [];
+
+  let out = code.replace(REEXPORT_RE, (_, named, spec) => {
+    deps.add(spec);
+    const names = named.split(",").map((part) => part.trim()).filter(Boolean)
+      .map((part) => part.split(/\s+as\s+/).map((s) => s.trim()));
+    for (const [, alias] of names.map(([name, alias]) => [name, alias ?? name])) {
+      reexported.push(alias);
+    }
+    return `const { ${bindings(named)} } = __req(${JSON.stringify(spec)});`;
+  });
+
+  out = out
     .replace(IMPORT_RE, (_, named, def, spec) => {
       deps.add(spec);
       if (def) throw new Error(`${id}: default import of ${spec} is not supported`);
@@ -44,7 +59,7 @@ function transform(code, id) {
     })
     .replace(BARE_IMPORT_RE, (_, spec) => { deps.add(spec); return `__req(${JSON.stringify(spec)});`; });
 
-  const names = collectExports(out);
+  const names = [...new Set([...collectExports(out), ...reexported])];
   out = out
     .replace(/^export\s*\{[^}]*\};?\s*$/gm, "")
     .replace(/^export\s+/gm, "");

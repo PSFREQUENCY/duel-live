@@ -8,6 +8,7 @@ import { monstersOn } from "./duel-state.js";
 import { getDuelist } from "./duelists.js";
 import { CARDS } from "./cards/index.js";
 import { autoTargets, targetSpecFor } from "./duel-targets.js";
+import { legalResponses } from "./duel-chain.js";
 
 const CARDS_BY_NAME = Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
 
@@ -101,6 +102,66 @@ export function chooseTributes(state) {
   const pending = state.pending;
   if (!pending || pending.kind !== "tribute") return null;
   return defaultTributes(state, pending.side, pending.need);
+}
+
+/**
+ * Answer an open chain. Reads the same legality list the interface does, so the
+ * opponent can never play something a player could not.
+ */
+export function chooseChainResponse(state, rng = Math.random) {
+  const chain = state.chain;
+  if (!chain) return null;
+  const side = chain.respondingSide;
+  const options = legalResponses(state, side);
+  if (!options.length) return null;
+  const style = styleOf(state, side);
+
+  const threat = chainThreat(state, chain, side);
+  // Answering a chain costs a card; only do it when there is something to answer.
+  if (threat < 500 && rng() > style.trapBias / 2) return null;
+
+  const ranked = options
+    .map((option) => ({ option, score: responseValue(state, side, option, chain, threat) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.option.uid ?? null;
+}
+
+// How much damage the thing being answered would do if it went through.
+function chainThreat(state, chain, side) {
+  const trigger = chain.trigger;
+  if (!trigger) return 0;
+  if (trigger.kind === "attack") {
+    const attacker = monstersOn(state, trigger.attackerSide)
+      .find((m) => m.uid === trigger.attackerUid);
+    if (!attacker) return 0;
+    const incoming = effectiveStats(state, trigger.attackerSide, attacker).atk;
+    const defender = monstersOn(state, side).find((m) => m.uid === trigger.defenderUid);
+    return defender
+      ? Math.max(0, incoming - effectiveStats(state, side, defender)[
+        defender.position === "attack" ? "atk" : "def"])
+      : incoming;
+  }
+  if (trigger.kind === "summon") {
+    const summoned = monstersOn(state, trigger.summonedSide)
+      .find((m) => m.uid === trigger.summonedUid);
+    return summoned ? effectiveStats(state, trigger.summonedSide, summoned).atk : 0;
+  }
+  return 0;
+}
+
+function responseValue(state, side, option, chain, threat) {
+  const card = CARDS_BY_NAME[option.name];
+  const effect = card?.effect ?? {};
+  // Never flip a card that cannot do anything to what it is answering.
+  if (effect.op === "destroySummoned") {
+    const trigger = chain.trigger;
+    if (trigger?.kind !== "summon" || threat < (effect.minAtk ?? 0)) return 0;
+  }
+  if (effect.op === "crushVirus" && !crushVirusFodder(state, side).length) return 0;
+  if (effect.op === "destroyFoeBackrow" && !state.sides[other(side)].backrow.some(Boolean)) return 0;
+  // A higher Spell Speed answers more, so it is worth more on a live chain.
+  return trapValue(card, threat) + (chain.links.length ? option.spellSpeed * 40 : 0);
 }
 
 export function chooseTrapResponse(state, rng = Math.random) {
