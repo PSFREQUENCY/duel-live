@@ -39,6 +39,7 @@ function makeNode(id = "") {
       }
     },
     setAttribute() {}, getAttribute: () => null,
+    getBoundingClientRect: () => ({ top: 0, left: 0, right: 100, bottom: 100, width: 100, height: 100 }),
     handlers: new Map(),
     addEventListener(type, fn) {
       node.handlers.set(type, fn);
@@ -91,6 +92,9 @@ export function installGlobals({
   };
   const now = virtualClock(clockSpeed);
   globalThis.performance = { now };
+  globalThis.window ??= globalThis;
+  globalThis.innerWidth = 1440;
+  globalThis.innerHeight = 900;
   // The app's recovery watchdog is a bare setInterval; unref it so a test run
   // is not held open by a timer the browser would simply discard on unload.
   const realSetInterval = nodeSetInterval;

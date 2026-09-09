@@ -132,12 +132,35 @@ export function requirementMet(state, side, card) {
   return monstersOn(state, side).some((m) => m.cardId === req && !m.faceDown);
 }
 
+export function canChangePosition(state, side, inst) {
+  return positionBlockedBecause(inst) === null;
+}
+
+/**
+ * Why a monster cannot change position, or null when it can. A monster changes
+ * position once per turn, so it cannot be flipped back and forth to dodge an
+ * attack after the fact -- but a blocked click should say so rather than
+ * appearing to do nothing.
+ */
+export function positionBlockedBecause(inst) {
+  if (!inst) return "no monster there";
+  if (inst.summonedThisTurn) return "it came down this turn";
+  if (inst.hasAttacked) return "it already attacked";
+  if (inst.positionChanged) return "it already changed position this turn";
+  return null;
+}
+
 function actPosition(state, side, action, ctx) {
   const inst = monstersOn(state, side).find((m) => m.uid === action.uid);
-  if (!inst || inst.summonedThisTurn || inst.hasAttacked) return;
+  if (!canChangePosition(state, side, inst)) return;
+  const wasFaceDown = inst.faceDown;
   inst.position = inst.position === "attack" ? "defense" : "attack";
   inst.faceDown = false;
-  ctx.events.push({ type: "position", side, card: cardOf(inst).name, position: inst.position });
+  inst.positionChanged = true;
+  ctx.events.push({
+    type: "position", side, card: cardOf(inst).name,
+    position: inst.position, flipped: wasFaceDown,
+  });
 }
 
 // ----------------------------------------------------------------- battle ---
@@ -244,6 +267,7 @@ function startTurn(state, ctx) {
   for (const inst of monstersOn(state, side)) {
     inst.hasAttacked = false;
     inst.summonedThisTurn = false;
+    inst.positionChanged = false;
     inst.bound = false;
   }
   ctx.events.push({ type: "phase", phase: "draw", side, turn: state.turn });
@@ -355,7 +379,13 @@ export function legalActions(state, side = state.activeSide) {
       }
     }
     for (const inst of monstersOn(state, side)) {
-      if (!inst.summonedThisTurn) out.push({ type: "position", uid: inst.uid, label: `Switch ${cardOf(inst).name}` });
+      if (!canChangePosition(state, side, inst)) continue;
+      const label = inst.faceDown
+        ? "Flip face-up in Attack Position"
+        : inst.position === "attack"
+          ? `Switch ${cardOf(inst).name} to Defence`
+          : `Switch ${cardOf(inst).name} to Attack`;
+      out.push({ type: "position", uid: inst.uid, label });
     }
   }
   if (state.phase === "battle") {

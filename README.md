@@ -190,6 +190,18 @@ to copying the image, copying the text, or saving the PNG. In a sandboxed page
 that blocks downloads the card is still on screen to save by hand, and the app
 says so rather than handing over a link that silently does nothing.
 
+### Reading the board
+
+Hover any card on the field for its name, type, live ATK/DEF and what it does.
+Stats come from the engine, so a buffed monster shows what it is worth *now* —
+Buster Blader reads 3100 against a Blue-Eyes, not its printed 2600 — and the
+number turns green when it differs from the printing. A face-down card you do
+not own stays a mystery.
+
+Click either **GY** counter to read both Graveyards. It marks the card Monster
+Reborn would revive, and a test asserts the marked card is the one the engine
+actually takes, so the preview cannot lie.
+
 ### Banter
 
 The duelists talk. Summon your ace, land a fusion, spring a trap, take a big hit, or drop

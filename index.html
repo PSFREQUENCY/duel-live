@@ -64,7 +64,7 @@
             <div class="lp-track"><i id="foe-lp-fill"></i></div>
             <span class="lp-num" id="foe-lp">8000</span>
           </div>
-          <div class="counts"><span id="foe-hand">H 5</span><span id="foe-deck">D 35</span><span id="foe-gy">GY 0</span></div>
+          <div class="counts"><span id="foe-hand">H 5</span><span id="foe-deck">D 35</span><button class="count-btn" id="foe-gy" type="button">GY 0</button></div>
         </div>
 
         <div class="zones zones--foe" id="foe-backrow" aria-label="Opponent spell and trap zones"></div>
@@ -94,7 +94,7 @@
             <div class="lp-track"><i id="me-lp-fill"></i></div>
             <span class="lp-num" id="me-lp">8000</span>
           </div>
-          <div class="counts"><span id="me-deck">D 35</span><span id="me-gy">GY 0</span><span id="me-turn">T1</span></div>
+          <div class="counts"><span id="me-deck">D 35</span><button class="count-btn" id="me-gy" type="button">GY 0</button><span id="me-turn">T1</span></div>
         </div>
       </section>
 
@@ -128,6 +128,17 @@
       </div>
       <div class="hand" id="hand"></div>
     </section>
+
+    <div class="hover-card" id="hover-card" hidden aria-hidden="true"></div>
+
+    <div class="modal" id="graveyard-modal" hidden>
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="graveyard-title">
+        <h2 id="graveyard-title">Graveyard</h2>
+        <p class="gy-note" id="graveyard-note"></p>
+        <div class="gy-columns" id="graveyard-columns"></div>
+        <button class="btn btn-accent" id="graveyard-close" type="button">Close</button>
+      </div>
+    </div>
 
     <div class="modal" id="share-modal" hidden>
       <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="share-title">

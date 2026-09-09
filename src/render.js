@@ -15,7 +15,9 @@ function accentFor(card) {
   return (ATTRIBUTE_PALETTE[card.attribute] ?? ATTRIBUTE_PALETTE.DARK).core;
 }
 
-export function renderZones(state, side, container, { onZoneClick, targets = new Set(), ready = new Set(), row = "monsters" }) {
+export function renderZones(state, side, container, {
+  onZoneClick, onZoneHover, targets = new Set(), ready = new Set(), row = "monsters",
+}) {
   container.innerHTML = "";
   state.sides[side][row].forEach((inst, index) => {
     const zone = document.createElement("div");
@@ -42,8 +44,16 @@ export function renderZones(state, side, container, { onZoneClick, targets = new
           zone.append(stat);
         }
       }
-      zone.title = inst.faceDown ? "Face-down card" : `${card.name}${card.kind === "monster" ? ` — ${card.atk}/${card.def}` : ""}`;
+      const canAct = ready.has(inst.uid);
+      zone.title = inst.faceDown
+        ? (canAct ? "Face-down — click to flip into Attack Position" : "Face-down card")
+        : `${card.name}${card.kind === "monster" ? ` — ${card.atk}/${card.def}` : ""}`
+          + (canAct && row === "monsters" ? " — click to change position" : "");
       if (onZoneClick) zone.addEventListener("click", () => onZoneClick(inst, side, row));
+      if (onZoneHover) {
+        zone.addEventListener("pointerenter", () => onZoneHover(inst, side, zone));
+        zone.addEventListener("pointerleave", () => onZoneHover(null, side, zone));
+      }
     }
     container.append(zone);
   });

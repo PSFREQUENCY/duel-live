@@ -98,3 +98,18 @@ test("winning reveals the share control, and it is wired", async () => {
     "a hosted page must save through the capability, not an inert link");
   assert.match(app, /declined:/, "a declined save must be handled, not retried");
 });
+
+test("clicking your own monster works in the Main Phase, not only in Battle", async () => {
+  const app = (await import("node:fs")).readFileSync(
+    new URL("../src/app.js", import.meta.url), "utf8");
+  const handler = app.slice(app.indexOf("function onMyMonster"), app.indexOf("function onFoeMonster"));
+  const mainBranch = handler.indexOf('state.phase === "main1"');
+  const battleGuard = handler.indexOf('state.phase !== "battle"');
+  assert.ok(mainBranch > 0 && mainBranch < battleGuard,
+    "the Main Phase branch must run before the Battle-only guard, or the click falls through");
+  assert.match(handler, /state\.phase === "main1"/,
+    "the Main Phase branch is the only way to flip a set monster face-up");
+  assert.match(handler, /a\.type === "position"/);
+  assert.match(app, /repositionable/,
+    "monsters that can move must be highlighted, or the click is undiscoverable");
+});

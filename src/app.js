@@ -3,7 +3,8 @@
 
 import { getCard } from "./cards/index.js";
 import {
-  applyAction, createDuel, endTurn, legalActions, respondToTrapWindow, setPhase, trapWindow,
+  applyAction, createDuel, endTurn, legalActions, positionBlockedBecause,
+  respondToTrapWindow, setPhase, trapWindow,
 } from "./duel-engine.js";
 import { chooseAction, chooseTrapResponse } from "./duel-ai.js";
 import { DUELISTS, getMatchup, MATCHUPS } from "./duelists.js";
@@ -17,6 +18,7 @@ import {
 import { reactionKeyFor } from "./cinema/archetypes.js";
 import { buildStoryboard, duelistShot, idleShot, titleShot } from "./cinema/storyboard.js";
 import { closingExchange, directBanter, openingExchange } from "./banter.js";
+import { createHoverPanel, showGraveyard } from "./inspect.js";
 import { summariseDuel } from "./duel-stats.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
 
@@ -39,6 +41,8 @@ let introShown = false;
 let duelEvents = [];
 let cardFormat = DEFAULT_FORMAT;
 
+const hover = createHoverPanel();
+
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
   caption: {
@@ -57,25 +61,34 @@ const cinema = createCinema({
 
 function renderAll() {
   if (!state) return;
+  hover.hide();
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
   renderPhase(state.phase);
 
   const mine = myTurn() ? legalActions(state, "player") : [];
+  // Monsters you can act on right now: attack in the Battle Phase, reposition
+  // in the Main Phase. Both get the same "ready" highlight.
   const attackers = new Set(mine.filter((a) => a.type === "attack").map((a) => a.uid));
+  const actionable = state.phase === "battle" ? attackers : repositionable(mine);
   const targets = attackFrom
     ? new Set(mine.filter((a) => a.uid === attackFrom && a.targetUid).map((a) => a.targetUid))
     : new Set();
 
-  renderZones(state, "opponent", el("foe-backrow"), { row: "backrow" });
-  renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster });
-  renderZones(state, "player", el("my-monsters"), { row: "monsters", ready: attackers, onZoneClick: onMyMonster });
-  renderZones(state, "player", el("my-backrow"), { row: "backrow" });
+  const onZoneHover = (inst, side, zone) => hover.inspect(inst, side, zone, state);
+  renderZones(state, "opponent", el("foe-backrow"), { row: "backrow", onZoneHover });
+  renderZones(state, "opponent", el("foe-monsters"), { row: "monsters", targets, onZoneClick: onFoeMonster, onZoneHover });
+  renderZones(state, "player", el("my-monsters"), { row: "monsters", ready: actionable, onZoneClick: onMyMonster, onZoneHover });
+  renderZones(state, "player", el("my-backrow"), { row: "backrow", onZoneHover });
   renderHand(state, ui.hand, { actions: mine.filter((a) => a.type !== "attack" && a.type !== "position"), onPlay: onPlayCard });
 
   updateControls(mine);
 }
+
+// Monsters that can change position right now, by uid.
+const repositionable = (actions) =>
+  new Set(actions.filter((a) => a.type === "position").map((a) => a.uid));
 
 function updateControls(mine) {
   const over = Boolean(state.winner);
@@ -90,10 +103,24 @@ function updateControls(mine) {
     : !myTurn() ? "Opponent is thinking…"
       : state.phase === "battle"
         ? (attackFrom ? "Pick a target, or click your monster again to cancel." : "Click a glowing monster to attack.")
-        : mine.length ? "Click a card to play it." : "Nothing playable — advance the phase.";
+        : repositionable(mine).size
+          ? "Click a card to play it, or a glowing monster to change its position."
+          : mine.length ? "Click a card to play it." : "Nothing playable — advance the phase.";
 }
 
 const myTurn = () => state && state.activeSide === "player" && !state.winner;
+
+// A click that legitimately does nothing still has to say why, or the game
+// looks broken. Restores whatever the hint line was showing afterwards.
+function flashTemporaryMessage(text, ms = 2600) {
+  clearTimeout(flashTemporaryMessage.timer);
+  ui.hint.textContent = text;
+  ui.hint.classList.add("is-flash");
+  flashTemporaryMessage.timer = setTimeout(() => {
+    ui.hint.classList.remove("is-flash");
+    renderAll();
+  }, ms);
+}
 
 // ------------------------------------------------------------ event flow ---
 
@@ -423,8 +450,21 @@ function onPlayCard(inst, options) {
 }
 
 function onMyMonster(inst) {
-  if (busy || !myTurn() || state.phase !== "battle") return;
-  const options = legalActions(state, "player").filter((a) => a.type === "attack" && a.uid === inst.uid);
+  if (busy || !myTurn()) return;
+  const actions = legalActions(state, "player");
+
+  // In the Main Phase your own monsters are for repositioning -- this is the
+  // only way to turn a set monster face-up so it can attack.
+  if (state.phase === "main1") {
+    const change = actions.find((a) => a.type === "position" && a.uid === inst.uid);
+    if (change) { run(() => applyAction(state, change)); return; }
+    const why = positionBlockedBecause(inst);
+    if (why) flashTemporaryMessage(`Can't change position — ${why}.`);
+    return;
+  }
+  if (state.phase !== "battle") return;
+
+  const options = actions.filter((a) => a.type === "attack" && a.uid === inst.uid);
   if (!options.length) return;
   if (attackFrom === inst.uid) { attackFrom = null; renderAll(); return; }
   const direct = options.find((a) => !a.targetUid);
@@ -532,13 +572,26 @@ function bind() {
   ui.stage.addEventListener("click", () => { if (cinema.busy) { cinema.skip(); renderAll(); } });
   document.addEventListener("keydown", (e) => {
     if (e.key === " " && cinema.busy) { e.preventDefault(); cinema.skip(); renderAll(); }
-    if (e.key === "Escape") { ui.modal.hidden = true; ui.shareModal.hidden = true; }
+    if (e.key === "Escape") {
+      ui.modal.hidden = true;
+      ui.shareModal.hidden = true;
+      el("graveyard-modal").hidden = true;
+      hover.hide();
+    }
+  });
+  for (const id of ["me-gy", "foe-gy"]) {
+    el(id).addEventListener("click", () => { if (state) showGraveyard(state); });
+  }
+  el("graveyard-close").addEventListener("click", () => { el("graveyard-modal").hidden = true; });
+  el("graveyard-modal").addEventListener("click", (e) => {
+    if (e.target === el("graveyard-modal")) el("graveyard-modal").hidden = true;
   });
   el("rules-btn").addEventListener("click", showRules);
   el("modal-close").addEventListener("click", () => { ui.modal.hidden = true; });
   ui.modal.addEventListener("click", (e) => { if (e.target === ui.modal) ui.modal.hidden = true; });
   ui.modal.hidden = true;
   ui.shareModal.hidden = true;
+  el("graveyard-modal").hidden = true;
 }
 
 function showRules() {
@@ -549,7 +602,12 @@ function showRules() {
     Spells and Traps that fire when you are attacked.</p>
     <h3>Your turn</h3>
     <ul>
-      <li>Main Phase — click a card in hand to summon, set, or activate it.</li>
+      <li>Main Phase — click a card in hand to play it, or a glowing monster on
+      your field to change its position. A monster changes position once per
+      turn, and flipping a set monster face-up puts it in Attack Position so it
+      can attack that turn.</li>
+      <li>Hover any card on the field to read it. Click a GY counter to see both
+      Graveyards and what Monster Reborn would revive.</li>
       <li>Battle Phase — click a glowing monster, then an enemy monster, or attack directly.</li>
       <li>End turn to pass. Hand limit is 6.</li>
     </ul>

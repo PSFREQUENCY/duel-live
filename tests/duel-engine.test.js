@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  applyAction, canNormalSummon, createDuel, effectiveStats, endTurn,
+  applyAction, canAttack, canNormalSummon, createDuel, effectiveStats, endTurn,
   legalActions, respondToTrapWindow, setPhase, tributesRequired,
 } from "../src/duel-engine.js";
 import { makeInstance, monstersOn } from "../src/duel-state.js";
@@ -164,4 +164,75 @@ test("phase changes are reported and gated", () => {
   assert.equal(battle.phase, "battle");
   assert.equal(events[0].type, "phase");
   assert.throws(() => setPhase(state, "nonsense"), /Unknown phase/);
+});
+
+test("a set monster can be flipped up and attack on a later turn", () => {
+  const state = seed();
+  const inst = makeInstance("celticGuardian", "yugi");
+  state.sides.player.hand = [inst];
+
+  const set = applyAction(state, { type: "set", uid: inst.uid, set: true }).state;
+  const onField = () => monstersOn(set, "player")[0];
+  assert.equal(onField().faceDown, true);
+  assert.equal(onField().position, "defense");
+  assert.equal(
+    legalActions(set).some((a) => a.type === "position"), false,
+    "a monster set this turn cannot also change position this turn",
+  );
+
+  // Round the table and back.
+  const mine = endTurn(endTurn(set).state).state;
+  const flip = legalActions(mine).find((a) => a.type === "position");
+  assert.ok(flip, "the set monster must be repositionable on a later turn");
+  assert.match(flip.label, /Flip face-up in Attack Position/);
+
+  const flipped = applyAction(mine, flip).state;
+  const monster = monstersOn(flipped, "player")[0];
+  assert.equal(monster.faceDown, false);
+  assert.equal(monster.position, "attack");
+
+  const battle = setPhase(flipped, "battle").state;
+  assert.equal(canAttack(battle, "player", monstersOn(battle, "player")[0]), true,
+    "a monster flipped into Attack Position must be able to attack that turn");
+});
+
+test("a monster changes position only once per turn", () => {
+  const state = seed();
+  const inst = put(state, "player", "celticGuardian");
+  inst.summonedThisTurn = false;
+
+  const first = legalActions(state).filter((a) => a.type === "position");
+  assert.equal(first.length, 1);
+  const after = applyAction(state, first[0]).state;
+  assert.equal(monstersOn(after, "player")[0].position, "defense");
+  assert.equal(
+    legalActions(after).filter((a) => a.type === "position").length, 0,
+    "flipping back and forth would let a monster dodge an attack after the fact",
+  );
+
+  // The allowance returns next turn.
+  const later = endTurn(endTurn(after).state).state;
+  assert.equal(legalActions(later).filter((a) => a.type === "position").length, 1);
+});
+
+test("a monster that has attacked cannot then drop into defence", () => {
+  const state = seed();
+  state.phase = "battle";
+  const attacker = put(state, "player", "darkMagician");
+  attacker.summonedThisTurn = false;
+  const after = applyAction(state, { type: "attack", uid: attacker.uid }).state;
+  const main = setPhase(after, "main1").state;
+  assert.equal(
+    legalActions(main).filter((a) => a.type === "position").length, 0,
+    "attacking spends the position change",
+  );
+});
+
+test("position labels say what will happen, not just that something will", () => {
+  const state = seed();
+  const inst = put(state, "player", "celticGuardian");
+  inst.summonedThisTurn = false;
+  assert.match(legalActions(state).find((a) => a.type === "position").label, /to Defence/);
+  inst.position = "defense";
+  assert.match(legalActions(state).find((a) => a.type === "position").label, /to Attack/);
 });
