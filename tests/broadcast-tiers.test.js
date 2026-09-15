@@ -13,6 +13,7 @@ import { liveLibrary } from "../src/broadcast/library.js";
 import { shotRequestFor } from "../src/broadcast/prompts.js";
 import { shotFrom } from "../src/broadcast/shot-grammar.js";
 import { NEGATIVE } from "../src/broadcast/prompts.js";
+import { STYLE, WORLD } from "../src/cinema/world.js";
 
 const { keys, still, video } = liveLibrary();
 
@@ -66,9 +67,11 @@ test("every prompt names the arena inline, not only in the style header", () => 
   for (const key of keys) {
     const { prompt } = shotRequestFor(key);
     // The arena is the one asset in every shot; a header-only mention is what
-    // makes a shot list change venue on every cut.
-    assert.match(prompt, /duel arena|rooftop duel arena|stone duel arena/,
-      `${key} does not say where it is`);
+    // makes a shot list change venue on every cut. Strip the shared header and
+    // the venue must still be there, in the sentence describing the shot.
+    assert.match(prompt, /arena/, `${key} does not say where it is`);
+    const subject = prompt.replace(STYLE, "").replace(WORLD, "");
+    assert.match(subject, /arena/, `${key} mentions the venue only in its header`);
   }
 });
 
@@ -91,9 +94,18 @@ test("monsters are described by how they move, not what they are made of", () =>
     "without a leading head it reads as material");
 });
 
-test("the arena plates are explicitly deserted", () => {
-  for (const key of ["arena.wide", "arena.low", "arena.overhead", "phase.battle"]) {
-    assert.match(shotRequestFor(key).prompt, /no people/, `${key} will come back with a crowd`);
+test("the empty plates never name a person, not even to exclude one", () => {
+  // Asking a diffusion model for "no people" puts people in the embedding, and
+  // these plates came back as portraits every time. Emptiness has to be
+  // described, not negated.
+  for (const key of ["arena.wide", "arena.low", "arena.overhead", "phase.battle", "phase.end"]) {
+    const { prompt } = shotRequestFor(key);
+    const subject = prompt.slice(prompt.indexOf("A slow") >= 0 ? prompt.indexOf("A ") : 0);
+    for (const word of ["people", "person", "character", "figure", "face", "duelist", "nobody"]) {
+      assert.doesNotMatch(subject, new RegExp(`\\b${word}`, "i"),
+        `${key} names "${word}" — which is how one ends up in the shot`);
+    }
+    assert.match(prompt, /floor|grid|pylons|seating/, `${key} must describe what IS there`);
   }
 });
 

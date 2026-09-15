@@ -473,6 +473,12 @@ length; both matchups resolve in ~15 turns and finish essentially every time.
 - Drama is scored from damage, lethality, remaining life points and whether the beat is a
   fusion or a trap flip. It does not read a monster's ATK, so a 3000 ATK summon and a 1400
   ATK summon are paced the same. The reaction shot distinguishes them; the shot count does not.
+- Stills come from the free anonymous image host, which stamps a small provider watermark in
+  the corner. Removing it means routing stills through the keyed host, which costs pollen on
+  every request — so the default stays free and watermarked. `DUEL_BILL_STILLS=1` opts in.
+- Headless screenshot tools cannot settle on watch mode: it drives itself, so the page never
+  goes idle and a virtual-time budget never expires. Verify it through `npm test` or by
+  watching it in a real browser.
 - Video generation is slow everywhere. Tier 2 is budgeted per exchange and prefetched behind
   the tier below, and the archetype library exists so that cost is paid once rather than per
   duel. Tier 2 has been built and unit-tested against all three provider contracts but not yet

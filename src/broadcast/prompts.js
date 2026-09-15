@@ -22,6 +22,26 @@
 
 import { ARENAS, LOOKS, NEUTRAL_ARENA, STYLE, WORLD, assemble } from "../cinema/world.js";
 
+// Two things were putting a person in the middle of every arena plate, and
+// neither was fixable by asking for fewer people:
+//
+//   1. The world bible spends sixty words describing a duelist, because almost
+//      every other shot has one in it.
+//   2. The house style asks for a dramatic low angle and shallow focus, which
+//      are portrait cues. A model given those makes a portrait.
+//
+// Anime production has its own word for an empty plate -- background art -- and
+// asking for that by name is what actually produces a room with nobody in it.
+const EMPTY_STYLE = "late-1990s anime background art, hand-painted establishing background, "
+  + "architectural layout painting, wide static camera, deep focus, flat even ambient light, "
+  + "16:9 widescreen, no text, no subtitles, no logos, no watermark";
+
+const EMPTY_WORLD = "An indoor arena built for holographic card games: a floor of illuminated "
+  + "hexagonal light panels, steel projector pylons bolted around the perimeter, cable runs "
+  + "taped down at the edges, tiered plastic seating rising into the dark beyond";
+
+const assembleEmpty = (subject) => `${EMPTY_STYLE}. ${EMPTY_WORLD}. ${subject}.`;
+
 // Carried by every clip in the set, not just the ones that seem to need it.
 export const NEGATIVE = [
   "music", "score", "soundtrack", "singing",
@@ -33,6 +53,11 @@ export const NEGATIVE = [
   "text", "subtitles", "watermark", "logo", "extra fingers", "deformed hands",
 ].join(", ");
 
+// Worth knowing before editing any of this: the only reliable way to get an
+// empty room out of a diffusion model is to stop mentioning people at all and
+// ask for the thing by its production name. Two rounds of "no people, no
+// characters, no figures" produced two portraits; `anime background art`
+// produced an empty arena first try.
 const MOTION = {
   dragon: "its head lunges first on a long neck and the wings snap open a half-second later, "
     + "the tail still catching up",
@@ -120,22 +145,27 @@ const BUILDERS = {
       + `duelist is a small silhouette at the frame edge. Lighting: the rising columns are the only `
       + `source, the arena floor grid faintly lit beneath them`);
   },
+  // Emptiness cannot be asked for by negation. A diffusion model reads "no
+  // people" by putting *people* in the embedding, which is why these plates
+  // kept coming back as portraits. The fix is to never name a person at all
+  // and describe the architecture so completely there is no room for one.
   arena([, angle]) {
-    const camera = angle === "wide" ? "A slow wide drift across"
-      : angle === "low" ? "A low angle looking up across"
-        : "A slow overhead push down onto";
-    return assemble(`${camera} ${NEUTRAL_ARENA}. The arena is completely deserted: no people, no `
-      + `characters, no figures, no faces, no monsters, nobody standing anywhere in frame. `
-      + `Architecture only -- projector pylons idling, the floor grid pulsing, empty stands. `
-      + `Lighting: the floor grid from below, the stands beyond it in darkness`);
+    const camera = angle === "wide" ? "A slow wide architectural drift across"
+      : angle === "low" ? "A low angle looking up the length of"
+        : "A slow overhead push straight down onto";
+    return assembleEmpty(`${camera} the arena floor. The frame is filled by the hexagonal light `
+      + `panels, wet and reflective, running back to the far wall. Steel pylons stand along both `
+      + `edges with their projector heads folded down. Behind them, rank on rank of empty seats. `
+      + `Lighting: the floor panels glow from below and the light dies within a few metres, so `
+      + `the seating is in darkness`);
   },
   phase([, which]) {
     const beat = which === "battle"
-      ? "the arena floor grid surges brighter and the projector pylons spin up"
-      : "the floor grid dims and the pylons wind down";
-    return assemble(`A short stinger over ${NEUTRAL_ARENA}: ${beat}. Completely deserted: no `
-      + `people, no characters, no figures, no faces, no monsters anywhere in frame. `
-      + `Lighting: the grid is the only source and it falls away to black at the frame edges`);
+      ? "every floor panel surges to full brightness in a wave and the perimeter pylons spin up"
+      : "the floor panels dim one rank at a time and the pylons wind down to standby";
+    return assembleEmpty(`Looking straight down at the arena floor from above: ${beat}. The `
+      + `frame is entirely floor panels and the machinery bolted around them. Lighting: the `
+      + `panels are the only source and fall away to black at the frame edges`);
   },
   react([, duelistId, register]) { return plate(duelistId, register); },
   idle([, duelistId]) {
