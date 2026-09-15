@@ -6,6 +6,12 @@
 
 import { archetypeFor } from "../src/cinema/archetypes.js";
 import { PROCEDURAL_KINDS } from "../src/cinema/player.js";
+import { liveLibrary } from "../src/broadcast/library.js";
+import { clipKeyFor, proceduralKindFor } from "../src/broadcast/keys.js";
+import { shotRequestFor } from "../src/broadcast/prompts.js";
+import { clipKeys } from "../src/clip-library.mjs";
+
+const handmadeKeys = new Set(await clipKeys(new URL("../clips", import.meta.url).pathname));
 
 // Every kind buildStoryboard and titleShot can produce.
 const SHOT_KINDS = [
@@ -33,7 +39,23 @@ const rows = SHOT_KINDS.map((kind) => {
   };
 });
 
-const orphans = rows.filter((row) => !row.clip && !row.procedural);
+// The live grammar's keys are the other half of the coverage question: the
+// storyboard's kinds cover tactical mode, these cover the reel. A key with
+// nothing behind it in live mode is a blank frame, which is the one thing the
+// mode promises cannot happen.
+const live = liveLibrary();
+const liveRows = live.keys.map((key) => ({
+  key,
+  tier: live.still.includes(key) ? "still" : "video",
+  clip: handmadeKeys.has(clipKeyFor(key)) ? clipKeyFor(key) : null,
+  procedural: Boolean(proceduralKindFor(key)),
+  prompt: Boolean(shotRequestFor(key)),
+}));
+
+const orphans = [
+  ...rows.filter((row) => !row.clip && !row.procedural),
+  ...liveRows.filter((row) => !row.procedural || !row.prompt).map((row) => ({ kind: row.key })),
+];
 
 for (const row of rows) {
   const mark = row.clip || row.procedural ? "✓" : "✗";
@@ -42,10 +64,15 @@ for (const row of rows) {
   console.log(`  ${mark} ${row.kind.padEnd(15)} ${how}`);
 }
 
+const withClips = liveRows.filter((row) => row.clip).length;
+console.log(`\n  live grammar — ${liveRows.length} keys `
+  + `(${live.still.length} still · ${live.video.length} video), `
+  + `${withClips} backed by a hand-made clip, all with a procedural floor.`);
+
 if (orphans.length) {
   console.error(`\n${orphans.length} shot kind(s) would play as a blank beat: `
     + orphans.map((row) => row.kind).join(", "));
   console.error("Give each one a clip key in archetypes.js or a procedural draw in player.js.");
   process.exit(1);
 }
-console.log(`\nall ${rows.length} shot kinds are covered.`);
+console.log(`\nall ${rows.length} shot kinds and ${liveRows.length} live keys are covered.`);

@@ -28,8 +28,107 @@ npm start                       # http://localhost:4174/
 That is the whole setup. There is no `npm install` — the project has zero dependencies —
 and no API key. The duel is fully playable the moment the server is up.
 
-Prefer a single file? `npm run build` writes `duel-live.html`, a 128 KB self-contained
+Prefer a single file? `npm run build` writes `duel-live.html`, a self-contained
 build you can open straight from disk with no server at all.
+
+## Three ways to watch
+
+The same duel, the same engine, three readings of it. Pick one with the **View**
+control, or link straight to it.
+
+| Mode | | |
+|---|---|---|
+| **Tactical** | `/` | The board is the surface and video is a panel. The default, and unchanged. |
+| **Live action** | `/?mode=live` | Video is the surface, full-bleed at 2.39:1. Your hand is a fan in the lower letterbox bar; the board is one gesture away. |
+| **Watch** | `/?mode=watch` | A screening. The duel plays itself and the reel narrates it. No input. |
+
+### The one rule live mode rests on
+
+> There is always a shot on screen. If the action lane is empty or its media is
+> not ready, the ambient lane fills it. There is no blank frame, at any tier, at
+> any latency.
+
+That sounds like a rendering detail and is actually the whole design. The engine
+still cannot wait on a generator — that was always true — but now the picture
+cannot be blank either, and those two only reconcile through a reel with two
+lanes. The **action lane** carries what the engine just did, drains in order and
+has deadlines. The **ambient lane** is a floor rather than a queue: its shots are
+pre-resolved stills, so it is never behind and never waits on anything.
+
+Under time pressure a sequence sheds shots by rank, and **rank 1 is never
+dropped** — a summon always shows the monster, a trap always shows the trap. Past
+that it drops a tier, and below the last tier the canvas draws it. There is no
+step after that, because the frame is never blank.
+
+### Waiting is a scene
+
+While it is your move, the camera does not simply hold. Pressure climbs with the
+clock and only ever builds — it resets when you act, never mid-decision.
+
+| Elapsed | What is on screen |
+|---|---|
+| 0–6s | your own hands resting over the deck |
+| 6–14s | your opponent, steady, slow push-in |
+| 14–25s | the arena, drifting |
+| 25s+ | your opponent, visibly bored of waiting |
+
+The last rung is doing real work: it is both an authored moment and a gentle
+prompt, and it costs one still per duelist.
+
+### One event becomes a cut
+
+The clip library was never the bottleneck — the edit was. A summon is
+`reveal → the monster → the other duelist's face`; a trap flip is four beats and
+degrades to the trap alone. How many of those actually play is scored from
+numbers the engine already emits, so a routine turn-three summon gets one shot at
+0.8× hold and a lethal fusion gets four at 1.7×. That variance is most of what
+separates an edit from a slideshow.
+
+### Why the monsters look unstable
+
+Deliberately. AI video's worst failure is temporal instability — ghosting, edge
+smear, features that will not hold still. In this world the monsters are
+solid-light projections, and drift is what a projection does. So monster shots
+take the messiest take, and the duelists are kept rock-stable on flat reference
+plates. The contrast is the look, and it also means the tier split is
+diegetically correct rather than merely cheap: humans are tier 1, projections are
+tier 2. Reaction beats are **never** upgraded to video even when budget allows,
+because video is the wrong texture for them.
+
+One grade — grain, halation, gate weave, vignette — is applied over the whole
+composite in the canvas, so it covers every tier uniformly and the seams between
+them stop being visible.
+
+### The board, when you need it
+
+Generated video will not accurately depict five monster zones, so live mode keeps
+a telestrator: **hold Tab** (long-press on touch) and the real board fades up over
+the dimmed stage — the same renderer and the same zone ids as tactical mode. It is
+always one gesture away and never permanently displaces the video. If you find
+yourself holding it constantly, the HUD is under-informing, and that is a bug in
+the bars rather than a reason to pin the board open. There is a sticky toggle for
+accessibility.
+
+### Sound
+
+One continuous score runs under the whole duel — a low bed always, a pulse from
+turn 3 whose tempo climbs with the turn count, and a lead when either player
+drops under 25% life. Everything crossfades; nothing hard-switches. It ducks 18 dB
+under banter and goes fully silent for 800ms before the finish, because after a
+loud exchange near-silence is the cheapest and strongest effect available. It is a
+handful of oscillators — no samples, no library, and no generation cost.
+
+Every clip prompt carries `music, score, soundtrack` as a negative. Clips supply
+SFX only; a clip that arrives with its own music destroys the continuity at every
+cut.
+
+### Export the duel as a film
+
+Watch mode composites into one canvas and the score runs through one audio node,
+so **Record episode** captures both with `MediaRecorder` and hands you a `.webm`.
+A 15-turn duel runs about two minutes. A replay link is a few hundred bytes, so a
+finished duel becomes a short film generated from your own decisions — which is a
+considerably better artefact than a screenshot.
 
 ## The experiment
 
@@ -337,13 +436,16 @@ asserts that no card can reference an effect the engine cannot resolve.
 ## Development
 
 ```bash
-npm test         # 116 tests: engine, effects, decks, cinema, banter, recovery,
-                 #            providers, share card, wiring, integration, bundle
+npm test         # 371 tests: engine, effects, decks, cinema, banter, recovery,
+                 #            providers, share card, wiring, integration, bundle,
+                 #            reel, director, grammar, live mode, watch mode, export
 npm run smoke    # boots the real app against a DOM stub and plays ten turns
+npm run smoke:live # the same, in live mode, asserting no frame is ever blank
 npm run selfplay # drives 200 headless duels per matchup as an engine soak test
 npm run keycheck # reports which cinema tiers are reachable right now
 npm run key      # add a Pollinations key, or print how to earn free Pollen
 npm run prewarm  # generate any clips not already hand-made
+npm run prewarm:stills # the tier-1 half: free, no key and no provider needed
 npm run clips    # coverage report for clips/
 npm run clips:preview  # filmstrip every clip so you can see what is in it
 npm run shotlist # regenerate prompts/ from the game's own data
@@ -364,6 +466,13 @@ length; both matchups resolve in ~15 turns and finish essentially every time.
   and uses its signature cards, but it does not search deeper than that.
 - Effect coverage is a curated subset of the two decks, not the whole card pool. A card
   outside `src/cards/` does not exist here.
+- The live grammar reaches 64 keys — 21 stills and 43 video clips — and none of the new
+  ones are generated yet, so live mode currently plays on the procedural floor plus the
+  21 hand-made clips already in `clips/`. `npm run prewarm:stills` fills the free half
+  without a key or a provider; `npm run prewarm` does the video half and costs pollen.
+- Drama is scored from damage, lethality, remaining life points and whether the beat is a
+  fusion or a trap flip. It does not read a monster's ATK, so a 3000 ATK summon and a 1400
+  ATK summon are paced the same. The reaction shot distinguishes them; the shot count does not.
 - Video generation is slow everywhere. Tier 2 is budgeted per exchange and prefetched behind
   the tier below, and the archetype library exists so that cost is paid once rather than per
   duel. Tier 2 has been built and unit-tested against all three provider contracts but not yet

@@ -62,3 +62,32 @@ test("the bundled game boots and plays without a server", async () => {
     .flatMap((child) => [...(child.children ?? []), child]);
   assert.ok(lines.length > 4, `the bundled duel produced no log (${lines.length} nodes)`);
 });
+
+test("the bundled game runs live mode with no server behind it", async () => {
+  // The hardest case for the never-blank promise: no server, so every tier
+  // above procedural fails, and the ambient lane has nothing but the canvas.
+  installGlobals({ search: "?mode=live" });
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  const body = html.slice(
+    html.indexOf('<script type="module">') + '<script type="module">'.length,
+    html.lastIndexOf("</script>"),
+  );
+  const run = new (Object.getPrototypeOf(async function () {}).constructor)(body);
+  await run();
+  await settle(400);
+
+  const node = (id) => dom.nodes.get(id);
+  assert.equal(node("live-root").hidden, false, "live mode did not come up in the bundle");
+  assert.equal(node("live-my-lp").textContent, "8000");
+  assert.ok(node("live-fan").children.length > 0, "no hand was rendered");
+
+  for (let i = 0; i < 6; i += 1) {
+    const card = dom.query(".fan-card:not(.is-blocked)");
+    if (card) card.click(); else await fire("advance-btn");
+    await settle(120);
+    dom.query(".sel-action")?.click();
+    await settle(140);
+  }
+  assert.ok(Number(node("turn-counter").textContent) >= 1);
+  assert.notEqual(node("live-shot").textContent, "", "the reel never named a shot");
+});

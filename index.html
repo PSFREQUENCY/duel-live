@@ -42,6 +42,14 @@
             <option value="generative">Generative</option>
           </select>
         </label>
+        <label class="control" for="mode-select">
+          <span>View</span>
+          <select id="mode-select">
+            <option value="tactical">Tactical — board</option>
+            <option value="live">Live action — video</option>
+            <option value="watch">Watch — no input</option>
+          </select>
+        </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
         <button class="btn" id="rules-btn" type="button">Rules</button>
         <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
@@ -160,6 +168,53 @@
       </div>
       <div class="hand" id="hand"></div>
     </section>
+
+    <!-- Live and watch modes. Built only when the mode branch asks for it, so
+         tactical mode never pays for any of this. -->
+    <div class="live" id="live-root" hidden>
+      <div class="live-frame">
+        <canvas id="live-stage" class="live-canvas" width="1912" height="800"></canvas>
+
+        <div class="live-bar live-bar--top">
+          <div class="live-duelist">
+            <span class="live-name" id="live-foe-name"></span>
+            <span class="live-counts" id="live-foe-counts"></span>
+          </div>
+          <span class="live-lp" id="live-foe-lp">8000</span>
+        </div>
+
+        <div class="live-telestrator" id="live-telestrator" hidden aria-hidden="true">
+          <div class="tele-rows">
+            <div class="zones zones--foe" id="tele-foe-backrow"></div>
+            <div class="zones zones--foe-monsters" id="tele-foe-monsters"></div>
+            <div class="zones zones--me-monsters" id="tele-my-monsters"></div>
+            <div class="zones zones--me" id="tele-my-backrow"></div>
+          </div>
+          <p class="tele-hint">Hold Tab for the board</p>
+        </div>
+
+        <div class="live-ribbon" id="live-ribbon" hidden></div>
+        <div class="live-selection" id="live-selection" hidden></div>
+
+        <div class="live-bar live-bar--bottom">
+          <span class="live-lp" id="live-my-lp">8000</span>
+          <div class="live-duelist">
+            <span class="live-name" id="live-my-name"></span>
+            <span class="live-counts" id="live-my-counts"></span>
+          </div>
+          <span class="live-shot" id="live-shot"></span>
+        </div>
+
+        <div class="live-fan" id="live-fan" aria-label="Your hand"></div>
+      </div>
+
+      <div class="live-controls">
+        <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board</button>
+        <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
+        <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
+        <span class="live-note" id="live-note"></span>
+      </div>
+    </div>
 
     <div class="hover-card" id="hover-card" hidden aria-hidden="true"></div>
 

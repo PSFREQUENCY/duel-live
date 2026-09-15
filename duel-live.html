@@ -650,6 +650,204 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   .orb { display: none; }
 }
 
+/* ------------------------------------------------------------ live mode --- */
+/* Video is the surface. The letterbox bars are not wasted space -- committing
+   to 2.39:1 is what creates them, and they are the lower-third the HUD lives in. */
+
+body.is-live .arena-wrap,
+body.is-live .hand-rail { display: none; }
+
+.live {
+  position: relative; z-index: 1;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px;
+  padding: 12px clamp(12px, 3vw, 28px) 14px;
+}
+
+.live-frame {
+  position: relative;
+  /* Not flex:1 -- growing to fill the column is what breaks the ratio. The
+     frame is sized by its aspect and then bounded on both axes, so 2.39:1
+     survives whichever of width or height runs out first. */
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 2.39 / 1;
+  max-height: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #04060c;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+
+.live-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* The broadcast lower-third: both players symmetrical, both always readable. */
+.live-bar {
+  position: absolute; left: 0; right: 0; z-index: 4;
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px clamp(10px, 2vw, 22px);
+  background: linear-gradient(180deg, rgba(4, 6, 12, 0.88), rgba(4, 6, 12, 0));
+  pointer-events: none;
+}
+.live-bar--bottom {
+  top: auto; bottom: 0;
+  background: linear-gradient(0deg, rgba(4, 6, 12, 0.92), rgba(4, 6, 12, 0));
+}
+.live-bar--top { top: 0; }
+
+.live-duelist { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.live-name { font-weight: 650; font-size: 14px; color: var(--ink); }
+.live-counts, .live-shot {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.live-shot { margin-left: auto; opacity: 0.45; }
+.live-lp {
+  font-family: var(--mono); font-size: clamp(20px, 2.6vw, 30px); font-weight: 600;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+}
+
+/* The hand is the one thing that must never be occluded. */
+/* Clear of the lower third, so the HUD and the hand never fight for the
+   same strip. Both must be readable at a glance, always. */
+.live-fan {
+  position: absolute; left: 0; right: 0; bottom: 46px; z-index: 6;
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: clamp(2px, 0.6vw, 8px);
+  padding: 0 12px;
+  pointer-events: none;
+}
+.live-fan > * { pointer-events: auto; }
+
+.fan-card {
+  width: clamp(72px, 8vw, 104px);
+  /* A fixed height, not a minimum: a long card text must not grow the card and
+     push the fan up through the picture. */
+  height: clamp(74px, 9vh, 96px);
+  overflow: hidden;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 7px 8px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(18, 24, 44, 0.97), rgba(9, 12, 24, 0.97));
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transform: rotate(var(--lean, 0deg)) translateY(var(--lift, 0px));
+  transform-origin: 50% 120%;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.fan-card:hover, .fan-card:focus-visible {
+  transform: rotate(var(--lean, 0deg)) translateY(calc(var(--lift, 0px) - 14px));
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.9);
+  z-index: 2;
+}
+.fan-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* Blocked, not disabled: a card that cannot explain itself teaches nothing. */
+.fan-card.is-blocked { opacity: 0.45; }
+.fan-kind {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.16em;
+  color: var(--ink-dim); text-transform: uppercase;
+}
+.fan-name {
+  font-size: 11px; font-weight: 600; line-height: 1.18;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.fan-stat {
+  font-family: var(--mono); font-size: 9px; color: var(--ink-dim); margin-top: auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.live-selection {
+  position: absolute; z-index: 8; right: clamp(10px, 2vw, 22px); bottom: 96px;
+  width: min(300px, 44vw);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(7, 10, 20, 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.95);
+}
+.sel-head h3 { margin: 0 0 4px; font-size: 15px; }
+.sel-stat { margin: 0 0 6px; font-family: var(--mono); font-size: 11px; color: var(--accent); }
+.sel-text { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-dim); }
+.sel-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.sel-action { width: 100%; }
+.sel-blocked {
+  margin: 12px 0 0; font-size: 12px; line-height: 1.45;
+  color: var(--warn, #ffcc77); font-style: italic;
+}
+.sel-close {
+  position: absolute; top: 8px; right: 10px;
+  border: 0; background: none; color: var(--ink-dim);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+
+/* A chain window is itself a dramatic beat, which is why it is allowed to
+   hold the picture -- the one inversion of the rule everywhere else. */
+.live-ribbon {
+  position: absolute; z-index: 9; left: 50%; bottom: 104px;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: rgba(7, 10, 20, 0.96);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.95);
+  animation: ribbon-rise 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes ribbon-rise {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.ribbon-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.ribbon-ring {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--left, 1) * 360deg), rgba(255, 255, 255, 0.12) 0);
+}
+.ribbon-option, .ribbon-pass { padding: 6px 12px; font-size: 12px; }
+
+/* Always one gesture away, never permanently displacing the video. */
+.live-telestrator {
+  position: absolute; inset: 0; z-index: 7;
+  background: rgba(3, 5, 11, 0.8);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.live-telestrator.is-open { opacity: 1; }
+.tele-rows { position: absolute; inset: 0; }
+.tele-hint {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  margin: 0; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+
+.live-controls {
+  flex: none;
+  display: flex; align-items: center; gap: 8px;
+}
+.live-note { font-family: var(--mono); font-size: 10px; color: var(--ink-dim); margin-left: auto; }
+
+/* Watch mode is a screening, not a session: nothing to press. */
+body.is-watch .live-fan,
+body.is-watch .live-selection,
+body.is-watch #live-board-btn { display: none; }
+
+@media (max-width: 900px) {
+  .live-frame { aspect-ratio: 4 / 3; }
+  .live-fan { bottom: 40px; }
+  .live-selection { right: 50%; transform: translateX(50%); width: min(320px, 90vw); }
+  .fan-card { width: clamp(58px, 17vw, 84px); min-height: 74px; }
+}
+
 </style>
   </head>
   <body>
@@ -684,6 +882,14 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
           <select id="clip-mode-select">
             <option value="library">Action library</option>
             <option value="generative">Generative</option>
+          </select>
+        </label>
+        <label class="control" for="mode-select">
+          <span>View</span>
+          <select id="mode-select">
+            <option value="tactical">Tactical — board</option>
+            <option value="live">Live action — video</option>
+            <option value="watch">Watch — no input</option>
           </select>
         </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
@@ -805,6 +1011,53 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
       <div class="hand" id="hand"></div>
     </section>
 
+    <!-- Live and watch modes. Built only when the mode branch asks for it, so
+         tactical mode never pays for any of this. -->
+    <div class="live" id="live-root" hidden>
+      <div class="live-frame">
+        <canvas id="live-stage" class="live-canvas" width="1912" height="800"></canvas>
+
+        <div class="live-bar live-bar--top">
+          <div class="live-duelist">
+            <span class="live-name" id="live-foe-name"></span>
+            <span class="live-counts" id="live-foe-counts"></span>
+          </div>
+          <span class="live-lp" id="live-foe-lp">8000</span>
+        </div>
+
+        <div class="live-telestrator" id="live-telestrator" hidden aria-hidden="true">
+          <div class="tele-rows">
+            <div class="zones zones--foe" id="tele-foe-backrow"></div>
+            <div class="zones zones--foe-monsters" id="tele-foe-monsters"></div>
+            <div class="zones zones--me-monsters" id="tele-my-monsters"></div>
+            <div class="zones zones--me" id="tele-my-backrow"></div>
+          </div>
+          <p class="tele-hint">Hold Tab for the board</p>
+        </div>
+
+        <div class="live-ribbon" id="live-ribbon" hidden></div>
+        <div class="live-selection" id="live-selection" hidden></div>
+
+        <div class="live-bar live-bar--bottom">
+          <span class="live-lp" id="live-my-lp">8000</span>
+          <div class="live-duelist">
+            <span class="live-name" id="live-my-name"></span>
+            <span class="live-counts" id="live-my-counts"></span>
+          </div>
+          <span class="live-shot" id="live-shot"></span>
+        </div>
+
+        <div class="live-fan" id="live-fan" aria-label="Your hand"></div>
+      </div>
+
+      <div class="live-controls">
+        <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board</button>
+        <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
+        <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
+        <span class="live-note" id="live-note"></span>
+      </div>
+    </div>
+
     <div class="hover-card" id="hover-card" hidden aria-hidden="true"></div>
 
     <div class="modal" id="graveyard-modal" hidden>
@@ -862,7 +1115,7 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./live-mode.js":"src/live-mode.js","./modes.js":"src/modes.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
@@ -886,6 +1139,8 @@ const { whyNotPlayable } = __req("./why-not.js");
 const { isLethal, previewAttack } = __req("./attack-preview.js");
 const { activeEffects } = __req("./duel-effects-active.js");
 const { summariseDuel } = __req("./duel-stats.js");
+const { createLiveMode } = __req("./live-mode.js");
+const { isBroadcast, isInteractive, resolveMode, turnBudgetFor } = __req("./modes.js");
 const { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } = __req("./share-card.js");
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
@@ -899,6 +1154,25 @@ const ui = {
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
+
+// Live mode is a real branch, not a stylesheet: these components are built only
+// when the mode asks for them, and tactical mode never constructs any of it.
+let mode = resolveMode();
+let live = null;
+// Resolves the open ribbon with "no response"; set while a window is up.
+let liveRibbonPass = null;
+
+const liveUi = () => ({
+  canvas: el("live-stage"), fan: el("live-fan"), selection: el("live-selection"),
+  ribbon: el("live-ribbon"), telestrator: el("live-telestrator"), shotLabel: el("live-shot"),
+  lp: { me: el("live-my-lp"), foe: el("live-foe-lp") },
+  counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
+  names: { me: el("live-my-name"), foe: el("live-foe-name") },
+  rows: {
+    foeBackrow: el("tele-foe-backrow"), foeMonsters: el("tele-foe-monsters"),
+    myMonsters: el("tele-my-monsters"), myBackrow: el("tele-my-backrow"),
+  },
+});
 
 let state = null;
 let muted = false;
@@ -915,6 +1189,11 @@ let cardFormat = DEFAULT_FORMAT;
 
 const hover = createHoverPanel();
 
+// Both pictures of the duel are lit by the same two duelists.
+const accentPair = () => (state
+  ? [DUELISTS[state.sides.player.duelistId].accent, DUELISTS[state.sides.opponent.duelistId].accent]
+  : ["#4fc9f0", "#4fc9f0"]);
+
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
   caption: {
@@ -922,10 +1201,7 @@ const cinema = createCinema({
     sub: el("shot-sub"), tier: el("shot-tier"),
   },
   getState: () => state,
-  accents: () => {
-    if (!state) return ["#4fc9f0", "#4fc9f0"];
-    return [DUELISTS[state.sides.player.duelistId].accent, DUELISTS[state.sides.opponent.duelistId].accent];
-  },
+  accents: accentPair,
   onShot: () => renderAll(),
 });
 
@@ -944,6 +1220,9 @@ const drawLog = () => renderLog(ui.log, logLines, { onHighlight: highlightZones 
 function renderAll() {
   if (!state) return;
   hover.hide();
+  // The live surface reads the same state, so the two presentations cannot
+  // disagree about what is on the field.
+  live?.render(state, myTurn() ? legalActions(state, "player") : []);
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
@@ -1119,8 +1398,13 @@ function present(events) {
     if (line) logLines.push(line);
   }
   drawLog();
-  const shots = buildStoryboard(events, state);
-  if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
+  // The reel reads the same event stream the board does, one beat behind
+  // nothing. Tactical mode's shot queue is untouched by this.
+  live?.present(events, state);
+  if (!isBroadcast(mode)) {
+    const shots = buildStoryboard(events, state);
+    if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
+  }
   speakBanter(directBanter(events, state));
   renderAll();
 }
@@ -1226,8 +1510,15 @@ const SETTLE_CAP_MS = 3500;
 // up into a long dead interface. Past this budget the duel keeps resolving and
 // the cinema simply narrates from slightly behind.
 const TURN_BUDGET_MS = 4000;
+// Live mode earns more time, because watching it is the point. It is still a
+// hard cap: a stalled generation yields to the ambient lane rather than waiting.
+const turnBudget = () => turnBudgetFor(mode);
 
 function settle(capMs = SETTLE_CAP_MS) {
+  // In broadcast modes the reel owns pacing and is never a reason to wait: it
+  // shows the ambient lane while the action lane catches up, so blocking the
+  // engine here would only make the edit fall further behind.
+  if (isBroadcast(mode)) return Promise.resolve();
   return new Promise((done) => {
     const deadline = Date.now() + capMs;
     const tick = () => {
@@ -1239,9 +1530,14 @@ function settle(capMs = SETTLE_CAP_MS) {
   });
 }
 
+// Whose decision this is. In watch mode nobody is at the controls, so the AI
+// answers for both sides -- otherwise the first prompt that needs a click
+// deadlocks the duel against a viewer who has nothing to click.
+const asks = (side) => side === "player" && isInteractive(mode);
+
 async function maybePending() {
   while (state.pending?.kind === "discard") {
-    const uids = state.pending.side === "player"
+    const uids = asks(state.pending.side)
       ? await askDiscard(state.pending)
       : state.sides[state.pending.side].hand.slice(0, state.pending.need).map((c) => c.uid);
     step("discard", uids);
@@ -1251,7 +1547,7 @@ async function maybePending() {
     await settle();
   }
   while (state.pending?.kind === "target") {
-    const answer = state.pending.side === "player"
+    const answer = asks(state.pending.side)
       ? await askTargets(state.pending)
       : { uids: chooseTargets(state), position: "attack" };
     step("target", { uids: answer.uids, position: answer.position });
@@ -1261,7 +1557,7 @@ async function maybePending() {
     await settle();
   }
   while (state.pending?.kind === "tribute") {
-    if (state.pending.side === "player") {
+    if (asks(state.pending.side)) {
       const uids = await askTributes(state.pending);
       step("tribute", uids);
       const result = respondToTribute(state, uids);
@@ -1285,7 +1581,7 @@ async function maybeTrapWindow() {
     guard += 1;
     renderChain();
     warmLikelyResponses();
-    const choice = state.pending.side === "player"
+    const choice = asks(state.pending.side)
       ? await askChainResponse(state)
       : chooseChainResponse(state, Math.random);
     step("chain", choice);
@@ -1351,7 +1647,7 @@ function askChainResponse(current) {
 }
 
 async function maybeOpponentTurn() {
-  const deadline = Date.now() + TURN_BUDGET_MS;
+  const deadline = Date.now() + turnBudget();
   let guard = 0;
   while (!state.winner && state.activeSide === "opponent" && guard < 60) {
     guard += 1;
@@ -1696,6 +1992,17 @@ function drawArc(attackerUid, targetUid) {
 }
 
 function askChoice(question, choices) {
+  // In a broadcast mode the choice rises from the bottom bar as a ribbon rather
+  // than a side panel. This is the one place play is allowed to hold up the
+  // cinema, and it is correct because the window is itself a dramatic beat.
+  if (live && isInteractive(mode)) {
+    return new Promise((done) => {
+      live.openResponses(choices, {
+        onRespond: (choice) => done(choice.value),
+      });
+      liveRibbonPass = () => done(null);
+    });
+  }
   return new Promise((done) => {
     ui.prompt.hidden = false;
     ui.promptText.textContent = question;
@@ -1899,7 +2206,84 @@ function startDuel(requested) {
   logLines.push(lineFor({ type: "phase", phase: "draw", side: "player", turn: 1 }, state));
   drawLog();
   speakBanter(openingExchange(state));
+  live?.start(state);
   renderAll();
+  if (mode === "watch") runWatch();
+}
+
+// ------------------------------------------------------------------ modes ---
+
+function applyMode(next) {
+  mode = next;
+  el("mode-select").value = next;
+  document.body.classList.toggle("is-live", isBroadcast(next));
+  document.body.classList.toggle("is-watch", next === "watch");
+  el("live-root").hidden = !isBroadcast(next);
+  live?.stop();
+  live = null;
+  if (!isBroadcast(next)) { cinema.start(); return; }
+  // The canvas loop and the reel are two different pictures of the same duel.
+  // Only one of them should be drawing.
+  cinema.clear();
+  live = createLiveMode({
+    mode: next,
+    ui: liveUi(),
+    getState: () => state,
+    accents: accentPair,
+    onAction: onLiveAction,
+    onPass: () => { live?.closeResponses(); liveRibbonPass?.(); liveRibbonPass = null; },
+  });
+  if (state) live.start(state);
+  el("live-record-btn").hidden = !live.canRecord();
+}
+
+// The episode export. Offered only where the browser can actually do it, so the
+// control never appears as something that will fail when pressed.
+async function toggleRecording() {
+  if (!live?.canRecord()) return;
+  const button = el("live-record-btn");
+  if (!live.recording) {
+    live.startRecording();
+    button.textContent = "Stop recording";
+    el("live-note").textContent = "Recording the duel…";
+    return;
+  }
+  button.textContent = "Record episode";
+  const blob = await live.stopRecording();
+  if (!blob) { el("live-note").textContent = "Nothing was captured."; return; }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `duel-live-${state?.matchupId ?? "duel"}.webm`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  el("live-note").textContent = `Episode saved — ${(blob.size / 1e6).toFixed(1)} MB`;
+}
+
+function onLiveAction(action) {
+  if (busy || !myTurn()) return;
+  if (action.type === "zone") { onMyMonster(action.inst); return; }
+  step("action", action);
+  run(() => applyAction(state, action));
+}
+
+// Watch mode is a screening: the duel plays itself start to finish and the reel
+// narrates it. No input, so no decision windows and no ambient escalation.
+async function runWatch() {
+  let guard = 0;
+  while (state && !state.winner && guard < 400) {
+    guard += 1;
+    if (busy) { await new Promise((r) => setTimeout(r, 120)); continue; }
+    const action = chooseAction(state, state.activeSide, Math.random);
+    // With nothing left to play, walk the phase machine rather than guessing at
+    // the next phase: on turn one the Battle Phase is closed, and a hard-coded
+    // "main1 -> battle" simply no-ops and spins here forever.
+    const step = nextStep();
+    await run(() => (action ? applyAction(state, action)
+      : step?.endsTurn ? endTurn(state)
+        : setPhase(state, step.to)));
+    await new Promise((r) => setTimeout(r, 260));
+  }
 }
 
 function bind() {
@@ -1914,6 +2298,17 @@ function bind() {
     if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
     advance(step.to);
     renderAll();
+  });
+  el("mode-select").addEventListener("change", (e) => {
+    applyMode(e.target.value);
+    startDuel(el("matchup-select").value);
+  });
+  el("live-skip-btn").addEventListener("click", () => live?.skip());
+  el("live-record-btn").addEventListener("click", () => toggleRecording());
+  el("live-board-btn").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    live?.setSticky(on);
   });
   el("restart-btn").addEventListener("click", () => startDuel(el("matchup-select").value));
   el("matchup-select").addEventListener("change", (e) => startDuel(e.target.value));
@@ -2057,7 +2452,8 @@ function loadReplay(recording) {
 
 async function boot() {
   bind();
-  cinema.start();
+  applyMode(mode);
+  if (!isBroadcast(mode)) cinema.start();
   startWatchdog();
   const shared = recordingFromUrl();
   if (shared) loadReplay(shared);
@@ -2084,8 +2480,13 @@ async function boot() {
   }
 }
 
+// The live controller is built by the mode branch, so a test that wants to
+// assert on the reel has to be handed it rather than reaching into the module.
+const liveForTest = () => live;
+
 boot();
 
+Object.assign(__exports, { liveForTest });
 });
 
 __def("src/cards/index.js", {"./monsters.js":"src/cards/monsters.js","./spells.js":"src/cards/spells.js","./traps.js":"src/cards/traps.js"}, function (__exports, __req) {
@@ -7566,6 +7967,1823 @@ function statTiles(stats) {
 }
 
 Object.assign(__exports, { summariseDuel, headline, statTiles });
+});
+
+__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./modes.js":"src/modes.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js"}, function (__exports, __req) {
+// Live mode: the reel, the stage, the pool and the score, wired to one duel.
+//
+// This owns presentation only. The engine decides the duel exactly as it does
+// in tactical mode and every action still goes back through the same callbacks,
+// so nothing here can change an outcome -- which is what makes it safe for the
+// reel to drop shots under pressure.
+
+const { createAmbient } = __req("./broadcast/ambient.js");
+const { createDirector } = __req("./broadcast/director.js");
+const { createReel } = __req("./broadcast/reel.js");
+const { createScore } = __req("./audio/score.js");
+const { createStage } = __req("./ui/live/stage.js");
+const { createMediaPool } = __req("./ui/live/media-pool.js");
+const { createTelestrator } = __req("./ui/live/telestrator.js");
+const { canRecord, createRecorder } = __req("./ui/live/episode.js");
+const { createCounter, renderFan, renderRibbon, renderSelection } = __req("./ui/live/disk.js");
+const { isInteractive } = __req("./modes.js");
+const { DUELISTS } = __req("./duelists.js");
+const { highestTier } = __req("./cinema/free-video.js");
+const STARTING_LP = 8000;
+
+// Reactions and idles stay tier 1 even when video is affordable. A slow push-in
+// on a still portrait *is* an anime reaction beat -- video is the wrong texture
+// for it, and the fact that stills are instant is what lets the ambient lane
+// promise zero latency at all.
+const STILL_ONLY = /^(react|idle|arena|phase)\./;
+
+function tierFor(key) {
+  if (STILL_ONLY.test(key)) return highestTier() === "procedural" ? "procedural" : "still";
+  return highestTier();
+}
+
+function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
+  const pool = createMediaPool({ tierFor });
+  const score = createScore();
+  let ambient = null;
+  let reel = null;
+  let selected = null;
+  let closeRibbon = null;
+  let lastTurn = 0;
+  let recorder = null;
+  const director = createDirector();
+  const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
+
+  const setMyLp = createCounter(ui.lp.me);
+  const setFoeLp = createCounter(ui.lp.foe);
+
+  const stage = createStage({
+    canvas: ui.canvas,
+    media: () => (reel?.current ? pool.get(reel.current.key) : null),
+    accents,
+    getState,
+    onFrame: () => tick(),
+  });
+
+  const telestrator = createTelestrator({
+    root: ui.telestrator,
+    rows: [
+      ["opponent", "backrow", ui.rows.foeBackrow], ["opponent", "monsters", ui.rows.foeMonsters],
+      ["player", "monsters", ui.rows.myMonsters], ["player", "backrow", ui.rows.myBackrow],
+    ],
+    getState,
+    onZoneClick: (inst) => { if (isInteractive(mode)) onAction?.({ type: "zone", inst }); },
+  });
+
+  function tick(now = performance.now()) {
+    if (!reel) return;
+    reel.setPressure(ambient.pressureAt(now));
+    const shot = reel.tick(now);
+    if (shot) {
+      pool.want(shot.key);
+      ui.shotLabel.textContent = shot.key;
+    }
+    telestrator.refresh();
+  }
+
+  function pushEvents(events, state) {
+    if (!reel || !state) return 0;
+    const sequences = director.direct(events, state);
+    for (const sequence of sequences) {
+      reel.push({ ...sequence, pushedAt: performance.now() });
+      // Warm the whole sequence at once: the reel is about to want all of it,
+      // and the spine must never be the shot that is still generating.
+      pool.prefetch(sequence.shots.map((shot) => shot.key));
+    }
+    // Somebody acted, so the decision window closes and pressure resets.
+    ambient.reset(performance.now(), state.activeSide);
+    return sequences.length;
+  }
+
+  function renderHud(state) {
+    if (!state) return;
+    setMyLp(state.sides.player.lp);
+    setFoeLp(state.sides.opponent.lp);
+    ui.counts.me.textContent = `H ${state.sides.player.hand.length}  D ${state.sides.player.deck.length}`;
+    ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
+    ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
+    ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
+  }
+
+  function renderHand(state, actions) {
+    if (!isInteractive(mode)) { ui.fan.innerHTML = ""; return; }
+    renderFan(ui.fan, state, {
+      actions,
+      selectedUid: selected?.uid,
+      onSelect: (inst) => { selected = inst; renderAll(state, actions); },
+    });
+    renderSelection(ui.selection, state, selected, {
+      actions,
+      onAction: (action) => { selected = null; onAction?.(action); },
+      onClose: () => { selected = null; renderAll(state, actions); },
+    });
+  }
+
+  function renderAll(state = getState(), actions = []) {
+    renderHud(state);
+    renderHand(state, actions);
+    if (!state) return;
+    const lowest = Math.min(state.sides.player.lp, state.sides.opponent.lp) / STARTING_LP;
+    if (state.turn !== lastTurn) {
+      lastTurn = state.turn;
+      score.update({ turn: state.turn, lowestLpFraction: lowest,
+        leading: state.sides.player.lp >= state.sides.opponent.lp });
+    }
+  }
+
+  return {
+    start(state) {
+      ambient = createAmbient({
+        you: state.sides.player.duelistId,
+        opponent: state.sides.opponent.duelistId,
+        onTurn: state.activeSide,
+      });
+      director.reset();
+      ambient.reset(performance.now(), state.activeSide);
+      reel = createReel({
+        ambient: (level, opts) => ambient.select(level, opts),
+        now: () => performance.now(),
+        // Counted here rather than sampled from outside: the stage ticks the
+        // reel every animation frame, so anything watching from a slower loop
+        // misses most of what played.
+        onShotChange: (shot) => {
+          cuts.total += 1;
+          cuts[shot.ambient ? "ambient" : "action"] += 1;
+          cuts.keys.add(shot.key);
+        },
+      });
+      reel.start(performance.now());
+      // Everything the opening needs, before the first event arrives.
+      pool.prefetch([reel.current.key, `idle.${state.sides.player.duelistId}`,
+        `react.${state.sides.opponent.duelistId}.steady`, "arena.wide"]);
+      stage.start();
+      telestrator.attach();
+      renderAll(state);
+    },
+
+    present(events, state) { return pushEvents(events, state); },
+    render: renderAll,
+
+    /** A chain window: the one place play is allowed to hold up the cinema. */
+    openResponses(responses, { deadline = 12_000, onRespond } = {}) {
+      closeRibbon?.();
+      closeRibbon = renderRibbon(ui.ribbon, responses, {
+        deadline,
+        onRespond: (response) => { closeRibbon?.(); closeRibbon = null; onRespond?.(response); },
+        onPass: () => { closeRibbon?.(); closeRibbon = null; onPass?.(); },
+      });
+    },
+    closeResponses() { closeRibbon?.(); closeRibbon = null; },
+
+    /** Duck under a line, and release. The bed never competes with a voice. */
+    duck(on) { score.duck(on); },
+    /** Silence before the finish lands; the cheapest effect in the whole build. */
+    silence(ms) { score.silence(ms); },
+    startScore() { return score.start(); },
+
+    /**
+     * Every duel a player finishes becomes a two-minute film made out of their
+     * own decisions, which is a substantially better artefact than a screenshot.
+     */
+    canRecord: () => canRecord(),
+    startRecording() {
+      recorder ??= createRecorder({ canvas: ui.canvas, audioNode: score.output });
+      return Boolean(recorder?.start());
+    },
+    async stopRecording() { return recorder ? recorder.stop() : null; },
+    get recording() { return Boolean(recorder?.recording); },
+
+    skip() { reel?.skip(performance.now()); },
+    setSticky(value) { telestrator.setSticky(value); },
+    stop() {
+      stage.stop();
+      telestrator.detach();
+      score.stop();
+      closeRibbon?.();
+    },
+    /** What the reel actually cut to, tallied as it happened. */
+    get cuts() { return { ...cuts, distinct: cuts.keys.size }; },
+    get reel() { return reel; },
+    get stage() { return stage; },
+    get pool() { return pool; },
+    get score() { return score; },
+  };
+}
+
+Object.assign(__exports, { createLiveMode });
+});
+
+__def("src/broadcast/ambient.js", {}, function (__exports, __req) {
+// The ambient lane: what is on screen when the duel is waiting for someone.
+//
+// This is the part with no analogue in tactical mode, and it decides whether
+// waiting feels authored or feels broken. A blank stage while a player thinks
+// reads as a bug; the same silence with the opponent slowly looking more bored
+// reads as a scene. The ladder below is that difference, and it costs one still
+// per duelist.
+
+const LADDER = [
+  { at: 0, level: 0 },
+  { at: 6_000, level: 1 },
+  { at: 14_000, level: 2 },
+  { at: 25_000, level: 3 },
+];
+
+/** How long a decision has been open, as a rung. Pressure only ever builds. */
+function pressureFor(elapsedMs) {
+  let level = 0;
+  for (const rung of LADDER) if (elapsedMs >= rung.at) level = rung.level;
+  return level;
+}
+
+const ARENAS = ["arena.wide", "arena.low", "arena.overhead"];
+
+/**
+ * A shot for the current rung. `avoid` is the key already on screen: the same
+ * plate twice running reads as a freeze rather than a hold, so every rung has
+ * somewhere else to go.
+ */
+function ambientShot(level, { you, opponent, avoid, arenaIndex = 0 } = {}) {
+  const rung = [
+    () => [`idle.${you}`, `arena.wide`],
+    () => [`react.${opponent}.steady`, `idle.${you}`],
+    () => [ARENAS[arenaIndex % ARENAS.length], ARENAS[(arenaIndex + 1) % ARENAS.length]],
+    () => [`react.${opponent}.pressed`, `react.${opponent}.steady`],
+  ][Math.max(0, Math.min(3, level))];
+
+  const [first, second] = rung();
+  const key = first === avoid ? second : first;
+  return { key, hold: level === 0 ? 5_000 : 4_000, tier: "still", tailMotion: true, ambient: true };
+}
+
+/**
+ * Tracks one decision window. Pressure never steps down inside a window --
+ * an opponent who looks impatient and then patient again reads as random.
+ * It resets when somebody acts.
+ */
+function createAmbient({ you, opponent, onTurn = "player" }) {
+  let openedAt = 0;
+  let floor = 0;
+  let arenaIndex = 0;
+  let turn = onTurn;
+
+  return {
+    /** Somebody acted: the window closes and pressure goes back to nothing. */
+    reset(t = 0, side = turn) {
+      openedAt = t;
+      floor = 0;
+      turn = side;
+      arenaIndex += 1;
+    },
+    pressureAt(t) {
+      floor = Math.max(floor, pressureFor(t - openedAt));
+      return floor;
+    },
+    // During the opponent's turn the camera stays on whoever has agency. Rung 0
+    // is your own resting hands, which is the wrong subject while they are the
+    // one deciding, so their turn starts the ladder at rung 1.
+    select(level, { avoid } = {}) {
+      const waitingOnMe = turn === "player";
+      return ambientShot(waitingOnMe ? level : Math.max(1, level),
+        { you, opponent, avoid, arenaIndex });
+    },
+    get openedAt() { return openedAt; },
+  };
+}
+
+Object.assign(__exports, { pressureFor, ambientShot, createAmbient });
+});
+
+__def("src/broadcast/director.js", {"../cards/index.js":"src/cards/index.js","./drama.js":"src/broadcast/drama.js","./shot-grammar.js":"src/broadcast/shot-grammar.js","./reel.js":"src/broadcast/reel.js"}, function (__exports, __req) {
+// Engine event → a cut sequence, budgeted by how much the moment is worth.
+//
+// The engine has already decided the duel. Nothing here can change it; the only
+// question is how it is shown. That separation is what lets the reel drop shots
+// under pressure without the duel ever being wrong.
+
+const { CARDS } = __req("../cards/index.js");
+const { dramaFor, holdMultiplier, shotBudget } = __req("./drama.js");
+const { GRAMMAR, beatFor, resolveKey, shotFrom } = __req("./shot-grammar.js");
+const { truncate } = __req("./reel.js");
+const FAMILY = {
+  Dragon: "dragon", "Sea Serpent": "dragon",
+  Warrior: "warrior", "Beast-Warrior": "warrior",
+  Spellcaster: "spellcaster", Fiend: "fiend",
+  Beast: "beast", "Winged Beast": "winged", Fairy: "winged",
+};
+const FAMILIES = [...new Set([...Object.values(FAMILY), "other"])];
+const ATTRIBUTES = ["DARK", "LIGHT", "FIRE", "WIND", "EARTH", "WATER"];
+
+let byName = null;
+function cardNamed(name) {
+  byName ??= Object.fromEntries(Object.values(CARDS).map((c) => [c.name, c]));
+  return byName[name] ?? null;
+}
+
+function creature(name) {
+  const card = cardNamed(name);
+  if (!card || card.kind !== "monster") return { attr: "DARK", fam: "other" };
+  return { attr: card.attribute ?? "DARK", fam: FAMILY[card.type] ?? "other" };
+}
+
+const other = (side) => (side === "player" ? "opponent" : "player");
+const duelistOn = (state, side) => state?.sides?.[side]?.duelistId ?? "yugi";
+
+/** The placeholders the table can ask for, resolved from one engine event. */
+function varsFor(event, state) {
+  const actor = event.side ?? "player";
+  const subject = creature(event.attacker ?? event.card ?? event.title ?? "");
+  const damage = event.damage ?? event.amount ?? 0;
+  return {
+    ...subject,
+    atk: duelistOn(state, actor),
+    def: duelistOn(state, other(actor)),
+    opp: duelistOn(state, other(actor)),
+    winner: duelistOn(state, event.side === "draw" ? "player" : actor),
+    // A big monster earns a harder reaction than a small one; that variance is
+    // the difference between a reaction shot and a reaction cutaway.
+    mood: (event.atk ?? 0) >= 2000 ? "pressed" : "steady",
+    weight: damage >= 1500 ? "heavy" : "light",
+    phase: event.phase === "battle" ? "battle" : "end",
+    cardType: event.reveal ? "trap" : "spell",
+  };
+}
+
+// A phase change is a breather, not a beat. It earns a shot only when nothing
+// more interesting is happening -- otherwise it is filler between real moments.
+const BREATHER_MAX_DRAMA = 0.3;
+
+/**
+ * One sequence per event, or null when the event does not earn one.
+ *
+ * The sequence is already truncated to its drama budget, so the reel receives
+ * what the director intends rather than everything that might be shown.
+ */
+function directEvent(event, state, { eventId = event.type, recentDrama = 0 } = {}) {
+  const beat = beatFor(event);
+  if (!beat) return null;
+  const drama = dramaFor(event, state);
+  // A phase event always scores 0.15 on its own, so gating on that would fire a
+  // stinger at every phase of every turn. The rule only does work read against
+  // the drama around it: a breather belongs in a quiet stretch, not on the beat
+  // after a trap flip.
+  if (beat === "phase" && recentDrama > BREATHER_MAX_DRAMA) return null;
+
+  const vars = varsFor(event, state);
+  const multiplier = holdMultiplier(drama);
+  const shots = GRAMMAR[beat]
+    .map(([template, rank]) => shotFrom(resolveKey(template, vars), rank, { multiplier }));
+
+  return { eventId, drama, beat, shots: truncate(shots, shotBudget(drama)) };
+}
+
+// How fast the memory of a loud moment fades. A breather two events after a
+// lethal swing still reads as interrupting it; six events later it does not.
+const DRAMA_DECAY = 0.7;
+
+/**
+ * A turn's worth of events as sequences, in order.
+ *
+ * Phase stingers are held back and at most one survives, and only when the turn
+ * produced nothing else. A duel changes phase six times a turn; a stinger on
+ * each is not a breather, it is a metronome. The breather earns its place only
+ * on a turn where nothing happened -- which is exactly the turn that would
+ * otherwise fall through to the ambient lane.
+ */
+function direct(events, state, { turn = state?.turn ?? 1, recentDrama = 0 } = {}) {
+  const out = [];
+  const breathers = [];
+  let recent = recentDrama;
+  events.forEach((event, i) => {
+    const sequence = directEvent(event, state, {
+      eventId: `t${turn}-${i}-${event.type}`, recentDrama: recent,
+    });
+    recent *= DRAMA_DECAY;
+    if (!sequence) return;
+    recent = Math.max(recent, sequence.drama);
+    if (sequence.beat === "phase") breathers.push(sequence);
+    else out.push(sequence);
+  });
+  if (out.length) return out;
+  // Entering the Battle Phase is the transition worth marking; ending a turn is
+  // bookkeeping, and only stands in when there is nothing else at all.
+  const battle = breathers.find((s) => s.shots[0].key === "phase.battle");
+  const chosen = battle ?? breathers[0];
+  return chosen ? [chosen] : [];
+}
+
+/**
+ * A director with memory, for callers that hand it events a few at a time.
+ *
+ * `direct` is batch-scoped and pure, which is right for a whole turn but wrong
+ * for the live app: it presents each action as it happens, so a batch holding
+ * nothing but a phase change always looks like an empty turn and earns a
+ * stinger. Thirteen stingers in ten turns is a metronome. The rule the spec
+ * wants -- a breather only where nothing else is happening -- needs to be
+ * judged across a turn, not across a batch.
+ */
+function createDirector() {
+  let turn = 0;
+  let actedThisTurn = false;
+  let breatherTurn = -1;
+  let recent = 0;
+
+  return {
+    direct(events, state) {
+      const now = state?.turn ?? turn;
+      if (now !== turn) { turn = now; actedThisTurn = false; }
+
+      const sequences = direct(events, state, { turn, recentDrama: recent });
+      const real = sequences.filter((sequence) => sequence.beat !== "phase");
+      if (real.length) {
+        actedThisTurn = true;
+        recent = Math.max(...real.map((sequence) => sequence.drama));
+        return real;
+      }
+      recent *= DRAMA_DECAY;
+      // One breather per turn at most, and never on a turn that did something.
+      if (actedThisTurn || breatherTurn === turn) return [];
+      breatherTurn = turn;
+      return sequences;
+    },
+    reset() { turn = 0; actedThisTurn = false; breatherTurn = -1; recent = 0; },
+  };
+}
+
+Object.assign(__exports, { directEvent, direct, createDirector, FAMILIES, ATTRIBUTES });
+});
+
+__def("src/broadcast/drama.js", {}, function (__exports, __req) {
+// How much this moment is worth, 0..1.
+//
+// Everything here is a number the engine already emits. The point of scoring at
+// all is variance: an episode is not evenly paced, and a reel that gives a
+// turn-three normal summon the same three shots and the same hold as a lethal
+// fusion attack is a slideshow no matter how good the clips are.
+
+const clamp01 = (n) => Math.max(0, Math.min(1, n));
+
+const STARTING_LP = 8000;
+
+// Who just took the hit. `damage` events name the side that lost the points;
+// an attack names the side that threw it, so the target is the other one.
+function struck(event, state) {
+  const side = event.type === "damage" ? event.side
+    : event.side === "player" ? "opponent" : "player";
+  return state?.sides?.[side] ?? null;
+}
+
+function dramaFor(event, state) {
+  // The end of a duel is the top of the scale by definition.
+  if (event.type === "win") return 1;
+
+  const damage = event.damage ?? event.amount ?? 0;
+  const target = struck(event, state);
+  // The state is read after the event resolved, so these are the numbers the
+  // viewer is about to see rather than the ones they just left behind.
+  const lpFraction = target ? target.lp / (state?.startingLp ?? STARTING_LP) : 1;
+  // Lethal has to be caused by this event. Reading it off state.winner scores
+  // every event in a finished duel as lethal, which flattens the whole curve.
+  const lethal = damage > 0 && target !== null && target.lp <= 0;
+  const marquee = event.how === "fusion" || (event.type === "activate" && event.reveal === true);
+
+  return clamp01(
+    0.15
+    + 0.35 * clamp01(damage / 4000)
+    + 0.25 * (lethal ? 1 : 0)
+    + 0.15 * (lpFraction < 0.25 ? 1 : 0)
+    + 0.10 * (marquee ? 1 : 0),
+  );
+}
+
+/** 1..4 shots. A routine beat gets one; the duel's biggest moment gets four. */
+const shotBudget = (drama) => 1 + Math.round(clamp01(drama) * 3);
+
+/** 0.8x..1.7x. Holds stretch with the moment, which is most of the pacing. */
+const holdMultiplier = (drama) => 0.8 + clamp01(drama) * 0.9;
+
+Object.assign(__exports, { dramaFor, shotBudget, holdMultiplier });
+});
+
+__def("src/broadcast/shot-grammar.js", {}, function (__exports, __req) {
+// One engine event becomes several shots.
+//
+// The clip library was never the bottleneck -- the edit was. A summon that cuts
+// reveal → monster → the other duelist's face is an episode; the same summon as
+// one held clip is a log entry with a picture on it.
+//
+// `rank` is drop priority when the reel is behind. Rank 1 is never dropped, so
+// a summon always shows the monster and a trap always shows the trap no matter
+// how far behind the edit has fallen. It degrades; it never vanishes.
+
+// Seconds are deliberate rather than uniform: a reveal is a beat, a summon is a
+// moment, a finish is an ending.
+const HOLD = {
+  reveal: 700, tribute: 1000, summon: 1800, fusion: 2200, clash: 1600, direct: 1700,
+  impact: 800, trap: 1500, spell: 1300, react: 1100, arena: 1400, phase: 900,
+  idle: 4000, finish: 2600,
+};
+
+// Per §5: the tier is a property of the subject, not of the budget. Humans are
+// physically present, so they are stable plates with a camera move over them --
+// which is also what an anime reaction beat actually is. Monsters are
+// projections, so they get video, where the model's instability reads as the
+// hologram struggling to hold its shape.
+const STILL_SUBJECTS = new Set(["react", "idle", "arena", "phase"]);
+
+// Cut on motion: a shot still moving hides its own cut. A held expression has
+// settled and shows every seam, so it plays out.
+const SETTLES = new Set(["react", "idle", "finish"]);
+
+const family = (key) => key.split(".")[0];
+
+function shotFrom(key, rank, { multiplier = 1 } = {}) {
+  const kind = family(key);
+  return {
+    key,
+    rank,
+    hold: Math.round((HOLD[kind] ?? 1200) * multiplier),
+    tier: STILL_SUBJECTS.has(kind) ? "still" : "video",
+    tailMotion: !SETTLES.has(kind),
+  };
+}
+
+// The §3.2 table, as data. Destruction deliberately gets no beat of its own --
+// it is folded into clash and impact, because a separate destruction shot is
+// exactly what makes an edit read as a log file rather than an episode.
+const GRAMMAR = {
+  summon: [["reveal.monster", 3], ["summon.{attr}.{fam}", 1], ["react.{opp}.{mood}", 2]],
+  tributeSummon: [["tribute.wide", 3], ["summon.{attr}.{fam}", 1], ["react.{opp}.pressed", 2]],
+  setMonster: [["reveal.facedown", 1]],
+  fusionSummon: [["reveal.spell", 4], ["fusion.{fam}", 1], ["arena.low", 3],
+    ["react.{opp}.pressed", 2]],
+  clash: [["react.{atk}.steady", 3], ["clash.{fam}", 1], ["impact.{weight}", 2]],
+  directAttack: [["react.{def}.pressed", 3], ["direct.{fam}", 1], ["impact.heavy", 2]],
+  // The money moment, and the one nobody sees coming, so it gets four beats.
+  // Under pressure it degrades trap → +reveal → +the attacker's face, in that
+  // order, and never to nothing.
+  trapFlip: [["react.{def}.steady", 4], ["reveal.trap", 2], ["trap", 1],
+    ["react.{atk}.broken", 3]],
+  spell: [["reveal.spell", 2], ["spell", 1]],
+  chainLink: [["reveal.{cardType}", 1]],
+  phase: [["phase.{phase}", 1]],
+  win: [["finish", 1], ["react.{winner}.steady", 2], ["arena.wide", 3]],
+};
+
+/** Which row of the table an engine event belongs to, or null for no shot. */
+function beatFor(event) {
+  switch (event.type) {
+    case "summon":
+      if (event.how === "token") return null;
+      if (event.how === "fusion") return "fusionSummon";
+      if (event.faceDown || event.position === "set") return "setMonster";
+      return event.how === "tribute" ? "tributeSummon" : "summon";
+    case "set": return event.kind === "monster" ? "setMonster" : null;
+    case "clash": return "clash";
+    case "directAttack": return "directAttack";
+    case "activate":
+      if (event.chainLink > 1) return "chainLink";
+      return event.reveal ? "trapFlip" : "spell";
+    case "phase": return "phase";
+    case "win": return "win";
+    default: return null;
+  }
+}
+
+/** Fills the braces. An unresolved placeholder is a bug, so it throws loudly. */
+function resolveKey(template, vars) {
+  return template.replace(/\{(\w+)\}/g, (_, name) => {
+    const value = vars[name];
+    if (value === undefined || value === null) {
+      throw new Error(`shot-grammar: no value for {${name}} in "${template}"`);
+    }
+    return String(value);
+  });
+}
+
+/** Every key the table can ever produce, for the coverage check. */
+function expandGrammar({ duelists, attributes, families }) {
+  const keys = new Set();
+  const vars = {
+    attr: attributes, fam: families, opp: duelists, atk: duelists, def: duelists,
+    winner: duelists, mood: ["steady", "pressed", "broken"], weight: ["light", "heavy"],
+    phase: ["battle", "end"], cardType: ["monster", "spell", "trap", "facedown"],
+  };
+  for (const row of Object.values(GRAMMAR)) {
+    for (const [template] of row) {
+      let forms = [template];
+      for (const [name, values] of Object.entries(vars)) {
+        if (!template.includes(`{${name}}`)) continue;
+        forms = forms.flatMap((form) => values.map((v) => form.replace(`{${name}}`, v)));
+      }
+      for (const form of forms) keys.add(form);
+    }
+  }
+  return [...keys];
+}
+
+Object.assign(__exports, { shotFrom, beatFor, resolveKey, expandGrammar, GRAMMAR });
+});
+
+__def("src/broadcast/reel.js", {}, function (__exports, __req) {
+// The reel: two lanes of shots, and one promise.
+//
+//   The reel always has a shot on screen. If the action lane is empty or not
+//   ready, the ambient lane fills it. There is no blank frame, ever.
+//
+// That is the whole of live mode. The action lane carries what the engine just
+// did and drains in order under a deadline; the ambient lane is a floor rather
+// than a queue -- it is never behind, because its shots are pre-resolved and
+// infinitely available. Everything else here is about *when* to cut between
+// them, which is what separates an edit from a slideshow.
+
+const MIN_AMBIENT_HOLD = 600;
+const MIN_SHOT_HOLD = 700;
+const MAX_EVENT_LAG = 2500;
+
+// A shot still in motion hides a cut; a shot that has settled shows every seam.
+// One flagged `tailMotion` may be cut this far in when something is waiting.
+const TAIL_CUT = 0.88;
+
+// Above this, a rank-1 shot interrupts whatever is on screen. A lethal attack
+// does not wait its turn -- that is a director's decision and should read as one.
+const CUT_NOW_DRAMA = 0.8;
+
+const holdOf = (shot) => Math.max(MIN_SHOT_HOLD, shot.hold ?? MIN_SHOT_HOLD);
+
+/** Under time pressure a sequence sheds its highest rank numbers first. */
+function truncate(shots, budget) {
+  if (shots.length <= budget) return shots;
+  const ranked = [...shots].sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9));
+  const keep = new Set(ranked.slice(0, Math.max(1, budget)));
+  return shots.filter((shot) => keep.has(shot));
+}
+
+function createReel({ ambient, onShotChange, now = () => Date.now() }) {
+  const queue = [];               // pending sequences, in arrival order
+  let current = null;
+  let pressure = 0;
+  let started = false;
+  let lastAmbient = null;
+
+  function play(shot, lane, t) {
+    const previous = current?.shot ?? null;
+    current = { shot, lane, startedAt: t, hold: lane === "ambient" ? (shot.hold ?? 4000) : holdOf(shot) };
+    if (lane === "ambient") lastAmbient = shot.key;
+    if (shot.key !== previous?.key) onShotChange?.(shot, previous);
+    return current;
+  }
+
+  function fillFromAmbient(t) {
+    const shot = ambient(pressure, { avoid: lastAmbient });
+    play({ hold: 4000, ...shot, lane: "ambient" }, "ambient", t);
+  }
+
+  // A sequence that has been waiting too long is cut to its spine rather than
+  // played late and in full: the alternative is the edit drifting further and
+  // further behind the duel it is supposed to be showing.
+  function shotsOf(sequence, t) {
+    const late = t - sequence.pushedAt > MAX_EVENT_LAG;
+    return late ? sequence.shots.filter((shot) => shot.rank === 1) : sequence.shots;
+  }
+
+  function pullNext(t) {
+    while (queue.length) {
+      const sequence = queue[0];
+      const shots = shotsOf(sequence, t);
+      const index = sequence.played;
+      if (index >= shots.length) { queue.shift(); continue; }
+      sequence.played += 1;
+      play({ ...shots[index], drama: sequence.drama, eventId: sequence.eventId }, "action", t);
+      return true;
+    }
+    return false;
+  }
+
+  /** Whether the shot on screen may be cut for the sequence that is waiting. */
+  function mayCut(t) {
+    if (!current) return true;
+    const elapsed = t - current.startedAt;
+    const waiting = queue[0];
+    if (waiting && waiting.cutNow) return true;
+    if (current.lane === "ambient") return elapsed >= MIN_AMBIENT_HOLD;
+    const full = current.hold;
+    return elapsed >= (current.shot.tailMotion ? full * TAIL_CUT : full);
+  }
+
+  return {
+    start(t = now()) {
+      if (started) return current;
+      started = true;
+      if (!queue.length || !pullNext(t)) fillFromAmbient(t);
+      return current;
+    },
+
+    push(sequence) {
+      const cutNow = sequence.drama >= CUT_NOW_DRAMA
+        && sequence.shots.some((shot) => shot.rank === 1);
+      const entry = { ...sequence, played: 0, pushedAt: sequence.pushedAt ?? now(), cutNow };
+      // A shot that interrupts the screen also jumps the queue -- going on
+      // screen after three stale shots is not an interruption. What it displaces
+      // is still there behind it, and MAX_EVENT_LAG will cut it to its spine.
+      if (cutNow) queue.unshift(entry);
+      else queue.push(entry);
+      return queue.length;
+    },
+
+    tick(t = now()) {
+      if (!started) return null;
+      const expired = t - current.startedAt >= current.hold;
+      if (queue.length && mayCut(t)) pullNext(t);
+      else if (expired && !pullNext(t)) fillFromAmbient(t);
+      return current.shot;
+    },
+
+    skip(t = now()) {
+      if (!started) return null;
+      if (!pullNext(t)) fillFromAmbient(t);
+      return current.shot;
+    },
+
+    setPressure(level) { pressure = Math.max(0, Math.min(3, level | 0)); },
+    get pressure() { return pressure; },
+    get current() { return current?.shot ?? null; },
+    get lane() { return current?.lane ?? null; },
+    get pending() { return queue.reduce((n, s) => n + Math.max(0, s.shots.length - s.played), 0); },
+    clear() { queue.length = 0; },
+  };
+}
+
+Object.assign(__exports, { truncate, createReel, MIN_AMBIENT_HOLD, MIN_SHOT_HOLD, MAX_EVENT_LAG });
+});
+
+__def("src/audio/score.js", {}, function (__exports, __req) {
+// One continuous score under the whole duel.
+//
+// This is the single largest lever on whether sixty separate clips feel like
+// one episode. The picture cuts; the score does not. Per-clip cues would give
+// sixty different rooms and the thing falls apart at every cut -- which is also
+// why every clip prompt carries `music` as a negative.
+//
+// A handful of oscillators and gain nodes. No samples, no library.
+
+const KEYS = {
+  // Two centres, so a duel that changes lead also changes key.
+  leading: { root: 55, third: 65.41, fifth: 82.41 },   // A1 minor-ish
+  trailing: { root: 49, third: 58.27, fifth: 73.42 },  // G1, a tone down
+};
+
+const DUCK_DB = -18;
+const DUCK_RELEASE = 0.4;
+const dbToGain = (db) => 10 ** (db / 20);
+
+function osc(ctx, type, freq, gain, destination) {
+  const node = ctx.createOscillator();
+  const level = ctx.createGain();
+  node.type = type;
+  node.frequency.value = freq;
+  level.gain.value = gain;
+  node.connect(level).connect(destination);
+  node.start();
+  return { node, level };
+}
+
+/** The slow breath under everything. Always on, from the first frame. */
+function buildBed(ctx, out) {
+  const voices = [
+    osc(ctx, "sine", KEYS.leading.root, 0.22, out),
+    osc(ctx, "sine", KEYS.leading.root * 2.01, 0.09, out),  // detuned, for beating
+    osc(ctx, "triangle", KEYS.leading.fifth, 0.05, out),
+  ];
+  const lfo = ctx.createOscillator();
+  const depth = ctx.createGain();
+  lfo.frequency.value = 0.07;
+  depth.gain.value = 0.06;
+  lfo.connect(depth).connect(voices[0].level.gain);
+  lfo.start();
+  return voices;
+}
+
+function createScore({ audioContext, destination } = {}) {
+  let ctx = audioContext ?? null;
+  let master = null;
+  let bedGain = null;
+  let pulseGain = null;
+  let leadGain = null;
+  let pulseTimer = 0;
+  let voices = [];
+  let started = false;
+  let tempo = 0.9;
+  let ducked = false;
+
+  function ensure() {
+    if (ctx) return ctx;
+    const Ctx = globalThis.AudioContext ?? globalThis.webkitAudioContext;
+    if (!Ctx) return null;
+    ctx = new Ctx();
+    return ctx;
+  }
+
+  function pluck(when, freq, gain = 0.07) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "triangle";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(gain, when + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.35);
+    o.connect(g).connect(pulseGain);
+    o.start(when);
+    o.stop(when + 0.4);
+  }
+
+  function schedulePulse() {
+    clearInterval(pulseTimer);
+    pulseTimer = setInterval(() => {
+      if (!ctx || ctx.state !== "running") return;
+      const now = ctx.currentTime;
+      pluck(now, KEYS.leading.root * 4);
+      pluck(now + 0.5 / tempo, KEYS.leading.fifth * 2, 0.04);
+    }, Math.max(380, 900 / tempo));
+  }
+
+  return {
+    start() {
+      if (started) return false;
+      const context = ensure();
+      if (!context) return false;
+      started = true;
+      master = context.createGain();
+      master.gain.value = 0.5;
+      master.connect(destination ?? context.destination);
+
+      bedGain = context.createGain();
+      pulseGain = context.createGain();
+      leadGain = context.createGain();
+      bedGain.gain.value = 1;
+      pulseGain.gain.value = 0;      // enters at turn 3
+      leadGain.gain.value = 0;       // enters when someone is nearly out
+      for (const g of [bedGain, pulseGain, leadGain]) g.connect(master);
+      voices = buildBed(context, bedGain);
+      schedulePulse();
+      return true;
+    },
+
+    /**
+     * The layers are driven by the duel, and every change is a crossfade. A
+     * hard switch at a threshold is audible as a switch, which is the one thing
+     * a continuous bed must never sound like.
+     */
+    update({ turn = 1, lowestLpFraction = 1, leading = true } = {}) {
+      if (!started || !ctx) return;
+      const now = ctx.currentTime;
+      const wantPulse = turn >= 3 ? 0.8 : 0;
+      pulseGain.gain.linearRampToValueAtTime(wantPulse, now + 1.2);
+
+      const wantLead = lowestLpFraction < 0.25 ? 0.55 : 0;
+      leadGain.gain.linearRampToValueAtTime(wantLead, now + 1.6);
+
+      // Tempo climbs with the turn count, so a long duel tightens rather than
+      // looping at one pace for forty turns.
+      const next = Math.min(1.9, 0.9 + turn * 0.045);
+      if (Math.abs(next - tempo) > 0.08) { tempo = next; schedulePulse(); }
+
+      const key = leading ? KEYS.leading : KEYS.trailing;
+      voices.forEach((voice, i) => {
+        const target = [key.root, key.root * 2.01, key.fifth][i];
+        voice.node.frequency.linearRampToValueAtTime(target, now + 2.4);
+      });
+    },
+
+    /** Under a line of banter the bed steps back rather than competing. */
+    duck(on) {
+      if (!started || !ctx || on === ducked) return;
+      ducked = on;
+      const now = ctx.currentTime;
+      const target = on ? dbToGain(DUCK_DB) : 1;
+      bedGain.gain.cancelScheduledValues(now);
+      bedGain.gain.linearRampToValueAtTime(target, now + (on ? 0.08 : DUCK_RELEASE));
+    },
+
+    /**
+     * Budget silence. After a loud exchange, near-silence is more powerful than
+     * any cue and it is the cheapest effect available -- so the finish gets one
+     * before it lands, deliberately, rather than a sting on top of a sting.
+     */
+    silence(ms = 800) {
+      if (!started || !ctx) return;
+      const now = ctx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.linearRampToValueAtTime(0.0001, now + 0.12);
+      master.gain.setValueAtTime(0.0001, now + ms / 1000);
+      master.gain.linearRampToValueAtTime(0.5, now + ms / 1000 + 0.5);
+    },
+
+    resume() { return ctx?.state === "suspended" ? ctx.resume() : Promise.resolve(); },
+    stop() {
+      clearInterval(pulseTimer);
+      for (const voice of voices) { try { voice.node.stop(); } catch { /* already stopped */ } }
+      voices = [];
+      started = false;
+      ctx?.close?.();
+      ctx = null;
+    },
+    get running() { return started; },
+    get context() { return ctx; },
+    get output() { return master; },
+  };
+}
+
+Object.assign(__exports, { createScore });
+});
+
+__def("src/ui/live/stage.js", {"../../cinema/procedural-stage.js":"src/cinema/procedural-stage.js"}, function (__exports, __req) {
+// The full-bleed media layer, and the grade over it.
+//
+// Everything composites into one canvas -- clips, stills and the procedural
+// fallback alike. Two reasons, and both matter. The grade has to sit over every
+// tier uniformly or the seam between them becomes visible, which is the whole
+// trick in §7. And a single composited canvas is what makes the episode export
+// in §13 a capture rather than a re-render.
+
+const { drawArena, drawScanlines } = __req("../../cinema/procedural-stage.js");
+const ASPECT = 2.39;          // committed to; the bars are HUD real estate
+
+const reducedMotion = () =>
+  globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+
+// A fixed noise tile costs one allocation and looks the same as per-frame noise
+// once it is weaving. Regenerating it every frame is the expensive way to get
+// an identical result.
+function grainTile(doc, size = 128) {
+  const tile = doc.createElement("canvas");
+  tile.width = size;
+  tile.height = size;
+  const ctx = tile.getContext("2d");
+  const image = ctx.createImageData?.(size, size);
+  if (!image?.data) return null;
+  for (let i = 0; i < image.data.length; i += 4) {
+    const v = 120 + Math.random() * 80;
+    image.data[i] = v; image.data[i + 1] = v; image.data[i + 2] = v;
+    image.data[i + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  return tile;
+}
+
+/** Cover-fit, so a 16:9 clip fills a 2.39:1 frame instead of pillarboxing. */
+function coverRect(srcW, srcH, w, h) {
+  if (!srcW || !srcH) return { x: 0, y: 0, w, h };
+  const scale = Math.max(w / srcW, h / srcH);
+  const drawW = srcW * scale;
+  const drawH = srcH * scale;
+  return { x: (w - drawW) / 2, y: (h - drawH) / 2, w: drawW, h: drawH };
+}
+
+const sizeOf = (node) => (node?.tagName === "VIDEO"
+  ? { w: node.videoWidth, h: node.videoHeight }
+  : { w: node?.naturalWidth, h: node?.naturalHeight });
+
+function createStage({ canvas, media, accents, getState, onFrame }) {
+  const ctx = canvas.getContext("2d");
+  let grain = null;                     // null = untried, false = unavailable
+  let raf = 0;
+  let running = false;
+  let frames = 0;
+  let blanks = 0;
+  let failures = 0;
+
+  // Three-dimensionality comes from light dying. The vignette is where it dies.
+  function vignette(w, h) {
+    const g = ctx.createRadialGradient(w / 2, h * 0.46, h * 0.22, w / 2, h / 2, h * 0.95);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.62)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  // One grade over every tier: bloom, grain, weave. Model variance hides inside
+  // texture, and a perfectly clean frame is the thing that reads as synthetic.
+  function grade(w, h, t) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.16;
+    ctx.drawImage(canvas, -w * 0.012, -h * 0.012, w * 1.024, h * 1.024);  // halation
+    ctx.restore();
+
+    vignette(w, h);
+
+    if (grain === null) grain = grainTile(canvas.ownerDocument ?? globalThis.document) ?? false;
+    if (!grain) return;                 // no pixel access here; skip, do not retry
+    ctx.save();
+    ctx.globalAlpha = 0.055;
+    ctx.globalCompositeOperation = "overlay";
+    const drift = reducedMotion() ? 0 : (t / 90) % 128;
+    const pattern = ctx.createPattern(grain, "repeat");
+    if (pattern) {
+      ctx.translate(-drift, -((t / 140) % 128));
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, w + 128, h + 128);
+    }
+    ctx.restore();
+  }
+
+  function drawMedia(w, h) {
+    const node = media();
+    if (!node || node.dataset?.ready !== "true") return false;
+    const { w: sw, h: sh } = sizeOf(node);
+    if (!sw || !sh) return false;
+    const rect = coverRect(sw, sh, w, h);
+    try {
+      ctx.drawImage(node, rect.x, rect.y, rect.w, rect.h);
+      return true;
+    } catch {
+      return false;   // a frame that is not decodable yet is not an error
+    }
+  }
+
+  // A throw in here must never kill the loop. The reel's promise is that there
+  // is always a shot on screen, and a dead animation frame breaks it in the one
+  // way the player cannot recover from.
+  function frame(now) {
+    try { paint(now); } catch (error) {
+      failures += 1;
+      if (failures === 1) console.warn("stage paint failed; continuing", error);
+    }
+    frames += 1;
+    if (running) raf = requestAnimationFrame(frame);
+  }
+
+  function paint(now) {
+    const { width: w, height: h } = canvas;
+    // Gate weave: a sub-pixel float that keeps the frame from sitting too still.
+    const weave = reducedMotion() ? 0 : Math.sin(now / 1700) * 0.8;
+    ctx.save();
+    ctx.translate(weave, Math.cos(now / 2300) * 0.6);
+    ctx.fillStyle = "#05070e";
+    ctx.fillRect(-4, -4, w + 8, h + 8);
+    const painted = drawMedia(w, h);
+    if (!painted) {
+      // The floor under the floor: the canvas can always draw the arena, so a
+      // media layer that is not ready yet still yields a frame with a picture.
+      const [a, b] = accents();
+      drawArena(ctx, w, h, { accentA: a, accentB: b, t: reducedMotion() ? 0 : now });
+      drawScanlines(ctx, w, h, reducedMotion() ? 0 : now);
+      blanks += 1;
+    }
+    ctx.restore();
+    grade(w, h, now);
+    onFrame?.({ painted, now, state: getState?.() });
+  }
+
+  return {
+    start() {
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(frame);
+    },
+    stop() { running = false; cancelAnimationFrame(raf); },
+    /** Draw one frame synchronously — used by the export and by tests. */
+    render(now = 0) { const was = running; running = false; frame(now); running = was; },
+    get stats() { return { frames, medialess: blanks, failures }; },
+  };
+}
+
+Object.assign(__exports, { createStage, ASPECT });
+});
+
+__def("src/ui/live/media-pool.js", {"../../cinema/free-video.js":"src/cinema/free-video.js","../../broadcast/keys.js":"src/broadcast/keys.js","../../broadcast/prompts.js":"src/broadcast/prompts.js"}, function (__exports, __req) {
+// Keys in, decodable elements out.
+//
+// The pool exists so the stage can ask "is there a picture for this key yet?"
+// and get an answer immediately, every frame, without ever awaiting anything.
+// A key that is still generating simply is not ready, and the stage draws the
+// procedural floor instead. Nothing here is allowed to make the reel wait.
+
+const { resolve } = __req("../../cinema/free-video.js");
+const { clipKeyFor } = __req("../../broadcast/keys.js");
+const { shotRequestFor } = __req("../../broadcast/prompts.js");
+const READY = "true";
+
+/** A hidden element per asset, kept so a repeat key replays instantly. */
+function makeNode(doc, tier, url) {
+  const node = doc.createElement(tier === "video" ? "video" : "img");
+  if (tier === "video") {
+    node.muted = true;          // the score is the only audio; clips are SFX only
+    node.loop = true;
+    node.playsInline = true;
+    node.preload = "auto";
+    node.addEventListener("loadeddata", () => { node.dataset.ready = READY; });
+    node.addEventListener("canplay", () => { node.play?.().catch(() => {}); });
+  } else {
+    node.addEventListener("load", () => { node.dataset.ready = READY; });
+    node.decoding = "async";
+  }
+  node.addEventListener("error", () => { node.dataset.failed = READY; });
+  node.src = url;
+  return node;
+}
+
+function createMediaPool({ doc = globalThis.document, tierFor, resolveImpl = resolve } = {}) {
+  const nodes = new Map();        // key -> element
+  const inflight = new Set();
+  let requests = 0;
+
+  function want(key) {
+    if (!key || nodes.has(key) || inflight.has(key)) return;
+    const tier = tierFor?.(key) ?? "still";
+    if (tier === "procedural") return;
+    const request = shotRequestFor(key, { tier });
+    if (!request) return;
+    inflight.add(key);
+    requests += 1;
+    // A shot-shaped object, because that is what the tier resolver takes. The
+    // reuse key is what makes one clip serve every shot that reads alike.
+    resolveImpl({ id: key, clipKey: clipKeyFor(key), kind: key.split(".")[0], ...request })
+      .then((asset) => {
+        inflight.delete(key);
+        if (asset?.url) nodes.set(key, makeNode(doc, asset.tier ?? tier, asset.url));
+      })
+      .catch(() => { inflight.delete(key); });
+  }
+
+  return {
+    /** Start fetching, and say nothing about when it will arrive. */
+    want,
+    /** Warm what is about to be needed, behind whatever is on screen now. */
+    prefetch(keys) { for (const key of keys) want(key); },
+    /** The element for a key if it is decodable right now, else null. */
+    get(key) {
+      const node = nodes.get(key);
+      if (!node) { want(key); return null; }
+      if (node.dataset.failed === READY) return null;
+      return node.dataset.ready === READY ? node : null;
+    },
+    has(key) { return nodes.has(key); },
+    get stats() { return { held: nodes.size, inflight: inflight.size, requests }; },
+    clear() { nodes.clear(); inflight.clear(); },
+  };
+}
+
+Object.assign(__exports, { createMediaPool });
+});
+
+__def("src/broadcast/keys.js", {"../cinema/player.js":"src/cinema/player.js"}, function (__exports, __req) {
+// Where a grammar key gets its picture.
+//
+// A key is only ever as good as the thing it resolves to. The rule that keeps
+// the library bounded is that a key must fully determine its prompt: anything
+// the key leaves out must stay out of the prompt, or two shots sharing a key
+// would need two different clips and the reuse collapses.
+
+const { PROCEDURAL_KINDS } = __req("../cinema/player.js");
+/** Grammar keys are dotted; clips on disk are hyphenated and case-insensitive. */
+const clipKeyFor = (key) => String(key).toLowerCase().replace(/\./g, "-");
+
+// The canvas can draw these unaided, so a key in this map always has a picture
+// even with no clips, no key and no network.
+const PROCEDURAL = {
+  summon: "summon", fusion: "fusion", clash: "clash", direct: "direct",
+  trap: "trap", spell: "spell", finish: "finish", reveal: "spell",
+  impact: "clash", tribute: "summon", react: "reaction", idle: "idle",
+  arena: "idle", phase: "chain_build",
+};
+
+/** The procedural shot kind that backs a key, or null if nothing can draw it. */
+function proceduralKindFor(key) {
+  const kind = PROCEDURAL[String(key).split(".")[0]];
+  return kind && PROCEDURAL_KINDS.has(kind) ? kind : null;
+}
+
+/** Everything a key needs to be rendered at whatever tier is available. */
+function resolveShotKey(key) {
+  return {
+    key,
+    clipKey: clipKeyFor(key),
+    procedural: proceduralKindFor(key),
+  };
+}
+
+// The keys two real decks can actually reach. The grammar's full expansion is
+// the theoretical maximum -- six attributes times seven families -- but a deck
+// list is much narrower than that, and generating the difference would be
+// paying for clips no duel can ever play.
+function reachableKeys(decks, { duelists }) {
+  const keys = new Set([
+    "reveal.monster", "reveal.facedown", "reveal.spell", "reveal.trap",
+    "tribute.wide", "impact.light", "impact.heavy", "trap", "spell", "finish",
+    "phase.battle", "phase.end", "arena.wide", "arena.low", "arena.overhead",
+  ]);
+  for (const id of duelists) {
+    keys.add(`idle.${id}`);
+    for (const register of ["steady", "pressed", "broken"]) keys.add(`react.${id}.${register}`);
+  }
+  for (const { attribute, family } of decks) {
+    keys.add(`summon.${attribute}.${family}`);
+    keys.add(`fusion.${family}`);
+    keys.add(`clash.${family}`);
+    keys.add(`direct.${family}`);
+  }
+  return [...keys].sort();
+}
+
+/** Split a key set by the tier its subject is filmed at (§5). */
+function splitByTier(keys) {
+  const still = keys.filter((key) => /^(react|idle|arena|phase)\./.test(key));
+  return { still, video: keys.filter((key) => !still.includes(key)) };
+}
+
+Object.assign(__exports, { proceduralKindFor, resolveShotKey, reachableKeys, splitByTier, clipKeyFor });
+});
+
+__def("src/broadcast/prompts.js", {"../cinema/world.js":"src/cinema/world.js"}, function (__exports, __req) {
+// Prompts for the live grammar's keys.
+//
+// Four rules do most of the work here, and they are all counter-intuitive
+// enough to be worth stating:
+//
+//   1. The reference budget is three -- arena, duelist, monster -- and the
+//      arena is the one that must never be dropped. It is the only asset in
+//      every shot, so omitting it is what makes a shot list change venue on
+//      every cut. It is named in the block AND inline in the sentence, because
+//      a header-only mention frequently produces a shot where it is simply
+//      absent.
+//   2. Describe motion, not material. A list of what a creature is made of
+//      produces a prop; a description of how it moves produces a creature.
+//      Give it a head -- a denser, brighter leading element that arrives first
+//      with the rest following late -- or it reads as material.
+//   3. Light dies. Three-dimensionality comes from naming a source with a
+//      position and then saying where the darkness is. "Dramatic lighting" is
+//      an adjective and gets ignored.
+//   4. Every clip carries `music, score, soundtrack` as a negative. The score
+//      is one continuous generated bed; a clip that arrives with its own music
+//      destroys the continuity at every single cut.
+
+const { ARENAS, LOOKS, NEUTRAL_ARENA, STYLE, WORLD, assemble } = __req("../cinema/world.js");
+// Carried by every clip in the set, not just the ones that seem to need it.
+const NEGATIVE = [
+  "music", "score", "soundtrack", "singing",
+  // Models default to a hard low key on anyone described as powerful, which
+  // turns every duelist into a villain by the third shot.
+  "harsh underlighting on faces", "sinister expression", "villainous",
+  // Energy in this world is light, not combustion.
+  "fire", "smoke", "explosion debris",
+  "text", "subtitles", "watermark", "logo", "extra fingers", "deformed hands",
+].join(", ");
+
+const MOTION = {
+  dragon: "its head lunges first on a long neck and the wings snap open a half-second later, "
+    + "the tail still catching up",
+  warrior: "the weapon arm drives forward first, the shoulders and cloak arriving behind it",
+  spellcaster: "the staff hand rises first and the robe lifts a beat afterwards, hem last",
+  fiend: "the horned head snaps around first, the shoulders rolling after it",
+  beast: "the head and forelimbs commit first, the hindquarters gathering and releasing late",
+  winged: "the head leads the bank and the wings sweep through a half-beat behind",
+  other: "the leading mass commits first and the bulk of the body follows late",
+};
+
+const LIGHT = {
+  DARK: "one cold violet source low in frame under the creature; everything above the shoulders "
+    + "falls to near-black",
+  LIGHT: "one hard white source low and front; the background falls away to black behind it",
+  FIRE: "one deep orange source below; the upper body is lost in shadow",
+  WIND: "one pale green source raking across from the left; the right side goes dark",
+  EARTH: "one amber source low and behind; the front of the body is in shadow",
+  WATER: "one cold blue source below the waterline; everything above it dims to black",
+};
+
+const REGISTER = {
+  steady: "level and unimpressed, eyes front, jaw set",
+  pressed: "leaning back a fraction, weight shifted, brow tightening",
+  broken: "eyes wide, head drawn back, the composure gone",
+};
+
+const dot = (key) => key.split(".");
+
+// The duelist plates are a different job from the shots they appear in: flat,
+// even, front-on. Light a reference plate dramatically and the model bakes
+// those shadows into the character, and then every later shot carries a shadow
+// that does not match its scene.
+function plate(duelistId, register) {
+  const look = LOOKS[duelistId];
+  const arena = ARENAS[look.arena];
+  return `${STYLE}. ${WORLD}. Reference plate: ${look.look}, standing in ${arena}, framed from `
+    + `the chest up, facing camera three-quarters on. Flat even frontal lighting, no cast shadows `
+    + `on the face. Expression ${REGISTER[register]}. The arena is visible but soft behind them.`;
+}
+
+const BUILDERS = {
+  summon([, attribute, family]) {
+    return assemble(`A vast translucent hologram erupts upward out of a duelist's forearm Duel `
+      + `Disk in ${NEUTRAL_ARENA}: ${MOTION[family] ?? MOTION.other}. Its head is the densest and `
+      + `brightest part of it and arrives first. Scan lines crawl across the projection and its `
+      + `edges flicker and smear as the projectors strain. Lighting: ${LIGHT[attribute] ?? LIGHT.DARK}`);
+  },
+  fusion([, family]) {
+    return assemble(`Two monster holograms spiral into one another above ${NEUTRAL_ARENA} and a `
+      + `single larger creature tears out of the vortex: ${MOTION[family] ?? MOTION.other}. The `
+      + `projection is unstable, edges ghosting and re-forming. Lighting: one hard white source at `
+      + `the vortex core, everything outside it falling to black`);
+  },
+  clash([, family]) {
+    return assemble(`Two enormous monster holograms collide head-on above ${NEUTRAL_ARENA}: `
+      + `${MOTION[family] ?? MOTION.other}, meeting the other mid-charge. Both projections tear `
+      + `and re-knit at the point of contact. Lighting: one blown-out source at the impact, the `
+      + `arena beyond it in darkness`);
+  },
+  direct([, family]) {
+    return assemble(`A monster hologram charges an empty field in ${NEUTRAL_ARENA} and slams into `
+      + `a duelist's shield of light: ${MOTION[family] ?? MOTION.other}. The barrier flares and `
+      + `splits. Lighting: one white source at the barrier, the duelist behind it a silhouette`);
+  },
+  reveal([, what]) {
+    const face = what === "facedown" ? "face-down and stays sealed, edge-lit only"
+      : what === "trap" ? "face-up and floods the frame with hostile red"
+        : what === "spell" ? "face-up and washes the frame with green"
+          : "face-up and throws a shaft of white upward";
+    return assemble(`Extreme close-up on a single huge holographic card hanging in the air over `
+      + `${NEUTRAL_ARENA}; it rotates and locks ${face}. The card's surface carries scan lines `
+      + `and a flickering edge. Lighting: the card is the only source; everything around it black`);
+  },
+  impact([, weight]) {
+    const force = weight === "heavy" ? "The whole frame shakes and the projection whites out"
+      : "A short sharp flare, the frame steady";
+    return assemble(`A burst of light at the point where two holograms meet over ${NEUTRAL_ARENA}. `
+      + `${force}. Particles of broken projection scatter and wink out. Lighting: one source at the `
+      + `impact, falling to black within a body's width`);
+  },
+  tribute() {
+    return assemble(`Wide shot of ${NEUTRAL_ARENA}: two monster holograms on the field dissolve `
+      + `upward into columns of light, the light gathering into one point above the duel disk. The `
+      + `duelist is a small silhouette at the frame edge. Lighting: the rising columns are the only `
+      + `source, the arena floor grid faintly lit beneath them`);
+  },
+  arena([, angle]) {
+    const camera = angle === "wide" ? "A slow wide drift across"
+      : angle === "low" ? "A low angle looking up across"
+        : "A slow overhead push down onto";
+    return assemble(`${camera} ${NEUTRAL_ARENA}. The arena is completely deserted: no people, no `
+      + `characters, no figures, no faces, no monsters, nobody standing anywhere in frame. `
+      + `Architecture only -- projector pylons idling, the floor grid pulsing, empty stands. `
+      + `Lighting: the floor grid from below, the stands beyond it in darkness`);
+  },
+  phase([, which]) {
+    const beat = which === "battle"
+      ? "the arena floor grid surges brighter and the projector pylons spin up"
+      : "the floor grid dims and the pylons wind down";
+    return assemble(`A short stinger over ${NEUTRAL_ARENA}: ${beat}. Completely deserted: no `
+      + `people, no characters, no figures, no faces, no monsters anywhere in frame. `
+      + `Lighting: the grid is the only source and it falls away to black at the frame edges`);
+  },
+  react([, duelistId, register]) { return plate(duelistId, register); },
+  idle([, duelistId]) {
+    const look = LOOKS[duelistId];
+    return `${STYLE}. ${WORLD}. ${look.look}, in ${ARENAS[look.arena]}, seen from the chest up, `
+      + `hands resting over the deck slot of the Duel Disk on their forearm. They breathe and `
+      + `shift their weight very slightly; nothing else moves. Flat even frontal lighting. `
+      + `Loopable, no cuts.`;
+  },
+  trap() {
+    return assemble(`A huge holographic trap card flips face-up over ${NEUTRAL_ARENA} and floods `
+      + `the arena with hostile red light that rakes across the floor grid. Lighting: the card is `
+      + `the only source, everything outside its throw is black`);
+  },
+  spell() {
+    return assemble(`A huge holographic spell card flips face-up over ${NEUTRAL_ARENA} and washes `
+      + `the floor grid in green light. Lighting: the card is the only source, falling off fast`);
+  },
+  // The one held direct gaze in the whole duel. Eyes are the uncanny epicentre,
+  // so this is the only shot in the set allowed to look down the lens.
+  finish() {
+    return assemble(`The holograms over ${NEUTRAL_ARENA} collapse into drifting particles and the `
+      + `arena lights fall in sequence. A duelist stands in the dark, lit from below by their own `
+      + `Duel Disk, and holds a level look straight down the lens. Lighting: the disk is the only `
+      + `source; everything above the collarbone falls to near-black`);
+  },
+};
+
+/** The prompt for a grammar key, or null if the key is not one we film. */
+function promptFor(key) {
+  const parts = dot(key);
+  const build = BUILDERS[parts[0]];
+  return build ? build(parts) : null;
+}
+
+/** Everything the generator needs for one key. */
+function shotRequestFor(key, { tier, seconds = 6 } = {}) {
+  const prompt = promptFor(key);
+  if (!prompt) return null;
+  const isPlate = /^(react|idle|arena|phase)\./.test(key);
+  return {
+    key,
+    prompt,
+    negative: NEGATIVE,
+    tier: tier ?? (isPlate ? "still" : "video"),
+    seconds,
+  };
+}
+
+Object.assign(__exports, { promptFor, shotRequestFor, NEGATIVE });
+});
+
+__def("src/ui/live/telestrator.js", {"../../render.js":"src/render.js"}, function (__exports, __req) {
+// Hold to see the real board.
+//
+// Live mode's honest problem: a generated clip will not accurately depict five
+// monster zones, so a player can lose track of what is actually on the field.
+// The fix is a gesture, not a panel. If it turns out a player holds this open
+// constantly, the HUD is under-informing -- that is a bug in the bars, not an
+// argument for pinning the board back on screen.
+
+const { renderZones } = __req("../../render.js");
+const HOLD_KEY = "Tab";
+const FADE_MS = 200;
+const TOUCH_HOLD_MS = 350;
+
+function createTelestrator({ root, rows, getState, onZoneClick, sticky = false }) {
+  let shown = false;
+  let pinned = false;
+  let touchTimer = 0;
+
+  function paint() {
+    const state = getState();
+    if (!state) return;
+    // The same renderer and the same zone ids as tactical mode: one board, two
+    // presentations, so the two can never disagree about what is on the field.
+    for (const [side, row, container] of rows) {
+      renderZones(state, side, container, { row, onZoneClick });
+    }
+  }
+
+  function show() {
+    if (shown) return;
+    shown = true;
+    paint();
+    root.hidden = false;
+    // A frame between unhide and the class so the transition actually runs.
+    requestAnimationFrame(() => root.classList.add("is-open"));
+  }
+
+  function hide() {
+    if (!shown || pinned) return;
+    shown = false;
+    root.classList.remove("is-open");
+    setTimeout(() => { if (!shown) root.hidden = true; }, FADE_MS);
+  }
+
+  function onKeyDown(event) {
+    if (event.key !== HOLD_KEY || event.repeat) return;
+    event.preventDefault();           // Tab would otherwise walk the focus ring
+    if (sticky) { pinned = !pinned; pinned ? show() : (pinned = false, hide()); return; }
+    show();
+  }
+
+  function onKeyUp(event) {
+    if (event.key !== HOLD_KEY || sticky) return;
+    event.preventDefault();
+    hide();
+  }
+
+  function onTouchStart() {
+    clearTimeout(touchTimer);
+    touchTimer = setTimeout(show, TOUCH_HOLD_MS);
+  }
+
+  function onTouchEnd() {
+    clearTimeout(touchTimer);
+    hide();
+  }
+
+  return {
+    attach(doc = document) {
+      doc.addEventListener("keydown", onKeyDown);
+      doc.addEventListener("keyup", onKeyUp);
+      root.addEventListener("touchstart", onTouchStart, { passive: true });
+      root.addEventListener("touchend", onTouchEnd);
+      root.addEventListener("touchcancel", onTouchEnd);
+    },
+    detach(doc = document) {
+      doc.removeEventListener("keydown", onKeyDown);
+      doc.removeEventListener("keyup", onKeyUp);
+      clearTimeout(touchTimer);
+    },
+    /** Repaint while open, so the board does not go stale under the finger. */
+    refresh() { if (shown) paint(); },
+    setSticky(value) { sticky = value; if (!value) { pinned = false; hide(); } },
+    show,
+    hide() { pinned = false; hide(); },
+    get open() { return shown; },
+  };
+}
+
+Object.assign(__exports, { createTelestrator });
+});
+
+__def("src/ui/live/episode.js", {}, function (__exports, __req) {
+// Recording the duel as a film.
+//
+// Everything already composites into one canvas and the score already runs
+// through one audio node, so an episode export is a capture of two streams that
+// exist anyway -- browser-native, no dependencies, and no second render path
+// that could disagree with what the viewer actually saw.
+
+const MIME_CANDIDATES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm",
+];
+
+/** The best container this browser will actually record, or null. */
+function pickMime(Recorder = globalThis.MediaRecorder) {
+  if (!Recorder?.isTypeSupported) return null;
+  return MIME_CANDIDATES.find((type) => Recorder.isTypeSupported(type)) ?? null;
+}
+
+const canRecord = (Recorder = globalThis.MediaRecorder) => Boolean(pickMime(Recorder));
+
+/**
+ * Capture the stage and the score together.
+ *
+ * The audio is optional on purpose: a browser that blocks the audio context
+ * still gets a silent film rather than no film at all.
+ */
+function createRecorder({ canvas, audioNode, fps = 30, Recorder = globalThis.MediaRecorder }) {
+  const mime = pickMime(Recorder);
+  if (!mime || !canvas?.captureStream) return null;
+
+  let recorder = null;
+  let chunks = [];
+
+  function buildStream() {
+    const stream = canvas.captureStream(fps);
+    const ctx = audioNode?.context;
+    if (audioNode && ctx?.createMediaStreamDestination) {
+      const sink = ctx.createMediaStreamDestination();
+      audioNode.connect(sink);
+      for (const track of sink.stream.getAudioTracks()) stream.addTrack(track);
+    }
+    return stream;
+  }
+
+  return {
+    start() {
+      if (recorder) return false;
+      chunks = [];
+      recorder = new Recorder(buildStream(), { mimeType: mime });
+      recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
+      recorder.start(1000);
+      return true;
+    },
+    /** Resolves with the finished film, or null if nothing was captured. */
+    stop() {
+      return new Promise((done) => {
+        if (!recorder) return done(null);
+        const active = recorder;
+        recorder = null;
+        active.onstop = () => done(chunks.length ? new Blob(chunks, { type: mime }) : null);
+        active.stop();
+      });
+    },
+    get recording() { return Boolean(recorder); },
+    get mime() { return mime; },
+  };
+}
+
+/** Turns per duel, not seconds: a scrubber over time means nothing to a duel. */
+function turnMarkersFrom(events) {
+  const marks = [];
+  let turn = 0;
+  events.forEach((event, index) => {
+    if (event.type !== "phase" || event.phase !== "draw") return;
+    turn += 1;
+    marks.push({ turn, index });
+  });
+  return marks;
+}
+
+Object.assign(__exports, { pickMime, createRecorder, turnMarkersFrom, canRecord });
+});
+
+__def("src/ui/live/disk.js", {"../../cards/index.js":"src/cards/index.js","../../duel-state.js":"src/duel-state.js","../../why-not.js":"src/why-not.js"}, function (__exports, __req) {
+// The control surface, for when the video is the screen.
+//
+// The player still plays. What changes is that the board stops being the
+// primary display, so everything they need to act has to live in the letterbox
+// bars and the card they are touching -- and the hand must never be occluded by
+// anything, because it is the one thing they are always reaching for.
+
+const { getCard } = __req("../../cards/index.js");
+const { effectiveStats } = __req("../../duel-state.js");
+const { whyNotPlayable } = __req("../../why-not.js");
+const KIND_LABEL = { monster: "MON", spell: "SPELL", trap: "TRAP" };
+
+// The fan is a strip, not a panel: a monster's numbers fit, a spell's rules text
+// does not. The full text belongs in the selection panel, where there is room
+// for it to be read rather than clipped.
+function statLine(state, side, inst, card) {
+  if (card.kind !== "monster") return "";
+  const s = effectiveStats(state, side, inst);
+  return `${s.atk} / ${s.def}`;
+}
+
+/** The longer form, for the panel and for the screen reader. */
+function describe(state, side, inst, card) {
+  if (card.kind !== "monster") return card.text ?? "";
+  const s = effectiveStats(state, side, inst);
+  return `${s.atk} ATK / ${s.def} DEF`;
+}
+
+function cardButton(state, inst, { blocked, onSelect, selected }) {
+  const card = getCard(inst.cardId);
+  const node = document.createElement("button");
+  node.type = "button";
+  node.className = `fan-card fan-card--${card.kind}`;
+  node.dataset.uid = inst.uid;
+  if (blocked) node.classList.add("is-blocked");
+  if (selected) node.classList.add("is-selected");
+  node.innerHTML = `<span class="fan-kind">${KIND_LABEL[card.kind]}</span>`
+    + `<span class="fan-name"></span><span class="fan-stat"></span>`;
+  node.querySelector(".fan-name").textContent = card.name;
+  node.querySelector(".fan-stat").textContent = statLine(state, "player", inst, card);
+  node.setAttribute("aria-label",
+    `${card.name}. ${describe(state, "player", inst, card)}${blocked ? `. ${blocked}` : ""}`);
+  node.addEventListener("click", () => onSelect(inst, blocked));
+  return node;
+}
+
+/** The fanned hand along the bottom bar. Never scrolled, never covered. */
+function renderFan(container, state, { actions, onSelect, selectedUid }) {
+  container.innerHTML = "";
+  const hand = state?.sides?.player?.hand ?? [];
+  hand.forEach((inst, i) => {
+    const mine = actions.filter((action) => action.uid === inst.uid);
+    const blocked = mine.length ? null : whyNotPlayable(state, "player", inst);
+    const node = cardButton(state, inst, {
+      blocked, onSelect, selected: inst.uid === selectedUid,
+    });
+    // A fan, not a row: the lean is what makes it read as cards in a hand.
+    const centre = (hand.length - 1) / 2;
+    const offset = i - centre;
+    node.style.setProperty("--lean", `${offset * 2.6}deg`);
+    node.style.setProperty("--lift", `${Math.abs(offset) * 5}px`);
+    container.append(node);
+  });
+  container.dataset.count = String(hand.length);
+}
+
+/** The zoomed card and its legal actions — or why there are none. */
+function renderSelection(panel, state, inst, { actions, onAction, onClose }) {
+  panel.innerHTML = "";
+  if (!inst) { panel.hidden = true; return; }
+  const card = getCard(inst.cardId);
+  panel.hidden = false;
+
+  const head = document.createElement("div");
+  head.className = "sel-head";
+  head.innerHTML = `<h3></h3><p class="sel-stat"></p><p class="sel-text"></p>`;
+  head.querySelector("h3").textContent = card.name;
+  head.querySelector(".sel-stat").textContent = describe(state, "player", inst, card);
+  head.querySelector(".sel-text").textContent = card.text ?? "";
+  panel.append(head);
+
+  const mine = actions.filter((action) => action.uid === inst.uid);
+  if (mine.length) {
+    const list = document.createElement("div");
+    list.className = "sel-actions";
+    for (const action of mine) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-accent sel-action";
+      btn.textContent = action.label ?? action.type;
+      btn.addEventListener("click", () => onAction(action));
+      list.append(btn);
+    }
+    panel.append(list);
+  } else {
+    // The player must never have to guess why a card will not respond.
+    const why = document.createElement("p");
+    why.className = "sel-blocked";
+    why.textContent = whyNotPlayable(state, "player", inst) ?? "Nothing to do with this card yet.";
+    panel.append(why);
+  }
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "sel-close";
+  close.setAttribute("aria-label", "Close card");
+  close.textContent = "×";
+  close.addEventListener("click", onClose);
+  panel.append(close);
+}
+
+// Life points count rather than snap: the number moving is what sells the hit,
+// and it is the only place in the HUD where the animation carries information.
+function createCounter(node, { duration = 700 } = {}) {
+  let shown = null;
+  let raf = 0;
+  return function set(value) {
+    if (shown === null || !node) { shown = value; if (node) node.textContent = String(value); return; }
+    if (value === shown) return;
+    const from = shown;
+    const started = performance.now();
+    shown = value;
+    cancelAnimationFrame(raf);
+    const step = (now) => {
+      const p = Math.min(1, (now - started) / duration);
+      const eased = 1 - (1 - p) ** 3;
+      node.textContent = String(Math.round(from + (value - from) * eased));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  };
+}
+
+/**
+ * The response ribbon. A chain window is itself a dramatic beat, so this is the
+ * one place where play is allowed to hold up the cinema rather than the other
+ * way round.
+ */
+function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, now = () => performance.now() }) {
+  ribbon.innerHTML = "";
+  ribbon.hidden = responses.length === 0;
+  if (!responses.length) return () => {};
+
+  const ring = document.createElement("div");
+  ring.className = "ribbon-ring";
+  ribbon.append(ring);
+
+  const label = document.createElement("span");
+  label.className = "ribbon-label";
+  label.textContent = "Respond?";
+  ribbon.append(label);
+
+  for (const response of responses) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn ribbon-option";
+    btn.textContent = response.label;
+    btn.addEventListener("click", () => onRespond(response));
+    ribbon.append(btn);
+  }
+  const pass = document.createElement("button");
+  pass.type = "button";
+  pass.className = "btn ribbon-pass";
+  pass.textContent = "Pass";
+  pass.addEventListener("click", onPass);
+  ribbon.append(pass);
+
+  const started = now();
+  let raf = 0;
+  const tick = () => {
+    const left = Math.max(0, 1 - (now() - started) / deadline);
+    ring.style.setProperty("--left", left.toFixed(3));
+    if (left > 0) raf = requestAnimationFrame(tick);
+  };
+  tick();
+  return () => { cancelAnimationFrame(raf); ribbon.hidden = true; ribbon.innerHTML = ""; };
+}
+
+Object.assign(__exports, { renderFan, renderSelection, createCounter, renderRibbon });
+});
+
+__def("src/modes.js", {}, function (__exports, __req) {
+// Three readings of the same duel.
+//
+//   tactical   the board is the surface, video is a panel   (the default)
+//   live       video is the surface, board on demand
+//   watch      video is the surface, no input, continuous
+//
+// This is a real branch, not a stylesheet: each mode builds different
+// components and routes input differently. Tactical stays the default and must
+// keep working exactly as it did -- live mode is an alternative reading of the
+// same event stream, never a replacement for it.
+
+const MODES = ["tactical", "live", "watch"];
+const DEFAULT_MODE = "tactical";
+
+const isMode = (value) => MODES.includes(value);
+
+/** `?mode=live`, or the default. An unknown value falls back rather than throwing. */
+function resolveMode(search = globalThis.location?.search ?? "") {
+  const value = new URLSearchParams(search).get("mode");
+  return isMode(value) ? value : DEFAULT_MODE;
+}
+
+/** Watch mode takes no input; live and tactical both do. */
+const isInteractive = (mode) => mode !== "watch";
+
+/** Both broadcast modes put the video on the surface. */
+const isBroadcast = (mode) => mode === "live" || mode === "watch";
+
+/** Live mode earns a longer AI turn, because watching it is the point. */
+const turnBudgetFor = (mode) => (isBroadcast(mode) ? 6000 : 4000);
+
+Object.assign(__exports, { resolveMode, MODES, DEFAULT_MODE, isMode, isInteractive, isBroadcast, turnBudgetFor });
 });
 
 __def("src/share-card.js", {"./cards/index.js":"src/cards/index.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duel-stats.js":"src/duel-stats.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {

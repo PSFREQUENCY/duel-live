@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url";
 
 import { availableProviders } from "../src/providers.mjs";
 import { clipKeys } from "../src/clip-library.mjs";
+import { liveLibrary } from "../src/broadcast/library.js";
+import { clipKeyFor } from "../src/broadcast/keys.js";
+import { shotRequestFor } from "../src/broadcast/prompts.js";
 
 const PORT = Number(process.env.PORT ?? 4174);
 const BASE = process.env.DUEL_BASE_URL ?? `http://localhost:${PORT}`;
@@ -24,20 +27,37 @@ const manifest = JSON.parse(readFileSync(`${ROOT}prompts/manifest.json`, "utf8")
 // A clip already in clips/ is better art at no cost; never spend on one.
 const handmade = new Set(await clipKeys(`${ROOT}clips`));
 
-const library = manifest.shots
+// The live grammar's keys are generated from the same place they are played
+// from, so prewarm and the reel can never disagree about what a key looks like.
+// 21 of these are stills, which cost nothing -- only the video half is spend.
+const liveShots = liveLibrary().keys
+  .map((key) => shotRequestFor(key))
+  .filter(Boolean)
+  .map((request) => ({
+    key: clipKeyFor(request.key), prompt: request.prompt, seconds: request.seconds,
+    tier: request.tier, live: true,
+  }));
+
+const stills = process.argv.includes("--stills");
+const library = [...manifest.shots.map((shot) => ({ ...shot, tier: "video" })), ...liveShots]
+  .filter((shot) => (stills ? shot.tier === "still" : shot.tier === "video"))
   .filter((shot) => !handmade.has(shot.key))
   .filter((shot) => (only.length ? only.some((f) => shot.key.includes(f)) : true));
 const targets = limit > 0 ? library.slice(0, limit) : library;
 
 const providers = availableProviders();
-if (!providers.length) {
+// Stills need no provider at all -- that is the point of filming the duelists
+// on tier 1 -- so only the video pass requires credentials.
+if (!providers.length && !stills) {
   console.error("No video provider configured. Add credentials to .env.local — see .env.example.");
   process.exit(1);
 }
 
-console.log(`manifest   ${manifest.shots.length} clips · ${handmade.size} already hand-made`);
+console.log(`manifest   ${manifest.shots.length} clips + ${liveShots.length} live keys `
+  + `· ${handmade.size} already hand-made`);
+console.log(`pass       ${stills ? "stills (free, no provider needed)" : "video"}`);
 console.log(`to make    ${library.length}${limit ? ` · generating ${targets.length}` : ""}`);
-console.log(`providers  ${providers.map((p) => p.label).join(" → ")}`);
+console.log(`providers  ${providers.map((p) => p.label).join(" → ") || "none (stills only)"}`);
 console.log(`server     ${BASE}\n`);
 
 let made = 0;
@@ -51,7 +71,10 @@ for (const [i, entry] of targets.entries()) {
     const res = await fetch(`${BASE}/api/shot`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tier: "video", prompt: entry.prompt, reuseKey: entry.key, seconds: entry.seconds ?? 6 }),
+      body: JSON.stringify({
+        tier: entry.tier ?? "video", prompt: entry.prompt,
+        reuseKey: entry.key, seconds: entry.seconds ?? 6,
+      }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);

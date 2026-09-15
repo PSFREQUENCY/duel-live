@@ -640,3 +640,201 @@ select:hover, .btn:hover { border-color: var(--accent); background: #182034; }
   .stage-media { transition: none; }
   .orb { display: none; }
 }
+
+/* ------------------------------------------------------------ live mode --- */
+/* Video is the surface. The letterbox bars are not wasted space -- committing
+   to 2.39:1 is what creates them, and they are the lower-third the HUD lives in. */
+
+body.is-live .arena-wrap,
+body.is-live .hand-rail { display: none; }
+
+.live {
+  position: relative; z-index: 1;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px;
+  padding: 12px clamp(12px, 3vw, 28px) 14px;
+}
+
+.live-frame {
+  position: relative;
+  /* Not flex:1 -- growing to fill the column is what breaks the ratio. The
+     frame is sized by its aspect and then bounded on both axes, so 2.39:1
+     survives whichever of width or height runs out first. */
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 2.39 / 1;
+  max-height: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #04060c;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+
+.live-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* The broadcast lower-third: both players symmetrical, both always readable. */
+.live-bar {
+  position: absolute; left: 0; right: 0; z-index: 4;
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px clamp(10px, 2vw, 22px);
+  background: linear-gradient(180deg, rgba(4, 6, 12, 0.88), rgba(4, 6, 12, 0));
+  pointer-events: none;
+}
+.live-bar--bottom {
+  top: auto; bottom: 0;
+  background: linear-gradient(0deg, rgba(4, 6, 12, 0.92), rgba(4, 6, 12, 0));
+}
+.live-bar--top { top: 0; }
+
+.live-duelist { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.live-name { font-weight: 650; font-size: 14px; color: var(--ink); }
+.live-counts, .live-shot {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.live-shot { margin-left: auto; opacity: 0.45; }
+.live-lp {
+  font-family: var(--mono); font-size: clamp(20px, 2.6vw, 30px); font-weight: 600;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+}
+
+/* The hand is the one thing that must never be occluded. */
+/* Clear of the lower third, so the HUD and the hand never fight for the
+   same strip. Both must be readable at a glance, always. */
+.live-fan {
+  position: absolute; left: 0; right: 0; bottom: 46px; z-index: 6;
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: clamp(2px, 0.6vw, 8px);
+  padding: 0 12px;
+  pointer-events: none;
+}
+.live-fan > * { pointer-events: auto; }
+
+.fan-card {
+  width: clamp(72px, 8vw, 104px);
+  /* A fixed height, not a minimum: a long card text must not grow the card and
+     push the fan up through the picture. */
+  height: clamp(74px, 9vh, 96px);
+  overflow: hidden;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 7px 8px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(18, 24, 44, 0.97), rgba(9, 12, 24, 0.97));
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transform: rotate(var(--lean, 0deg)) translateY(var(--lift, 0px));
+  transform-origin: 50% 120%;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.fan-card:hover, .fan-card:focus-visible {
+  transform: rotate(var(--lean, 0deg)) translateY(calc(var(--lift, 0px) - 14px));
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.9);
+  z-index: 2;
+}
+.fan-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* Blocked, not disabled: a card that cannot explain itself teaches nothing. */
+.fan-card.is-blocked { opacity: 0.45; }
+.fan-kind {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.16em;
+  color: var(--ink-dim); text-transform: uppercase;
+}
+.fan-name {
+  font-size: 11px; font-weight: 600; line-height: 1.18;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.fan-stat {
+  font-family: var(--mono); font-size: 9px; color: var(--ink-dim); margin-top: auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.live-selection {
+  position: absolute; z-index: 8; right: clamp(10px, 2vw, 22px); bottom: 96px;
+  width: min(300px, 44vw);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(7, 10, 20, 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.95);
+}
+.sel-head h3 { margin: 0 0 4px; font-size: 15px; }
+.sel-stat { margin: 0 0 6px; font-family: var(--mono); font-size: 11px; color: var(--accent); }
+.sel-text { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-dim); }
+.sel-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.sel-action { width: 100%; }
+.sel-blocked {
+  margin: 12px 0 0; font-size: 12px; line-height: 1.45;
+  color: var(--warn, #ffcc77); font-style: italic;
+}
+.sel-close {
+  position: absolute; top: 8px; right: 10px;
+  border: 0; background: none; color: var(--ink-dim);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+
+/* A chain window is itself a dramatic beat, which is why it is allowed to
+   hold the picture -- the one inversion of the rule everywhere else. */
+.live-ribbon {
+  position: absolute; z-index: 9; left: 50%; bottom: 104px;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: rgba(7, 10, 20, 0.96);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.95);
+  animation: ribbon-rise 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes ribbon-rise {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.ribbon-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.ribbon-ring {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--left, 1) * 360deg), rgba(255, 255, 255, 0.12) 0);
+}
+.ribbon-option, .ribbon-pass { padding: 6px 12px; font-size: 12px; }
+
+/* Always one gesture away, never permanently displacing the video. */
+.live-telestrator {
+  position: absolute; inset: 0; z-index: 7;
+  background: rgba(3, 5, 11, 0.8);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.live-telestrator.is-open { opacity: 1; }
+.tele-rows { position: absolute; inset: 0; }
+.tele-hint {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  margin: 0; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+
+.live-controls {
+  flex: none;
+  display: flex; align-items: center; gap: 8px;
+}
+.live-note { font-family: var(--mono); font-size: 10px; color: var(--ink-dim); margin-left: auto; }
+
+/* Watch mode is a screening, not a session: nothing to press. */
+body.is-watch .live-fan,
+body.is-watch .live-selection,
+body.is-watch #live-board-btn { display: none; }
+
+@media (max-width: 900px) {
+  .live-frame { aspect-ratio: 4 / 3; }
+  .live-fan { bottom: 40px; }
+  .live-selection { right: 50%; transform: translateX(50%); width: min(320px, 90vw); }
+  .fan-card { width: clamp(58px, 17vw, 84px); min-height: 74px; }
+}

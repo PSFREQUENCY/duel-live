@@ -30,6 +30,8 @@ import { whyNotPlayable } from "./why-not.js";
 import { isLethal, previewAttack } from "./attack-preview.js";
 import { activeEffects } from "./duel-effects-active.js";
 import { summariseDuel } from "./duel-stats.js";
+import { createLiveMode } from "./live-mode.js";
+import { isBroadcast, isInteractive, resolveMode, turnBudgetFor } from "./modes.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
 
 const ui = {
@@ -44,6 +46,25 @@ const ui = {
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
+
+// Live mode is a real branch, not a stylesheet: these components are built only
+// when the mode asks for them, and tactical mode never constructs any of it.
+let mode = resolveMode();
+let live = null;
+// Resolves the open ribbon with "no response"; set while a window is up.
+let liveRibbonPass = null;
+
+const liveUi = () => ({
+  canvas: el("live-stage"), fan: el("live-fan"), selection: el("live-selection"),
+  ribbon: el("live-ribbon"), telestrator: el("live-telestrator"), shotLabel: el("live-shot"),
+  lp: { me: el("live-my-lp"), foe: el("live-foe-lp") },
+  counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
+  names: { me: el("live-my-name"), foe: el("live-foe-name") },
+  rows: {
+    foeBackrow: el("tele-foe-backrow"), foeMonsters: el("tele-foe-monsters"),
+    myMonsters: el("tele-my-monsters"), myBackrow: el("tele-my-backrow"),
+  },
+});
 
 let state = null;
 let muted = false;
@@ -60,6 +81,11 @@ let cardFormat = DEFAULT_FORMAT;
 
 const hover = createHoverPanel();
 
+// Both pictures of the duel are lit by the same two duelists.
+const accentPair = () => (state
+  ? [DUELISTS[state.sides.player.duelistId].accent, DUELISTS[state.sides.opponent.duelistId].accent]
+  : ["#4fc9f0", "#4fc9f0"]);
+
 const cinema = createCinema({
   canvas: el("stage"), still: el("stage-still"), video: el("stage-video"),
   caption: {
@@ -67,10 +93,7 @@ const cinema = createCinema({
     sub: el("shot-sub"), tier: el("shot-tier"),
   },
   getState: () => state,
-  accents: () => {
-    if (!state) return ["#4fc9f0", "#4fc9f0"];
-    return [DUELISTS[state.sides.player.duelistId].accent, DUELISTS[state.sides.opponent.duelistId].accent];
-  },
+  accents: accentPair,
   onShot: () => renderAll(),
 });
 
@@ -89,6 +112,9 @@ const drawLog = () => renderLog(ui.log, logLines, { onHighlight: highlightZones 
 function renderAll() {
   if (!state) return;
   hover.hide();
+  // The live surface reads the same state, so the two presentations cannot
+  // disagree about what is on the field.
+  live?.render(state, myTurn() ? legalActions(state, "player") : []);
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
@@ -264,8 +290,13 @@ function present(events) {
     if (line) logLines.push(line);
   }
   drawLog();
-  const shots = buildStoryboard(events, state);
-  if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
+  // The reel reads the same event stream the board does, one beat behind
+  // nothing. Tactical mode's shot queue is untouched by this.
+  live?.present(events, state);
+  if (!isBroadcast(mode)) {
+    const shots = buildStoryboard(events, state);
+    if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
+  }
   speakBanter(directBanter(events, state));
   renderAll();
 }
@@ -371,8 +402,15 @@ const SETTLE_CAP_MS = 3500;
 // up into a long dead interface. Past this budget the duel keeps resolving and
 // the cinema simply narrates from slightly behind.
 const TURN_BUDGET_MS = 4000;
+// Live mode earns more time, because watching it is the point. It is still a
+// hard cap: a stalled generation yields to the ambient lane rather than waiting.
+const turnBudget = () => turnBudgetFor(mode);
 
 function settle(capMs = SETTLE_CAP_MS) {
+  // In broadcast modes the reel owns pacing and is never a reason to wait: it
+  // shows the ambient lane while the action lane catches up, so blocking the
+  // engine here would only make the edit fall further behind.
+  if (isBroadcast(mode)) return Promise.resolve();
   return new Promise((done) => {
     const deadline = Date.now() + capMs;
     const tick = () => {
@@ -384,9 +422,14 @@ function settle(capMs = SETTLE_CAP_MS) {
   });
 }
 
+// Whose decision this is. In watch mode nobody is at the controls, so the AI
+// answers for both sides -- otherwise the first prompt that needs a click
+// deadlocks the duel against a viewer who has nothing to click.
+const asks = (side) => side === "player" && isInteractive(mode);
+
 async function maybePending() {
   while (state.pending?.kind === "discard") {
-    const uids = state.pending.side === "player"
+    const uids = asks(state.pending.side)
       ? await askDiscard(state.pending)
       : state.sides[state.pending.side].hand.slice(0, state.pending.need).map((c) => c.uid);
     step("discard", uids);
@@ -396,7 +439,7 @@ async function maybePending() {
     await settle();
   }
   while (state.pending?.kind === "target") {
-    const answer = state.pending.side === "player"
+    const answer = asks(state.pending.side)
       ? await askTargets(state.pending)
       : { uids: chooseTargets(state), position: "attack" };
     step("target", { uids: answer.uids, position: answer.position });
@@ -406,7 +449,7 @@ async function maybePending() {
     await settle();
   }
   while (state.pending?.kind === "tribute") {
-    if (state.pending.side === "player") {
+    if (asks(state.pending.side)) {
       const uids = await askTributes(state.pending);
       step("tribute", uids);
       const result = respondToTribute(state, uids);
@@ -430,7 +473,7 @@ async function maybeTrapWindow() {
     guard += 1;
     renderChain();
     warmLikelyResponses();
-    const choice = state.pending.side === "player"
+    const choice = asks(state.pending.side)
       ? await askChainResponse(state)
       : chooseChainResponse(state, Math.random);
     step("chain", choice);
@@ -496,7 +539,7 @@ function askChainResponse(current) {
 }
 
 async function maybeOpponentTurn() {
-  const deadline = Date.now() + TURN_BUDGET_MS;
+  const deadline = Date.now() + turnBudget();
   let guard = 0;
   while (!state.winner && state.activeSide === "opponent" && guard < 60) {
     guard += 1;
@@ -841,6 +884,17 @@ function drawArc(attackerUid, targetUid) {
 }
 
 function askChoice(question, choices) {
+  // In a broadcast mode the choice rises from the bottom bar as a ribbon rather
+  // than a side panel. This is the one place play is allowed to hold up the
+  // cinema, and it is correct because the window is itself a dramatic beat.
+  if (live && isInteractive(mode)) {
+    return new Promise((done) => {
+      live.openResponses(choices, {
+        onRespond: (choice) => done(choice.value),
+      });
+      liveRibbonPass = () => done(null);
+    });
+  }
   return new Promise((done) => {
     ui.prompt.hidden = false;
     ui.promptText.textContent = question;
@@ -1044,7 +1098,84 @@ function startDuel(requested) {
   logLines.push(lineFor({ type: "phase", phase: "draw", side: "player", turn: 1 }, state));
   drawLog();
   speakBanter(openingExchange(state));
+  live?.start(state);
   renderAll();
+  if (mode === "watch") runWatch();
+}
+
+// ------------------------------------------------------------------ modes ---
+
+function applyMode(next) {
+  mode = next;
+  el("mode-select").value = next;
+  document.body.classList.toggle("is-live", isBroadcast(next));
+  document.body.classList.toggle("is-watch", next === "watch");
+  el("live-root").hidden = !isBroadcast(next);
+  live?.stop();
+  live = null;
+  if (!isBroadcast(next)) { cinema.start(); return; }
+  // The canvas loop and the reel are two different pictures of the same duel.
+  // Only one of them should be drawing.
+  cinema.clear();
+  live = createLiveMode({
+    mode: next,
+    ui: liveUi(),
+    getState: () => state,
+    accents: accentPair,
+    onAction: onLiveAction,
+    onPass: () => { live?.closeResponses(); liveRibbonPass?.(); liveRibbonPass = null; },
+  });
+  if (state) live.start(state);
+  el("live-record-btn").hidden = !live.canRecord();
+}
+
+// The episode export. Offered only where the browser can actually do it, so the
+// control never appears as something that will fail when pressed.
+async function toggleRecording() {
+  if (!live?.canRecord()) return;
+  const button = el("live-record-btn");
+  if (!live.recording) {
+    live.startRecording();
+    button.textContent = "Stop recording";
+    el("live-note").textContent = "Recording the duel…";
+    return;
+  }
+  button.textContent = "Record episode";
+  const blob = await live.stopRecording();
+  if (!blob) { el("live-note").textContent = "Nothing was captured."; return; }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `duel-live-${state?.matchupId ?? "duel"}.webm`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  el("live-note").textContent = `Episode saved — ${(blob.size / 1e6).toFixed(1)} MB`;
+}
+
+function onLiveAction(action) {
+  if (busy || !myTurn()) return;
+  if (action.type === "zone") { onMyMonster(action.inst); return; }
+  step("action", action);
+  run(() => applyAction(state, action));
+}
+
+// Watch mode is a screening: the duel plays itself start to finish and the reel
+// narrates it. No input, so no decision windows and no ambient escalation.
+async function runWatch() {
+  let guard = 0;
+  while (state && !state.winner && guard < 400) {
+    guard += 1;
+    if (busy) { await new Promise((r) => setTimeout(r, 120)); continue; }
+    const action = chooseAction(state, state.activeSide, Math.random);
+    // With nothing left to play, walk the phase machine rather than guessing at
+    // the next phase: on turn one the Battle Phase is closed, and a hard-coded
+    // "main1 -> battle" simply no-ops and spins here forever.
+    const step = nextStep();
+    await run(() => (action ? applyAction(state, action)
+      : step?.endsTurn ? endTurn(state)
+        : setPhase(state, step.to)));
+    await new Promise((r) => setTimeout(r, 260));
+  }
 }
 
 function bind() {
@@ -1059,6 +1190,17 @@ function bind() {
     if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
     advance(step.to);
     renderAll();
+  });
+  el("mode-select").addEventListener("change", (e) => {
+    applyMode(e.target.value);
+    startDuel(el("matchup-select").value);
+  });
+  el("live-skip-btn").addEventListener("click", () => live?.skip());
+  el("live-record-btn").addEventListener("click", () => toggleRecording());
+  el("live-board-btn").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    live?.setSticky(on);
   });
   el("restart-btn").addEventListener("click", () => startDuel(el("matchup-select").value));
   el("matchup-select").addEventListener("change", (e) => startDuel(e.target.value));
@@ -1202,7 +1344,8 @@ function loadReplay(recording) {
 
 async function boot() {
   bind();
-  cinema.start();
+  applyMode(mode);
+  if (!isBroadcast(mode)) cinema.start();
   startWatchdog();
   const shared = recordingFromUrl();
   if (shared) loadReplay(shared);
@@ -1228,5 +1371,9 @@ async function boot() {
       : "Auto (stills — add a free key for video)";
   }
 }
+
+// The live controller is built by the mode branch, so a test that wants to
+// assert on the reel has to be handed it rather than reaching into the module.
+export const liveForTest = () => live;
 
 boot();

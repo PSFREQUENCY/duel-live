@@ -19,6 +19,8 @@
     "clips:preview": "node scripts/preview-clips.mjs",
     "record": "node scripts/record-duel.mjs",
     "coverage": "node scripts/check-shot-coverage.mjs",
-    "pack": "node scripts/export-pack.mjs"
+    "pack": "node scripts/export-pack.mjs",
+    "prewarm:stills": "node scripts/prewarm-library.mjs --stills",
+    "smoke:live": "node scripts/boot-check-live.mjs"
   }
 }
