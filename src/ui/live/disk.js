@@ -29,7 +29,28 @@ function describe(state, side, inst, card) {
   return `${s.atk} ATK / ${s.def} DEF`;
 }
 
-function cardButton(state, inst, { blocked, onSelect, selected }) {
+/**
+ * Hover, and long-press on a touch screen.
+ *
+ * Live mode had no way to read a card without committing to selecting it, which
+ * meant the answer to "what does this do" was "click it and find out" -- on a
+ * card that might be a trap you did not mean to play.
+ */
+function wireInspect(node, { inst, side, whyNot, onInspect }) {
+  if (!onInspect) return node;
+  node.addEventListener("mouseenter", () => onInspect({ inst, side, anchor: node, whyNot }));
+  node.addEventListener("mouseleave", () => onInspect({ inst: null }));
+  node.addEventListener("focus", () => onInspect({ inst, side, anchor: node, whyNot }));
+  node.addEventListener("blur", () => onInspect({ inst: null }));
+  // A touch screen has no hover, so a long press pins the panel instead.
+  node.addEventListener("contextmenu", (event) => {
+    event.preventDefault?.();
+    onInspect({ inst, side, anchor: node, whyNot, sticky: true });
+  });
+  return node;
+}
+
+function cardButton(state, inst, { blocked, onSelect, selected, onInspect }) {
   const card = getCard(inst.cardId);
   const node = document.createElement("button");
   node.type = "button";
@@ -44,18 +65,18 @@ function cardButton(state, inst, { blocked, onSelect, selected }) {
   node.setAttribute("aria-label",
     `${card.name}. ${describe(state, "player", inst, card)}${blocked ? `. ${blocked}` : ""}`);
   node.addEventListener("click", () => onSelect(inst, blocked));
-  return node;
+  return wireInspect(node, { inst, side: "player", whyNot: blocked, onInspect });
 }
 
 /** The fanned hand along the bottom bar. Never scrolled, never covered. */
-export function renderFan(container, state, { actions, onSelect, selectedUid }) {
+export function renderFan(container, state, { actions, onSelect, selectedUid, onInspect }) {
   container.innerHTML = "";
   const hand = state?.sides?.player?.hand ?? [];
   hand.forEach((inst, i) => {
     const mine = actions.filter((action) => action.uid === inst.uid);
     const blocked = mine.length ? null : whyNotPlayable(state, "player", inst);
     const node = cardButton(state, inst, {
-      blocked, onSelect, selected: inst.uid === selectedUid,
+      blocked, onSelect, onInspect, selected: inst.uid === selectedUid,
     });
     // A fan, not a row: the lean is what makes it read as cards in a hand.
     const centre = (hand.length - 1) / 2;
@@ -195,7 +216,7 @@ export function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, n
  * It never reveals more than the board does — a face-down is a face-down here
  * too.
  */
-export function renderFieldStrip(container, state, side, { onPip, ready, targets } = {}) {
+export function renderFieldStrip(container, state, side, { onPip, ready, targets, onInspect } = {}) {
   if (!state) return;
   container.innerHTML = "";
   const seat = state.sides[side];
@@ -234,6 +255,9 @@ export function renderFieldStrip(container, state, side, { onPip, ready, targets
       // you can point it at.
       if (ready?.has(inst.uid)) pip.classList.add("is-ready");
       if (targets?.has(inst.uid)) pip.classList.add("is-target");
+      // The panel itself refuses to show a face-down card you do not own, so
+      // this can be wired for both sides without leaking anything.
+      wireInspect(pip, { inst, side, onInspect });
       group.append(pip);
     });
     return group;

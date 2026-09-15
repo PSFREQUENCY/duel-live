@@ -1030,6 +1030,59 @@ body.is-watch #live-board-btn { display: none; }
   .topbar-actions .btn { padding: 7px 11px; font-size: 12px; }
 }
 
+/* The instruction line, directly above the hand. Live mode had none, so how to
+   attack was something a player had to work out on their own. */
+.live-hint {
+  position: absolute; z-index: 6; left: 0; right: 0; bottom: 152px;
+  margin: 0; text-align: center;
+  font-size: 12px; letter-spacing: 0.02em;
+  color: var(--ink);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95), 0 0 20px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.live-hint:empty { display: none; }
+@media (max-width: 900px) { .live-hint { bottom: 132px; font-size: 11px; } }
+
+/* The overlays that belong to the duel rather than to one surface: the effect
+   counters, the chain, and the duelists' speech. They now live above both, so
+   live mode gets them from the same renderer instead of not at all. */
+/* These are moved into the live frame itself, so they are positioned against
+   the picture. Anchoring them to the viewport put the counters in the dead
+   space above the letterbox, reading as page chrome rather than as the duel. */
+body.is-live .effect-rail {
+  position: absolute; left: 14px; top: 62px; right: auto; bottom: auto;
+  z-index: 5; max-width: 232px;
+}
+body.is-live .chain-rail {
+  position: absolute; right: 14px; top: 62px; left: auto; bottom: auto; z-index: 5;
+}
+body.is-live .banter {
+  position: absolute; left: 50%; bottom: 30%; top: auto;
+  transform: translate(-50%, 0);
+  width: min(560px, 74%);
+}
+body.is-live .banter[hidden] { display: none; }
+
+.live-gy {
+  padding: 3px 8px; border-radius: 4px;
+  border: 1px solid var(--line-soft); background: rgba(10, 14, 26, 0.7);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em;
+  color: var(--ink-dim); cursor: pointer; pointer-events: auto;
+}
+.live-gy:hover { border-color: var(--accent); color: var(--accent); }
+
+.live-phase-note {
+  position: absolute; z-index: 6; left: 0; right: 0; bottom: 138px;
+  margin: 0; text-align: center;
+  font-size: 11px; color: var(--ink-dim);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+}
+.live-phase-note:empty { display: none; }
+.live-bar { pointer-events: none; }
+.live-bar button { pointer-events: auto; }
+@media (max-width: 900px) { .live-phase-note { bottom: 118px; } }
+
 </style>
   </head>
   <body>
@@ -1096,6 +1149,14 @@ body.is-watch #live-board-btn { display: none; }
         <img id="stage-still" class="stage-media" alt="" hidden />
         <video id="stage-video" class="stage-media" muted playsinline preload="auto" hidden></video>
         <div class="stage-vignette" aria-hidden="true"></div>
+        <div id="arena-overlays">
+          <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
+          <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
+          <div class="banter" id="banter" hidden>
+            <span class="banter-who" id="banter-who"></span>
+            <p class="banter-text" id="banter-text"></p>
+          </div>
+        </div>
 
         <div class="duelist-bar duelist-bar--foe">
           <div class="duelist-id">
@@ -1127,15 +1188,6 @@ body.is-watch #live-board-btn { display: none; }
 
         <div class="zones zones--me-monsters" id="my-monsters" aria-label="Your monster zones"></div>
         <div class="zones zones--me" id="my-backrow" aria-label="Your spell and trap zones"></div>
-
-        <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
-        <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
-
-
-        <div class="banter" id="banter" hidden>
-          <span class="banter-who" id="banter-who"></span>
-          <p class="banter-text" id="banter-text"></p>
-        </div>
 
         <div class="duelist-bar duelist-bar--me">
           <div class="duelist-id">
@@ -1198,7 +1250,7 @@ body.is-watch #live-board-btn { display: none; }
     <!-- Live and watch modes. Built only when the mode branch asks for it, so
          tactical mode never pays for any of this. -->
     <div class="live" id="live-root" hidden>
-      <div class="live-frame">
+      <div class="live-frame" id="live-frame">
         <canvas id="live-stage" class="live-canvas" width="1912" height="800"></canvas>
 
         <div class="live-bar live-bar--top">
@@ -1207,6 +1259,7 @@ body.is-watch #live-board-btn { display: none; }
             <span class="live-counts" id="live-foe-counts"></span>
           </div>
           <div class="field-strip" id="live-foe-field" role="img"></div>
+          <button class="live-gy" id="live-foe-gy" type="button">GY 0</button>
           <span class="live-lp" id="live-foe-lp">8000</span>
         </div>
 
@@ -1234,6 +1287,7 @@ body.is-watch #live-board-btn { display: none; }
             <span class="live-counts" id="live-my-counts"></span>
           </div>
           <div class="field-strip" id="live-my-field" role="img"></div>
+          <button class="live-gy" id="live-my-gy" type="button">GY 0</button>
 
           <!-- The same phase machine as tactical, rendered by the same
                function: every .phase node in the document updates together. -->
@@ -1249,12 +1303,16 @@ body.is-watch #live-board-btn { display: none; }
           <button class="btn btn-accent live-advance" id="live-advance-btn" type="button">To Battle</button>
         </div>
 
+        <p class="live-hint" id="live-hint"></p>
+        <p class="live-phase-note" id="live-phase-note"></p>
         <div class="live-fan" id="live-fan" aria-label="Your hand"></div>
       </div>
 
       <div class="live-controls">
         <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board (hold Tab)</button>
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
+        <button class="btn" id="live-resume-btn" type="button" hidden>Resume duel</button>
+        <button class="btn btn-accent" id="live-share-btn" type="button" hidden>Share result</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
         <button class="btn" id="feed-btn" type="button" aria-pressed="true">Feed</button>
         <span class="live-shot" id="live-shot"></span>
@@ -1265,6 +1323,7 @@ body.is-watch #live-board-btn { display: none; }
     <!-- Declaring an attack happens in every mode, so the arc and the preview
          live above both surfaces rather than inside either one. -->
     <div class="duel-overlay" id="duel-overlay">
+
       <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
         <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
       </svg>
@@ -1393,7 +1452,10 @@ const ui = {
   preview: el("attack-preview"), previewSum: el("preview-sum"), previewVerdict: el("preview-verdict"),
   effects: el("effect-rail"), chain: el("chain-rail"),
   liveAdvance: el("live-advance-btn"), liveTurn: el("live-turn"),
-  liveNote: el("live-note"),
+  liveNote: el("live-note"), liveHint: el("live-hint"),
+  livePhaseNote: el("live-phase-note"),
+  liveShare: el("live-share-btn"), liveResume: el("live-resume-btn"),
+  liveGy: { me: el("live-my-gy"), foe: el("live-foe-gy") },
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -1412,6 +1474,7 @@ const liveUi = () => ({
   ribbon: el("live-ribbon"), telestrator: el("live-telestrator"), shotLabel: el("live-shot"),
   lp: { me: el("live-my-lp"), foe: el("live-foe-lp") },
   counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
+  gy: { me: el("live-my-gy"), foe: el("live-foe-gy") },
   names: { me: el("live-my-name"), foe: el("live-foe-name") },
   fields: { me: el("live-my-field"), foe: el("live-foe-field") },
   feed: el("live-feed"),
@@ -1583,15 +1646,12 @@ function updateControls(mine) {
   }
   // Watch mode has no controls at all; it is a screening.
   if (ui.liveAdvance) ui.liveAdvance.hidden = !isInteractive(mode);
-  // Dead controls with no explanation read as a freeze. Say whose turn it is.
-  if (ui.liveNote && isBroadcast(mode)) {
-    ui.liveNote.textContent = over ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
-      : !myTurn() ? "Opponent is thinking…"
-        : busy ? "Resolving…" : "";
-  }
   ui.skip.hidden = !cinema.busy;
   ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
+  // The same two controls on the live surface, where the sidebar is not.
+  if (ui.liveShare) ui.liveShare.hidden = !over;
+  if (ui.liveResume) ui.liveResume.hidden = ui.resume.hidden || !isInteractive(mode);
   ui.hint.textContent = over
     ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
     : !myTurn() ? "Opponent is thinking…"
@@ -1600,6 +1660,12 @@ function updateControls(mine) {
         : repositionable(mine).size
           ? "Click a card to play it, or a glowing monster to change its position."
           : mine.length ? "Click a card to play it." : "Nothing playable — advance the phase.";
+
+  // Live mode showed no instructions at all, so "click a glowing monster to
+  // attack" was something a player had to work out. Same line as the board,
+  // put where the player is looking -- and read after it is written, or it
+  // shows the previous turn's advice.
+  if (ui.liveHint) ui.liveHint.textContent = busy && !over ? "Resolving…" : ui.hint.textContent;
 }
 
 const myTurn = () => state && state.activeSide === "player" && !state.winner;
@@ -1623,8 +1689,12 @@ function lockedPhases() {
 
 function renderPhaseNote() {
   const note = el("phase-note");
-  if (!state || state.winner) { note.textContent = ""; return; }
-  if (!myTurn()) { note.textContent = "Opponent's turn."; return; }
+  const both = (text) => {
+    note.textContent = text;
+    if (ui.livePhaseNote) ui.livePhaseNote.textContent = text;
+  };
+  if (!state || state.winner) { both(""); return; }
+  if (!myTurn()) { both("Opponent's turn."); return; }
   const legal = legalActions(state, "player");
   const kinds = new Set(legal.map((a) => a.type));
   const parts = [];
@@ -1637,6 +1707,9 @@ function renderPhaseNote() {
   note.textContent = parts.length
     ? `You may ${parts.join(", ")}.`
     : "Nothing to do here — advance the phase.";
+  // The live surface gets the same note: what the rules allow, as opposed to
+  // what to click, which is the hint's job.
+  if (ui.livePhaseNote) ui.livePhaseNote.textContent = note.textContent;
 }
 
 function nextStep() {
@@ -2637,6 +2710,12 @@ function applyMode(next) {
   // surface is on screen.
   el(isBroadcast(next) ? "duel-overlay" : "prompt-home").append(ui.prompt);
   ui.prompt.classList.toggle("prompt--overlay", isBroadcast(next));
+  // The counters, the chain and the duelists' speech belong to the duel rather
+  // than to one surface, so they move to whichever surface is on screen. Left
+  // in the arena they were simply invisible in live mode; positioned against
+  // the viewport instead, they floated outside the picture.
+  const overlayHome = el(isBroadcast(next) ? "live-frame" : "arena-overlays");
+  for (const id of ["effect-rail", "chain-rail", "banter"]) overlayHome.append(el(id));
   live?.stop();
   live = null;
   if (!isBroadcast(next)) { cinema.start(); return; }
@@ -2650,6 +2729,14 @@ function applyMode(next) {
     accents: accentPair,
     onAction: onLiveAction,
     onShot: (shot) => journal.shot(shot),
+    isMuted: () => muted,
+    // The same hover panel tactical mode uses, including its rule that a
+    // face-down card you do not own stays a mystery.
+    onInspect: ({ inst, side = "player", anchor, whyNot, sticky }) => {
+      if (!inst) { if (!hover.isPinned) hover.hide(); return; }
+      if (hover.isPinned && !sticky) return;
+      hover.inspect(inst, side, anchor, state, { whyNot, sticky });
+    },
     onPass: () => { live?.closeResponses(); liveRibbonPass?.(); liveRibbonPass = null; },
   });
   if (state) live.start(state);
@@ -2747,6 +2834,8 @@ function bind() {
     startDuel(el("matchup-select").value);
   });
   el("live-skip-btn").addEventListener("click", () => live?.skip());
+  el("live-resume-btn").addEventListener("click", resume);
+  el("live-share-btn").addEventListener("click", openShareCard);
   el("feed-btn").addEventListener("click", (e) => {
     const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
     e.currentTarget.setAttribute("aria-pressed", String(on));
@@ -2807,7 +2896,9 @@ function bind() {
       hover.hide();
     }
   });
-  for (const id of ["me-gy", "foe-gy"]) {
+  // Both surfaces open the same graveyard: Monster Reborn needs to be able to
+  // see what is in there, whichever mode you are playing in.
+  for (const id of ["me-gy", "foe-gy", "live-my-gy", "live-foe-gy"]) {
     el(id).addEventListener("click", () => { if (state) showGraveyard(state); });
   }
   el("graveyard-close").addEventListener("click", () => { el("graveyard-modal").hidden = true; });
@@ -8601,7 +8692,7 @@ function statTiles(stats) {
 Object.assign(__exports, { summariseDuel, headline, statTiles });
 });
 
-__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./ui/live/feed.js":"src/ui/live/feed.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js"}, function (__exports, __req) {
+__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./ui/live/feed.js":"src/ui/live/feed.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js"}, function (__exports, __req) {
 // Live mode: the reel, the stage, the pool and the score, wired to one duel.
 //
 // This owns presentation only. The engine decides the duel exactly as it does
@@ -8623,6 +8714,7 @@ const { isInteractive } = __req("./modes.js");
 const { DEFAULT_PACE, paceFor } = __req("./broadcast/pace.js");
 const { DUELISTS } = __req("./duelists.js");
 const { highestTier } = __req("./cinema/free-video.js");
+const { speak } = __req("./cinema/realtime-voice.js");
 const STARTING_LP = 8000;
 
 // Reactions and idles stay tier 1 even when video is affordable. A slow push-in
@@ -8636,7 +8728,9 @@ function tierFor(key) {
   return highestTier();
 }
 
-function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents }) {
+function createLiveMode({
+  mode, ui, getState, onAction, onPass, onShot, onInspect, isMuted, accents,
+}) {
   const pool = createMediaPool({ tierFor });
   const score = createScore();
   let ambient = null;
@@ -8721,12 +8815,14 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents 
     setFoeLp(state.sides.opponent.lp);
     ui.counts.me.textContent = `H ${state.sides.player.hand.length}  D ${state.sides.player.deck.length}`;
     ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
+    ui.gy.me.textContent = `GY ${state.sides.player.graveyard.length}`;
+    ui.gy.foe.textContent = `GY ${state.sides.opponent.graveyard.length}`;
     ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
     ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
     // What is actually on the field, always on screen -- and clickable, because
     // it is the only always-visible way to reach the board. Behind a held key,
     // attacking was effectively impossible.
-    const opts = { onPip: onBoard, ready: readyUids, targets: targetUids };
+    const opts = { onPip: onBoard, ready: readyUids, targets: targetUids, onInspect };
     renderFieldStrip(ui.fields.me, state, "player", opts);
     renderFieldStrip(ui.fields.foe, state, "opponent", opts);
   }
@@ -8735,6 +8831,7 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents 
     if (!isInteractive(mode)) { ui.fan.innerHTML = ""; return; }
     renderFan(ui.fan, state, {
       actions,
+      onInspect,
       selectedUid: selected?.uid,
       onSelect: (inst) => { selected = inst; renderAll(state, actions); },
     });
@@ -8784,6 +8881,10 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents 
           cuts.total += 1;
           cuts[shot.ambient ? "ambient" : "action"] += 1;
           cuts.keys.add(shot.key);
+          // The duelists talk over the action in tactical mode, through the
+          // cinema's own queue. Live mode runs the reel instead, so the line
+          // has to be spoken here or they fall silent on the video surface.
+          if (shot.voice) speak(shot.voice, shot.actor, { muted: isMuted?.() });
           onShot?.(shot);
         },
       });
@@ -8960,7 +9061,7 @@ function createAmbient({ you, opponent, onTurn = "player" }) {
 Object.assign(__exports, { pressureFor, ambientShot, createAmbient });
 });
 
-__def("src/broadcast/director.js", {"../cards/index.js":"src/cards/index.js","./drama.js":"src/broadcast/drama.js","./shot-grammar.js":"src/broadcast/shot-grammar.js","./reel.js":"src/broadcast/reel.js"}, function (__exports, __req) {
+__def("src/broadcast/director.js", {"../cards/index.js":"src/cards/index.js","../duelists.js":"src/duelists.js","./drama.js":"src/broadcast/drama.js","./shot-grammar.js":"src/broadcast/shot-grammar.js","./reel.js":"src/broadcast/reel.js"}, function (__exports, __req) {
 // Engine event → a cut sequence, budgeted by how much the moment is worth.
 //
 // The engine has already decided the duel. Nothing here can change it; the only
@@ -8968,6 +9069,7 @@ __def("src/broadcast/director.js", {"../cards/index.js":"src/cards/index.js","./
 // under pressure without the duel ever being wrong.
 
 const { CARDS } = __req("../cards/index.js");
+const { DUELISTS } = __req("../duelists.js");
 const { dramaFor, holdMultiplier, shotBudget } = __req("./drama.js");
 const { GRAMMAR, beatFor, resolveKey, shotFrom } = __req("./shot-grammar.js");
 const { truncate } = __req("./reel.js");
@@ -8990,6 +9092,25 @@ function creature(name) {
   const card = cardNamed(name);
   if (!card || card.kind !== "monster") return { attr: "DARK", fam: "other" };
   return { attr: card.attribute ?? "DARK", fam: FAMILY[card.type] ?? "other" };
+}
+
+// The line a duelist calls out over the beat. The storyboard speaks these
+// through the tactical cinema; live mode runs the reel instead, so without
+// this the duelists went silent the moment the video became the surface.
+const VOICE_LINE = {
+  summon: "summon", tributeSummon: "summon", fusionSummon: "ace",
+  clash: "attack", directAttack: "attack", trapFlip: "trap", win: "win",
+};
+
+function voiceFor(beat, event, state) {
+  // A set monster is hidden information; announcing it defeats the point.
+  if (event.how === "set" || event.faceDown) return null;
+  const key = VOICE_LINE[beat];
+  if (!key) return null;
+  const duelist = DUELISTS[duelistOn(state, event.side ?? "player")];
+  const line = duelist?.lines?.[key];
+  if (!line) return null;
+  return line.replace("{card}", event.attacker ?? event.card ?? "");
 }
 
 const other = (side) => (side === "player" ? "opponent" : "player");
@@ -9045,7 +9166,11 @@ function directEvent(event, state, { eventId = event.type, recentDrama = 0 } = {
       actor: vars.atk,
     }));
 
-  return { eventId, drama, beat, shots: truncate(shots, shotBudget(drama)) };
+  const kept = truncate(shots, shotBudget(drama));
+  // The spine carries the line, so a sequence cut to one shot still speaks.
+  const spine = kept.find((shot) => shot.rank === 1) ?? kept[0];
+  if (spine) spine.voice = voiceFor(beat, event, state);
+  return { eventId, drama, beat, shots: kept };
 }
 
 // How fast the memory of a loud moment fades. A breather two events after a
@@ -10373,7 +10498,28 @@ function describe(state, side, inst, card) {
   return `${s.atk} ATK / ${s.def} DEF`;
 }
 
-function cardButton(state, inst, { blocked, onSelect, selected }) {
+/**
+ * Hover, and long-press on a touch screen.
+ *
+ * Live mode had no way to read a card without committing to selecting it, which
+ * meant the answer to "what does this do" was "click it and find out" -- on a
+ * card that might be a trap you did not mean to play.
+ */
+function wireInspect(node, { inst, side, whyNot, onInspect }) {
+  if (!onInspect) return node;
+  node.addEventListener("mouseenter", () => onInspect({ inst, side, anchor: node, whyNot }));
+  node.addEventListener("mouseleave", () => onInspect({ inst: null }));
+  node.addEventListener("focus", () => onInspect({ inst, side, anchor: node, whyNot }));
+  node.addEventListener("blur", () => onInspect({ inst: null }));
+  // A touch screen has no hover, so a long press pins the panel instead.
+  node.addEventListener("contextmenu", (event) => {
+    event.preventDefault?.();
+    onInspect({ inst, side, anchor: node, whyNot, sticky: true });
+  });
+  return node;
+}
+
+function cardButton(state, inst, { blocked, onSelect, selected, onInspect }) {
   const card = getCard(inst.cardId);
   const node = document.createElement("button");
   node.type = "button";
@@ -10388,18 +10534,18 @@ function cardButton(state, inst, { blocked, onSelect, selected }) {
   node.setAttribute("aria-label",
     `${card.name}. ${describe(state, "player", inst, card)}${blocked ? `. ${blocked}` : ""}`);
   node.addEventListener("click", () => onSelect(inst, blocked));
-  return node;
+  return wireInspect(node, { inst, side: "player", whyNot: blocked, onInspect });
 }
 
 /** The fanned hand along the bottom bar. Never scrolled, never covered. */
-function renderFan(container, state, { actions, onSelect, selectedUid }) {
+function renderFan(container, state, { actions, onSelect, selectedUid, onInspect }) {
   container.innerHTML = "";
   const hand = state?.sides?.player?.hand ?? [];
   hand.forEach((inst, i) => {
     const mine = actions.filter((action) => action.uid === inst.uid);
     const blocked = mine.length ? null : whyNotPlayable(state, "player", inst);
     const node = cardButton(state, inst, {
-      blocked, onSelect, selected: inst.uid === selectedUid,
+      blocked, onSelect, onInspect, selected: inst.uid === selectedUid,
     });
     // A fan, not a row: the lean is what makes it read as cards in a hand.
     const centre = (hand.length - 1) / 2;
@@ -10539,7 +10685,7 @@ function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, now = ()
  * It never reveals more than the board does — a face-down is a face-down here
  * too.
  */
-function renderFieldStrip(container, state, side, { onPip, ready, targets } = {}) {
+function renderFieldStrip(container, state, side, { onPip, ready, targets, onInspect } = {}) {
   if (!state) return;
   container.innerHTML = "";
   const seat = state.sides[side];
@@ -10578,6 +10724,9 @@ function renderFieldStrip(container, state, side, { onPip, ready, targets } = {}
       // you can point it at.
       if (ready?.has(inst.uid)) pip.classList.add("is-ready");
       if (targets?.has(inst.uid)) pip.classList.add("is-target");
+      // The panel itself refuses to show a face-down card you do not own, so
+      // this can be wired for both sides without leaking anything.
+      wireInspect(pip, { inst, side, onInspect });
       group.append(pip);
     });
     return group;

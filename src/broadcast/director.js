@@ -5,6 +5,7 @@
 // under pressure without the duel ever being wrong.
 
 import { CARDS } from "../cards/index.js";
+import { DUELISTS } from "../duelists.js";
 import { dramaFor, holdMultiplier, shotBudget } from "./drama.js";
 import { GRAMMAR, beatFor, resolveKey, shotFrom } from "./shot-grammar.js";
 import { truncate } from "./reel.js";
@@ -28,6 +29,25 @@ function creature(name) {
   const card = cardNamed(name);
   if (!card || card.kind !== "monster") return { attr: "DARK", fam: "other" };
   return { attr: card.attribute ?? "DARK", fam: FAMILY[card.type] ?? "other" };
+}
+
+// The line a duelist calls out over the beat. The storyboard speaks these
+// through the tactical cinema; live mode runs the reel instead, so without
+// this the duelists went silent the moment the video became the surface.
+const VOICE_LINE = {
+  summon: "summon", tributeSummon: "summon", fusionSummon: "ace",
+  clash: "attack", directAttack: "attack", trapFlip: "trap", win: "win",
+};
+
+function voiceFor(beat, event, state) {
+  // A set monster is hidden information; announcing it defeats the point.
+  if (event.how === "set" || event.faceDown) return null;
+  const key = VOICE_LINE[beat];
+  if (!key) return null;
+  const duelist = DUELISTS[duelistOn(state, event.side ?? "player")];
+  const line = duelist?.lines?.[key];
+  if (!line) return null;
+  return line.replace("{card}", event.attacker ?? event.card ?? "");
 }
 
 const other = (side) => (side === "player" ? "opponent" : "player");
@@ -83,7 +103,11 @@ export function directEvent(event, state, { eventId = event.type, recentDrama = 
       actor: vars.atk,
     }));
 
-  return { eventId, drama, beat, shots: truncate(shots, shotBudget(drama)) };
+  const kept = truncate(shots, shotBudget(drama));
+  // The spine carries the line, so a sequence cut to one shot still speaks.
+  const spine = kept.find((shot) => shot.rank === 1) ?? kept[0];
+  if (spine) spine.voice = voiceFor(beat, event, state);
+  return { eventId, drama, beat, shots: kept };
 }
 
 // How fast the memory of a loud moment fades. A breather two events after a

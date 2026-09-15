@@ -209,3 +209,82 @@ test("a bug report carries the board, the timeline and the replay link", async (
   await settle(150);
   assert.match(node("bug-hint").textContent, /Saved/);
 });
+
+test("hovering a card in hand says what it does", async () => {
+  // Live mode had no way to read a card without committing to selecting it,
+  // which meant the answer to "what does this do" was "click it and find out"
+  // — on a card that might be a trap you did not mean to play.
+  await arrange({ mine: ["celticGuardian"], hand: ["mirrorForce"] });
+  const card = dom.query(".fan-card");
+  assert.ok(card, "no card in hand to hover");
+
+  card.handlers.get("mouseenter")({});
+  await settle(60);
+  const panel = node("hover-card");
+  assert.equal(panel.hidden, false, "hovering said nothing");
+  const text = panel.children.map((c) => c.textContent).join(" ");
+  assert.match(text, /Mirror Force/);
+  assert.match(text, /Destroy all Attack Position/,
+    "the panel must carry the card's actual rules text");
+
+  card.handlers.get("mouseleave")({});
+  await settle(40);
+  assert.equal(panel.hidden, true, "the panel must get out of the way again");
+});
+
+test("a card is readable by keyboard too, not only by mouse", async () => {
+  await arrange({ hand: ["monsterReborn"] });
+  const card = dom.query(".fan-card");
+  card.handlers.get("focus")({});
+  await settle(60);
+  assert.equal(node("hover-card").hidden, false, "tabbing to a card must describe it");
+  card.handlers.get("blur")({});
+  await settle(40);
+  assert.equal(node("hover-card").hidden, true);
+});
+
+test("a long press pins the panel, for a screen with no hover", async () => {
+  await arrange({ hand: ["darkHole"] });
+  const card = dom.query(".fan-card");
+  card.handlers.get("contextmenu")({ preventDefault() {} });
+  await settle(60);
+  assert.equal(node("hover-card").hidden, false);
+
+  // Pinned: a passing hover elsewhere must not steal it away.
+  card.handlers.get("mouseleave")({});
+  await settle(40);
+  assert.equal(node("hover-card").hidden, false, "a pinned panel should stay put");
+});
+
+test("your own monsters on the field can be read from the pips", async () => {
+  await arrange({ mine: ["darkMagician"], theirs: ["battleOx"] });
+  const mine = pips("my", ".is-filled")[0];
+  mine.handlers.get("mouseenter")({});
+  await settle(60);
+  const text = node("hover-card").children.map((c) => c.textContent).join(" ");
+  assert.match(text, /Dark Magician/);
+  assert.match(text, /2500/, "live stats belong on the panel");
+});
+
+test("hovering the opponent's face-down tells you nothing", async () => {
+  const state = await arrange({ mine: ["celticGuardian"], theirs: ["battleOx"] });
+  state.sides.opponent.monsters[0].faceDown = true;
+  app.renderForTest();
+  await settle(40);
+
+  const theirs = pips("foe", ".is-facedown")[0];
+  assert.ok(theirs, "expected a face-down pip");
+  theirs.handlers.get("mouseenter")({});
+  await settle(60);
+  assert.equal(node("hover-card").hidden, true,
+    "a face-down card you do not own must stay a mystery");
+});
+
+test("the opponent's face-up monsters are public, and readable", async () => {
+  await arrange({ mine: ["celticGuardian"], theirs: ["battleOx"] });
+  const theirs = pips("foe", ".is-filled")[0];
+  theirs.handlers.get("mouseenter")({});
+  await settle(60);
+  const text = node("hover-card").children.map((c) => c.textContent).join(" ");
+  assert.match(text, /Battle Ox/, "what is face-up on the field is not a secret");
+});

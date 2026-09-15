@@ -72,6 +72,14 @@
         <img id="stage-still" class="stage-media" alt="" hidden />
         <video id="stage-video" class="stage-media" muted playsinline preload="auto" hidden></video>
         <div class="stage-vignette" aria-hidden="true"></div>
+        <div id="arena-overlays">
+          <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
+          <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
+          <div class="banter" id="banter" hidden>
+            <span class="banter-who" id="banter-who"></span>
+            <p class="banter-text" id="banter-text"></p>
+          </div>
+        </div>
 
         <div class="duelist-bar duelist-bar--foe">
           <div class="duelist-id">
@@ -103,15 +111,6 @@
 
         <div class="zones zones--me-monsters" id="my-monsters" aria-label="Your monster zones"></div>
         <div class="zones zones--me" id="my-backrow" aria-label="Your spell and trap zones"></div>
-
-        <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
-        <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
-
-
-        <div class="banter" id="banter" hidden>
-          <span class="banter-who" id="banter-who"></span>
-          <p class="banter-text" id="banter-text"></p>
-        </div>
 
         <div class="duelist-bar duelist-bar--me">
           <div class="duelist-id">
@@ -174,7 +173,7 @@
     <!-- Live and watch modes. Built only when the mode branch asks for it, so
          tactical mode never pays for any of this. -->
     <div class="live" id="live-root" hidden>
-      <div class="live-frame">
+      <div class="live-frame" id="live-frame">
         <canvas id="live-stage" class="live-canvas" width="1912" height="800"></canvas>
 
         <div class="live-bar live-bar--top">
@@ -183,6 +182,7 @@
             <span class="live-counts" id="live-foe-counts"></span>
           </div>
           <div class="field-strip" id="live-foe-field" role="img"></div>
+          <button class="live-gy" id="live-foe-gy" type="button">GY 0</button>
           <span class="live-lp" id="live-foe-lp">8000</span>
         </div>
 
@@ -210,6 +210,7 @@
             <span class="live-counts" id="live-my-counts"></span>
           </div>
           <div class="field-strip" id="live-my-field" role="img"></div>
+          <button class="live-gy" id="live-my-gy" type="button">GY 0</button>
 
           <!-- The same phase machine as tactical, rendered by the same
                function: every .phase node in the document updates together. -->
@@ -225,12 +226,16 @@
           <button class="btn btn-accent live-advance" id="live-advance-btn" type="button">To Battle</button>
         </div>
 
+        <p class="live-hint" id="live-hint"></p>
+        <p class="live-phase-note" id="live-phase-note"></p>
         <div class="live-fan" id="live-fan" aria-label="Your hand"></div>
       </div>
 
       <div class="live-controls">
         <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board (hold Tab)</button>
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
+        <button class="btn" id="live-resume-btn" type="button" hidden>Resume duel</button>
+        <button class="btn btn-accent" id="live-share-btn" type="button" hidden>Share result</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
         <button class="btn" id="feed-btn" type="button" aria-pressed="true">Feed</button>
         <span class="live-shot" id="live-shot"></span>
@@ -241,6 +246,7 @@
     <!-- Declaring an attack happens in every mode, so the arc and the preview
          live above both surfaces rather than inside either one. -->
     <div class="duel-overlay" id="duel-overlay">
+
       <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
         <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
       </svg>

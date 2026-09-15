@@ -19,6 +19,7 @@ import { isInteractive } from "./modes.js";
 import { DEFAULT_PACE, paceFor } from "./broadcast/pace.js";
 import { DUELISTS } from "./duelists.js";
 import { highestTier } from "./cinema/free-video.js";
+import { speak } from "./cinema/realtime-voice.js";
 
 const STARTING_LP = 8000;
 
@@ -33,7 +34,9 @@ function tierFor(key) {
   return highestTier();
 }
 
-export function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents }) {
+export function createLiveMode({
+  mode, ui, getState, onAction, onPass, onShot, onInspect, isMuted, accents,
+}) {
   const pool = createMediaPool({ tierFor });
   const score = createScore();
   let ambient = null;
@@ -118,12 +121,14 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, a
     setFoeLp(state.sides.opponent.lp);
     ui.counts.me.textContent = `H ${state.sides.player.hand.length}  D ${state.sides.player.deck.length}`;
     ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
+    ui.gy.me.textContent = `GY ${state.sides.player.graveyard.length}`;
+    ui.gy.foe.textContent = `GY ${state.sides.opponent.graveyard.length}`;
     ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
     ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
     // What is actually on the field, always on screen -- and clickable, because
     // it is the only always-visible way to reach the board. Behind a held key,
     // attacking was effectively impossible.
-    const opts = { onPip: onBoard, ready: readyUids, targets: targetUids };
+    const opts = { onPip: onBoard, ready: readyUids, targets: targetUids, onInspect };
     renderFieldStrip(ui.fields.me, state, "player", opts);
     renderFieldStrip(ui.fields.foe, state, "opponent", opts);
   }
@@ -132,6 +137,7 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, a
     if (!isInteractive(mode)) { ui.fan.innerHTML = ""; return; }
     renderFan(ui.fan, state, {
       actions,
+      onInspect,
       selectedUid: selected?.uid,
       onSelect: (inst) => { selected = inst; renderAll(state, actions); },
     });
@@ -181,6 +187,10 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, a
           cuts.total += 1;
           cuts[shot.ambient ? "ambient" : "action"] += 1;
           cuts.keys.add(shot.key);
+          // The duelists talk over the action in tactical mode, through the
+          // cinema's own queue. Live mode runs the reel instead, so the line
+          // has to be spoken here or they fall silent on the video surface.
+          if (shot.voice) speak(shot.voice, shot.actor, { muted: isMuted?.() });
           onShot?.(shot);
         },
       });

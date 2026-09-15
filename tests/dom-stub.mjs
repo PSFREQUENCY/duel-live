@@ -13,6 +13,16 @@ const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
 // passing test.
 // aria-pressed and friends: a control that starts "on" in the markup has to
 // start "on" here, or the first click toggles it the wrong way.
+// An element is visible unless the markup says `hidden`. Defaulting every node
+// to hidden made anything that is simply rendered-and-shown look invisible, and
+// an assertion about what a player can see pass against the wrong answer.
+const hiddenById = new Set(
+  [...html.matchAll(/<[a-zA-Z][^>]*>/g)]
+    .filter((m) => /\shidden(\s|=|>|\/)/.test(m[0]))
+    .map((m) => m[0].match(/\bid="([^"]+)"/)?.[1])
+    .filter(Boolean),
+);
+
 const attrsById = new Map(
   [...html.matchAll(/<[a-zA-Z][^>]*>/g)]
     .map((m) => [m[0].match(/\bid="([^"]+)"/)?.[1],
@@ -55,8 +65,9 @@ function makeNode(id = "") {
   const attrs = new Map();
   const classes = new Set();
   const sync = () => { node.className = [...classes].join(" "); };
+  let ownText = "";
   const node = {
-    id, hidden: true, disabled: false, textContent: "", value: "",
+    id, hidden: true, disabled: false, value: "",
     src: "", loop: false, width: 1280, height: 720, dataset: {},
     style: { setProperty() {}, background: "", width: "" },
     // A real class list, backed by a set and kept in sync with className. The
@@ -102,6 +113,21 @@ function makeNode(id = "") {
     querySelector: () => makeNode(), querySelectorAll: () => [],
     play: async () => {}, pause() {},
   };
+  // Real `textContent` is the text of the node AND everything under it. The
+  // flat version made any panel built from child elements look empty, so an
+  // assertion about what a player can read passed against a blank string.
+  Object.defineProperty(node, "textContent", {
+    get() {
+      const kids = (node.children ?? [])
+        .map((child) => (child?.textContent ?? "")).join("");
+      return `${ownText}${kids}`;
+    },
+    set(value) {
+      ownText = value === null || value === undefined ? "" : String(value);
+      if (node.children) node.children.length = 0;
+    },
+    configurable: true,
+  });
   Object.defineProperty(node, "className", {
     get: () => [...classes].join(" "),
     set: (value) => {
@@ -123,6 +149,7 @@ function makeNode(id = "") {
 
 const nodes = new Map(ids.map((id) => {
   const node = makeNode(id);
+  node.hidden = hiddenById.has(id);
   const cls = classesById.get(id);
   if (cls) node.className = cls;
   for (const [name, value] of attrsById.get(id) ?? []) node.setAttribute(name, value);

@@ -46,7 +46,10 @@ const ui = {
   preview: el("attack-preview"), previewSum: el("preview-sum"), previewVerdict: el("preview-verdict"),
   effects: el("effect-rail"), chain: el("chain-rail"),
   liveAdvance: el("live-advance-btn"), liveTurn: el("live-turn"),
-  liveNote: el("live-note"),
+  liveNote: el("live-note"), liveHint: el("live-hint"),
+  livePhaseNote: el("live-phase-note"),
+  liveShare: el("live-share-btn"), liveResume: el("live-resume-btn"),
+  liveGy: { me: el("live-my-gy"), foe: el("live-foe-gy") },
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -65,6 +68,7 @@ const liveUi = () => ({
   ribbon: el("live-ribbon"), telestrator: el("live-telestrator"), shotLabel: el("live-shot"),
   lp: { me: el("live-my-lp"), foe: el("live-foe-lp") },
   counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
+  gy: { me: el("live-my-gy"), foe: el("live-foe-gy") },
   names: { me: el("live-my-name"), foe: el("live-foe-name") },
   fields: { me: el("live-my-field"), foe: el("live-foe-field") },
   feed: el("live-feed"),
@@ -236,15 +240,12 @@ function updateControls(mine) {
   }
   // Watch mode has no controls at all; it is a screening.
   if (ui.liveAdvance) ui.liveAdvance.hidden = !isInteractive(mode);
-  // Dead controls with no explanation read as a freeze. Say whose turn it is.
-  if (ui.liveNote && isBroadcast(mode)) {
-    ui.liveNote.textContent = over ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
-      : !myTurn() ? "Opponent is thinking…"
-        : busy ? "Resolving…" : "";
-  }
   ui.skip.hidden = !cinema.busy;
   ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
+  // The same two controls on the live surface, where the sidebar is not.
+  if (ui.liveShare) ui.liveShare.hidden = !over;
+  if (ui.liveResume) ui.liveResume.hidden = ui.resume.hidden || !isInteractive(mode);
   ui.hint.textContent = over
     ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
     : !myTurn() ? "Opponent is thinking…"
@@ -253,6 +254,12 @@ function updateControls(mine) {
         : repositionable(mine).size
           ? "Click a card to play it, or a glowing monster to change its position."
           : mine.length ? "Click a card to play it." : "Nothing playable — advance the phase.";
+
+  // Live mode showed no instructions at all, so "click a glowing monster to
+  // attack" was something a player had to work out. Same line as the board,
+  // put where the player is looking -- and read after it is written, or it
+  // shows the previous turn's advice.
+  if (ui.liveHint) ui.liveHint.textContent = busy && !over ? "Resolving…" : ui.hint.textContent;
 }
 
 const myTurn = () => state && state.activeSide === "player" && !state.winner;
@@ -276,8 +283,12 @@ function lockedPhases() {
 
 function renderPhaseNote() {
   const note = el("phase-note");
-  if (!state || state.winner) { note.textContent = ""; return; }
-  if (!myTurn()) { note.textContent = "Opponent's turn."; return; }
+  const both = (text) => {
+    note.textContent = text;
+    if (ui.livePhaseNote) ui.livePhaseNote.textContent = text;
+  };
+  if (!state || state.winner) { both(""); return; }
+  if (!myTurn()) { both("Opponent's turn."); return; }
   const legal = legalActions(state, "player");
   const kinds = new Set(legal.map((a) => a.type));
   const parts = [];
@@ -290,6 +301,9 @@ function renderPhaseNote() {
   note.textContent = parts.length
     ? `You may ${parts.join(", ")}.`
     : "Nothing to do here — advance the phase.";
+  // The live surface gets the same note: what the rules allow, as opposed to
+  // what to click, which is the hint's job.
+  if (ui.livePhaseNote) ui.livePhaseNote.textContent = note.textContent;
 }
 
 function nextStep() {
@@ -1290,6 +1304,12 @@ function applyMode(next) {
   // surface is on screen.
   el(isBroadcast(next) ? "duel-overlay" : "prompt-home").append(ui.prompt);
   ui.prompt.classList.toggle("prompt--overlay", isBroadcast(next));
+  // The counters, the chain and the duelists' speech belong to the duel rather
+  // than to one surface, so they move to whichever surface is on screen. Left
+  // in the arena they were simply invisible in live mode; positioned against
+  // the viewport instead, they floated outside the picture.
+  const overlayHome = el(isBroadcast(next) ? "live-frame" : "arena-overlays");
+  for (const id of ["effect-rail", "chain-rail", "banter"]) overlayHome.append(el(id));
   live?.stop();
   live = null;
   if (!isBroadcast(next)) { cinema.start(); return; }
@@ -1303,6 +1323,14 @@ function applyMode(next) {
     accents: accentPair,
     onAction: onLiveAction,
     onShot: (shot) => journal.shot(shot),
+    isMuted: () => muted,
+    // The same hover panel tactical mode uses, including its rule that a
+    // face-down card you do not own stays a mystery.
+    onInspect: ({ inst, side = "player", anchor, whyNot, sticky }) => {
+      if (!inst) { if (!hover.isPinned) hover.hide(); return; }
+      if (hover.isPinned && !sticky) return;
+      hover.inspect(inst, side, anchor, state, { whyNot, sticky });
+    },
     onPass: () => { live?.closeResponses(); liveRibbonPass?.(); liveRibbonPass = null; },
   });
   if (state) live.start(state);
@@ -1400,6 +1428,8 @@ function bind() {
     startDuel(el("matchup-select").value);
   });
   el("live-skip-btn").addEventListener("click", () => live?.skip());
+  el("live-resume-btn").addEventListener("click", resume);
+  el("live-share-btn").addEventListener("click", openShareCard);
   el("feed-btn").addEventListener("click", (e) => {
     const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
     e.currentTarget.setAttribute("aria-pressed", String(on));
@@ -1460,7 +1490,9 @@ function bind() {
       hover.hide();
     }
   });
-  for (const id of ["me-gy", "foe-gy"]) {
+  // Both surfaces open the same graveyard: Monster Reborn needs to be able to
+  // see what is in there, whichever mode you are playing in.
+  for (const id of ["me-gy", "foe-gy", "live-my-gy", "live-foe-gy"]) {
     el(id).addEventListener("click", () => { if (state) showGraveyard(state); });
   }
   el("graveyard-close").addEventListener("click", () => { el("graveyard-modal").hidden = true; });
