@@ -44,13 +44,20 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
   const director = createDirector();
   const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
   let pace = paceFor(DEFAULT_PACE);
+  let readyUids = new Set();
+  let targetUids = new Set();
+  const onBoard = (pick) => {
+    if (isInteractive(mode) && pick.inst) onAction?.({ type: "zone", ...pick });
+  };
 
   const setMyLp = createCounter(ui.lp.me);
   const setFoeLp = createCounter(ui.lp.foe);
 
   const stage = createStage({
     canvas: ui.canvas,
-    media: () => (reel?.current ? pool.get(reel.current.key) : null),
+    media: () => (reel?.current
+      ? pool.get(reel.current.key, { actor: reel.current.actor })
+      : null),
     accents,
     getState,
     onFrame: () => tick(),
@@ -79,7 +86,7 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     reel.setPressure(ambient.pressureAt(now));
     const shot = reel.tick(now);
     if (shot) {
-      pool.want(shot.key);
+      pool.want(shot.key, { actor: shot.actor });
       ui.shotLabel.textContent = shot.key;
     }
     telestrator.refresh();
@@ -96,7 +103,7 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
       reel.push({ ...sequence, shots, pushedAt: performance.now() });
       // Warm the whole sequence at once: the reel is about to want all of it,
       // and the spine must never be the shot that is still generating.
-      pool.prefetch(sequence.shots.map((shot) => shot.key));
+      pool.prefetch(shots);
     }
     // Somebody acted, so the decision window closes and pressure resets.
     ambient.reset(performance.now(), state.activeSide);
@@ -111,10 +118,12 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
     ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
     ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
-    // What is actually on the field, always on screen. Behind a held key it
-    // reads as an opponent with no cards at all.
-    renderFieldStrip(ui.fields.me, state, "player");
-    renderFieldStrip(ui.fields.foe, state, "opponent");
+    // What is actually on the field, always on screen -- and clickable, because
+    // it is the only always-visible way to reach the board. Behind a held key,
+    // attacking was effectively impossible.
+    const opts = { onPip: onBoard, ready: readyUids, targets: targetUids };
+    renderFieldStrip(ui.fields.me, state, "player", opts);
+    renderFieldStrip(ui.fields.foe, state, "opponent", opts);
   }
 
   function renderHand(state, actions) {
@@ -131,7 +140,9 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     });
   }
 
-  function renderAll(state = getState(), actions = []) {
+  function renderAll(state = getState(), actions = [], marks = {}) {
+    readyUids = marks.ready ?? new Set();
+    targetUids = marks.targets ?? new Set();
     renderHud(state);
     renderHand(state, actions);
     if (!state) return;
@@ -166,8 +177,8 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
       });
       reel.start(performance.now());
       // Everything the opening needs, before the first event arrives.
-      pool.prefetch([reel.current.key, `idle.${state.sides.player.duelistId}`,
-        `react.${state.sides.opponent.duelistId}.steady`, "arena.wide"]);
+      pool.prefetch([reel.current, { key: `idle.${state.sides.player.duelistId}` },
+        { key: `react.${state.sides.opponent.duelistId}.steady` }, { key: "arena.wide" }]);
       stage.start();
       telestrator.attach();
       renderAll(state);

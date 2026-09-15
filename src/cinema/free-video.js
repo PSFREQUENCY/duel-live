@@ -23,12 +23,23 @@ export const getClipMode = () => clipMode;
 const jobs = new Map();
 let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
 let availableClips = new Set();
+let clipWords = new Set();
 
-/** True when a hand-made clip for this key is on disk. */
-export const hasClip = (key) => Boolean(key) && availableClips.has(normaliseKey(key));
+/**
+ * True when a hand-made clip for this key is on disk.
+ *
+ * The server resolves a filename by word set as well as by exact name, so
+ * `play-yugi-summon` finds `play summon yugi.mp4`. This has to match, or the
+ * client decides a clip is missing, asks for a generation, and is handed back
+ * the very clip it just decided did not exist.
+ */
+export const hasClip = (key) => Boolean(key)
+  && (availableClips.has(normaliseKey(key)) || clipWords.has(wordSet(key)));
 
 const normaliseKey = (key) =>
   String(key).trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/-+/g, "-");
+
+const wordSet = (key) => normaliseKey(key).split("-").filter(Boolean).sort().join("-");
 
 export function getCapability() {
   return { ...capability };
@@ -40,6 +51,7 @@ export async function probeCapability(fetchImpl = fetch) {
     if (res.ok) {
       capability = { ...(await res.json()), checked: true };
       availableClips = new Set((capability.clipKeys ?? []).map(normaliseKey));
+      clipWords = new Set((capability.clipKeys ?? []).map(wordSet));
     }
   } catch {
     capability = { still: false, video: false, voice: false, realtime: false, checked: true };
@@ -56,9 +68,20 @@ export function highestTier(requested = "video") {
   return TIERS[best];
 }
 
+// A caller that already knows which clip it wants says so. The live reel does:
+// it resolves its own key against what is actually on disk, under a naming
+// scheme the tactical archetypes know nothing about.
+const reuseKeyFor = (shot, tier) => {
+  if (shot.reuseKey) return shot.reuseKey;
+  const archetype = tier === "video" && clipMode === "library"
+    ? archetypeFor(shot, { hasClip })
+    : null;
+  return archetype?.key ?? "";
+};
+
 function shotBody(shot, tier) {
   // Stills are cheap and unique per shot; only video is worth generalising.
-  const archetype = tier === "video" && clipMode === "library"
+  const archetype = !shot.reuseKey && tier === "video" && clipMode === "library"
     ? archetypeFor(shot, { hasClip })
     : null;
   return {
@@ -66,7 +89,7 @@ function shotBody(shot, tier) {
     tier,
     kind: shot.kind,
     prompt: archetype?.prompt ?? shot.prompt,
-    reuseKey: archetype?.key ?? "",
+    reuseKey: reuseKeyFor(shot, tier),
     seconds: shot.seconds ?? 6,
   };
 }
@@ -75,11 +98,8 @@ function shotBody(shot, tier) {
 // procedural shot while the network works.
 export function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
-  // Shots sharing an archetype share a job, so a reused clip is fetched once.
-  const archetype = tier === "video" && clipMode === "library"
-    ? archetypeFor(shot, { hasClip })
-    : null;
-  const key = `${archetype?.key ?? shot.id}:${tier}`;
+  // Shots sharing a reuse key share a job, so a reused clip is fetched once.
+  const key = `${reuseKeyFor(shot, tier) || shot.id}:${tier}`;
   if (jobs.has(key)) return jobs.get(key);
   const job = fetchImpl("/api/shot", {
     method: "POST",

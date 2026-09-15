@@ -5,7 +5,7 @@ import { getCard } from "./cards/index.js";
 import {
   applyAction, createDuel, endTurn, legalActions, positionBlockedBecause,
   isMainPhase, respondToChain, respondToDiscard, respondToTarget, respondToTribute,
-  setPhase, tributesCover,
+  cancelTribute, setPhase, tributesCover,
 } from "./duel-engine.js";
 import { legalResponses, resolutionOrder } from "./duel-chain.js";
 import { nextPhases, PHASE_LABELS } from "./duel-phases.js";
@@ -118,7 +118,6 @@ function renderAll() {
   hover.hide();
   // The live surface reads the same state, so the two presentations cannot
   // disagree about what is on the field.
-  live?.render(state, myTurn() ? legalActions(state, "player") : []);
   if (ui.liveTurn) ui.liveTurn.textContent = String(state.turn);
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
@@ -137,6 +136,13 @@ function renderAll() {
     : new Set();
   const choosingTributes = state.pending?.kind === "tribute" && state.pending.side === "player";
   const tributeReady = choosingTributes ? new Set(state.pending.options) : null;
+
+  // The live surface reads the same state and gets the same highlights, so the
+  // two presentations cannot disagree about what is actionable.
+  live?.render(state, mine, {
+    ready: tributeReady ?? actionable,
+    targets: choosingTributes ? new Set(tributePicks) : targets,
+  });
 
   // Hover on a pointer, tap to pin on a touch screen.
   const onZoneHover = (inst, side, zone) => {
@@ -476,6 +482,13 @@ async function maybePending() {
   while (state.pending?.kind === "tribute") {
     if (asks(state.pending.side)) {
       const uids = await askTributes(state.pending);
+      if (uids === CANCEL_TRIBUTE) {
+        // The monster is still in hand and the tributes are still on the
+        // field; only the question goes away.
+        state = cancelTribute(state).state;
+        renderAll();
+        break;
+      }
       step("tribute", uids);
       const result = respondToTribute(state, uids);
       state = result.state;
@@ -1032,9 +1045,12 @@ function askTargets(pending) {
   });
 }
 
+// Abandoning a tribute summon is its own answer, distinct from choosing nothing.
+const CANCEL_TRIBUTE = Symbol("cancel-tribute");
+
 function askTributes(pending) {
   return new Promise((done) => {
-    cancelPrompt = () => done([]);
+    cancelPrompt = () => done(CANCEL_TRIBUTE);
     tributePicks = [];
     const finish = (uids) => {
       cancelPrompt = null; tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids);
@@ -1049,7 +1065,9 @@ function askTributes(pending) {
       for (const [text, value, enabled] of [
         ["Tribute and summon", tributePicks.slice(), enough],
         ["Let the game choose", chooseTributes(state), true],
-        ["Cancel", null, true],
+        // A distinct value, not null: null used to reach the engine as a
+        // selection and crash the turn, and an empty pick just re-asked.
+        ["Cancel", CANCEL_TRIBUTE, true],
       ]) {
         const button = document.createElement("button");
         button.className = "btn";
@@ -1231,8 +1249,11 @@ async function toggleRecording() {
 }
 
 function onLiveAction(action) {
-  if (busy || !myTurn()) return;
+  // Board clicks carry their own guards, and must not be filtered here: while a
+  // tribute prompt is open the duel is `busy` by definition, and picking the
+  // tributes is a board click. Swallowing it left the prompt unanswerable.
   if (action.type === "zone") { onZoneFromBoard(action); return; }
+  if (busy || !myTurn()) return;
   step("action", action);
   run(() => applyAction(state, action));
 }
@@ -1475,5 +1496,11 @@ async function boot() {
 // assert on the reel has to be handed it rather than reaching into the module.
 export const liveForTest = () => live;
 export const stateForTest = () => state;
+// A test that arranges a board has to be able to ask for the render that a
+// player's own click would have caused.
+export const renderForTest = () => renderAll();
+// A test arranging a board has to know when the previous turn has finished
+// resolving, or its state is replaced a moment later by work already in flight.
+export const busyForTest = () => busy;
 
 boot();

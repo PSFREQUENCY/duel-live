@@ -5,8 +5,8 @@
 // A key that is still generating simply is not ready, and the stage draws the
 // procedural floor instead. Nothing here is allowed to make the reel wait.
 
-import { resolve } from "../../cinema/free-video.js";
-import { clipKeyFor } from "../../broadcast/keys.js";
+import { hasClip, resolve } from "../../cinema/free-video.js";
+import { resolveClipKey } from "../../broadcast/clip-aliases.js";
 import { shotRequestFor } from "../../broadcast/prompts.js";
 
 const READY = "true";
@@ -35,7 +35,7 @@ export function createMediaPool({ doc = globalThis.document, tierFor, resolveImp
   const inflight = new Set();
   let requests = 0;
 
-  function want(key) {
+  function want(key, { actor } = {}) {
     if (!key || nodes.has(key) || inflight.has(key)) return;
     const tier = tierFor?.(key) ?? "still";
     if (tier === "procedural") return;
@@ -43,9 +43,11 @@ export function createMediaPool({ doc = globalThis.document, tierFor, resolveImp
     if (!request) return;
     inflight.add(key);
     requests += 1;
-    // A shot-shaped object, because that is what the tier resolver takes. The
-    // reuse key is what makes one clip serve every shot that reads alike.
-    resolveImpl({ id: key, clipKey: clipKeyFor(key), kind: key.split(".")[0], ...request })
+    // The reuse key is what makes one clip serve every shot that reads alike --
+    // and what lets a key resolve to a hand-made clip shot under a different
+    // naming scheme, which is better art at no cost.
+    const reuseKey = resolveClipKey(key, { actor, hasClip });
+    resolveImpl({ id: key, clipKey: reuseKey, kind: key.split(".")[0], ...request, reuseKey })
       .then((asset) => {
         inflight.delete(key);
         if (asset?.url) nodes.set(key, makeNode(doc, asset.tier ?? tier, asset.url));
@@ -57,11 +59,16 @@ export function createMediaPool({ doc = globalThis.document, tierFor, resolveImp
     /** Start fetching, and say nothing about when it will arrive. */
     want,
     /** Warm what is about to be needed, behind whatever is on screen now. */
-    prefetch(keys) { for (const key of keys) want(key); },
+    prefetch(shots) {
+      for (const shot of shots) {
+        if (typeof shot === "string") want(shot);
+        else want(shot.key, { actor: shot.actor });
+      }
+    },
     /** The element for a key if it is decodable right now, else null. */
-    get(key) {
+    get(key, options) {
       const node = nodes.get(key);
-      if (!node) { want(key); return null; }
+      if (!node) { want(key, options); return null; }
       if (node.dataset.failed === READY) return null;
       return node.dataset.ready === READY ? node : null;
     },

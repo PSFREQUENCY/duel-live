@@ -195,7 +195,7 @@ export function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, n
  * It never reveals more than the board does — a face-down is a face-down here
  * too.
  */
-export function renderFieldStrip(container, state, side) {
+export function renderFieldStrip(container, state, side, { onPip, ready, targets } = {}) {
   if (!state) return;
   container.innerHTML = "";
   const seat = state.sides[side];
@@ -203,10 +203,17 @@ export function renderFieldStrip(container, state, side) {
   const row = (cards, kind) => {
     const group = document.createElement("span");
     group.className = `field-row field-row--${kind}`;
-    cards.forEach((inst) => {
-      const pip = document.createElement("span");
+    cards.forEach((inst, index) => {
+      // A real button: this is the only always-visible way to reach the board,
+      // so attacking has to be possible from here. Behind a held key it is not
+      // a control, it is a secret.
+      const pip = document.createElement("button");
+      pip.type = "button";
       pip.className = "field-pip";
-      if (!inst) { pip.classList.add("is-empty"); group.append(pip); return; }
+      pip.dataset.index = String(index);
+      if (inst) pip.dataset.uid = inst.uid;
+      pip.addEventListener("click", () => onPip?.({ side, row: kind, inst, index }));
+      if (!inst) { pip.classList.add("is-empty"); pip.disabled = true; group.append(pip); return; }
       const card = getCard(inst.cardId);
       pip.classList.add("is-filled");
       if (inst.faceDown) {
@@ -223,6 +230,10 @@ export function renderFieldStrip(container, state, side) {
         pip.title = card.name;
         pip.classList.add(`is-${card.kind}`);
       }
+      // The same two highlights the board uses: what you can act with, and what
+      // you can point it at.
+      if (ready?.has(inst.uid)) pip.classList.add("is-ready");
+      if (targets?.has(inst.uid)) pip.classList.add("is-target");
       group.append(pip);
     });
     return group;

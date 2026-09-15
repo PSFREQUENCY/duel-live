@@ -76,7 +76,12 @@ export function directEvent(event, state, { eventId = event.type, recentDrama = 
   const vars = varsFor(event, state);
   const multiplier = holdMultiplier(drama);
   const shots = GRAMMAR[beat]
-    .map(([template, rank]) => shotFrom(resolveKey(template, vars), rank, { multiplier }));
+    .map(([template, rank]) => ({
+      ...shotFrom(resolveKey(template, vars), rank, { multiplier }),
+      // The key says what the shot reads as; this says who is doing it, which
+      // is what the per-duelist clips on disk are filed under.
+      actor: vars.atk,
+    }));
 
   return { eventId, drama, beat, shots: truncate(shots, shotBudget(drama)) };
 }

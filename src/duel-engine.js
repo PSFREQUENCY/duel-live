@@ -78,6 +78,9 @@ export function defaultTributes(state, side, need) {
 
 /** Does the chosen set cover the cost? Kaiser Sea Horse counts as two. */
 export function tributesCover(state, side, uids, need) {
+  // This takes caller input, and "no selection" is a real answer -- cancelling
+  // the prompt used to arrive here as null and crash the whole turn.
+  if (!Array.isArray(uids)) return false;
   const field = monstersOn(state, side);
   const chosen = uids.map((uid) => field.find((m) => m.uid === uid)).filter(Boolean);
   if (chosen.length !== uids.length) return false;
@@ -195,6 +198,19 @@ export function respondToTarget(state, uids, { position } = {}) {
   actActivateResolved(next, side, { uid: pending.activateUid, targets: chosen }, ctx, targetSpecFor(card), card);
   checkWin(next, ctx);
   return { state: next, events: ctx.events };
+}
+
+/**
+ * Abandon a summon the player paused to choose tributes for.
+ *
+ * Nothing has happened yet -- the monster is still in hand and the tributes are
+ * still on the field -- so this only has to clear the question. Without it,
+ * Cancel simply re-opened the same prompt for ever.
+ */
+export function cancelTribute(state) {
+  const next = clone(state);
+  if (next.pending?.kind === "tribute") next.pending = null;
+  return { state: next, events: [] };
 }
 
 /** Finish a summon the player paused to choose tributes for. */

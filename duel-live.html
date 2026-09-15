@@ -934,6 +934,25 @@ body.is-watch #live-board-btn { display: none; }
 .prompt--overlay .prompt-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .prompt--overlay .prompt-actions .btn { font-size: 12px; padding: 6px 12px; }
 
+/* A pip is a control, not a label: it is the only always-visible way to reach
+   the board, so attacking has to start here. */
+.field-pip { cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease; }
+.field-pip:disabled { cursor: default; }
+.field-pip.is-filled:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--accent); }
+.field-pip.is-ready {
+  border-color: var(--accent-warm); color: var(--accent-warm);
+  box-shadow: 0 0 0 1px var(--accent-warm);
+}
+.field-pip.is-target {
+  border-color: var(--accent); color: var(--accent);
+  animation: pip-pulse 1.1s ease-in-out infinite;
+}
+@keyframes pip-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--accent); }
+  50% { box-shadow: 0 0 0 3px rgba(79, 201, 240, 0.35); }
+}
+.field-pip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 </style>
   </head>
   <body>
@@ -1238,7 +1257,7 @@ __def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":
 // The engine decides outcomes; this file only sequences and presents them.
 
 const { getCard } = __req("./cards/index.js");
-const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, isMainPhase, respondToChain, respondToDiscard, respondToTarget, respondToTribute, setPhase, tributesCover } = __req("./duel-engine.js");
+const { applyAction, createDuel, endTurn, legalActions, positionBlockedBecause, isMainPhase, respondToChain, respondToDiscard, respondToTarget, respondToTribute, cancelTribute, setPhase, tributesCover } = __req("./duel-engine.js");
 const { legalResponses, resolutionOrder } = __req("./duel-chain.js");
 const { nextPhases, PHASE_LABELS } = __req("./duel-phases.js");
 const { chooseAction, chooseChainResponse, chooseTargets, chooseTributes } = __req("./duel-ai.js");
@@ -1344,7 +1363,6 @@ function renderAll() {
   hover.hide();
   // The live surface reads the same state, so the two presentations cannot
   // disagree about what is on the field.
-  live?.render(state, myTurn() ? legalActions(state, "player") : []);
   if (ui.liveTurn) ui.liveTurn.textContent = String(state.turn);
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
@@ -1363,6 +1381,13 @@ function renderAll() {
     : new Set();
   const choosingTributes = state.pending?.kind === "tribute" && state.pending.side === "player";
   const tributeReady = choosingTributes ? new Set(state.pending.options) : null;
+
+  // The live surface reads the same state and gets the same highlights, so the
+  // two presentations cannot disagree about what is actionable.
+  live?.render(state, mine, {
+    ready: tributeReady ?? actionable,
+    targets: choosingTributes ? new Set(tributePicks) : targets,
+  });
 
   // Hover on a pointer, tap to pin on a touch screen.
   const onZoneHover = (inst, side, zone) => {
@@ -1702,6 +1727,13 @@ async function maybePending() {
   while (state.pending?.kind === "tribute") {
     if (asks(state.pending.side)) {
       const uids = await askTributes(state.pending);
+      if (uids === CANCEL_TRIBUTE) {
+        // The monster is still in hand and the tributes are still on the
+        // field; only the question goes away.
+        state = cancelTribute(state).state;
+        renderAll();
+        break;
+      }
       step("tribute", uids);
       const result = respondToTribute(state, uids);
       state = result.state;
@@ -2258,9 +2290,12 @@ function askTargets(pending) {
   });
 }
 
+// Abandoning a tribute summon is its own answer, distinct from choosing nothing.
+const CANCEL_TRIBUTE = Symbol("cancel-tribute");
+
 function askTributes(pending) {
   return new Promise((done) => {
-    cancelPrompt = () => done([]);
+    cancelPrompt = () => done(CANCEL_TRIBUTE);
     tributePicks = [];
     const finish = (uids) => {
       cancelPrompt = null; tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids);
@@ -2275,7 +2310,9 @@ function askTributes(pending) {
       for (const [text, value, enabled] of [
         ["Tribute and summon", tributePicks.slice(), enough],
         ["Let the game choose", chooseTributes(state), true],
-        ["Cancel", null, true],
+        // A distinct value, not null: null used to reach the engine as a
+        // selection and crash the turn, and an empty pick just re-asked.
+        ["Cancel", CANCEL_TRIBUTE, true],
       ]) {
         const button = document.createElement("button");
         button.className = "btn";
@@ -2457,8 +2494,11 @@ async function toggleRecording() {
 }
 
 function onLiveAction(action) {
-  if (busy || !myTurn()) return;
+  // Board clicks carry their own guards, and must not be filtered here: while a
+  // tribute prompt is open the duel is `busy` by definition, and picking the
+  // tributes is a board click. Swallowing it left the prompt unanswerable.
   if (action.type === "zone") { onZoneFromBoard(action); return; }
+  if (busy || !myTurn()) return;
   step("action", action);
   run(() => applyAction(state, action));
 }
@@ -2701,10 +2741,16 @@ async function boot() {
 // assert on the reel has to be handed it rather than reaching into the module.
 const liveForTest = () => live;
 const stateForTest = () => state;
+// A test that arranges a board has to be able to ask for the render that a
+// player's own click would have caused.
+const renderForTest = () => renderAll();
+// A test arranging a board has to know when the previous turn has finished
+// resolving, or its state is replaced a moment later by work already in flight.
+const busyForTest = () => busy;
 
 boot();
 
-Object.assign(__exports, { liveForTest, stateForTest });
+Object.assign(__exports, { liveForTest, stateForTest, renderForTest, busyForTest });
 });
 
 __def("src/cards/index.js", {"./monsters.js":"src/cards/monsters.js","./spells.js":"src/cards/spells.js","./traps.js":"src/cards/traps.js"}, function (__exports, __req) {
@@ -3139,6 +3185,9 @@ function defaultTributes(state, side, need) {
 
 /** Does the chosen set cover the cost? Kaiser Sea Horse counts as two. */
 function tributesCover(state, side, uids, need) {
+  // This takes caller input, and "no selection" is a real answer -- cancelling
+  // the prompt used to arrive here as null and crash the whole turn.
+  if (!Array.isArray(uids)) return false;
   const field = monstersOn(state, side);
   const chosen = uids.map((uid) => field.find((m) => m.uid === uid)).filter(Boolean);
   if (chosen.length !== uids.length) return false;
@@ -3256,6 +3305,19 @@ function respondToTarget(state, uids, { position } = {}) {
   actActivateResolved(next, side, { uid: pending.activateUid, targets: chosen }, ctx, targetSpecFor(card), card);
   checkWin(next, ctx);
   return { state: next, events: ctx.events };
+}
+
+/**
+ * Abandon a summon the player paused to choose tributes for.
+ *
+ * Nothing has happened yet -- the monster is still in hand and the tributes are
+ * still on the field -- so this only has to clear the question. Without it,
+ * Cancel simply re-opened the same prompt for ever.
+ */
+function cancelTribute(state) {
+  const next = clone(state);
+  if (next.pending?.kind === "tribute") next.pending = null;
+  return { state: next, events: [] };
 }
 
 /** Finish a summon the player paused to choose tributes for. */
@@ -3860,7 +3922,7 @@ function playableSpell(state, side, inst) {
   return true;
 }
 
-Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToDiscard, respondToTarget, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, gravityBindLevel, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToChain, legalActions, HAND_LIMIT, excessHand, respondToTrapWindow, isMainPhase, createDuel, SIDES, other, effectiveStats, cardOf, PHASES, PHASE_LABELS, canEnterBattlePhase, nextPhases });
+Object.assign(__exports, { tributesRequired, canNormalSummon, defaultTributes, tributesCover, respondToDiscard, respondToTarget, cancelTribute, respondToTribute, targetOptionsFor, requirementMet, canChangePosition, positionBlockedBecause, gravityBindLevel, canAttack, trapWindow, endTurn, setPhase, applyAction, respondToChain, legalActions, HAND_LIMIT, excessHand, respondToTrapWindow, isMainPhase, createDuel, SIDES, other, effectiveStats, cardOf, PHASES, PHASE_LABELS, canEnterBattlePhase, nextPhases });
 });
 
 __def("src/duel-phases.js", {}, function (__exports, __req) {
@@ -5932,12 +5994,23 @@ const getClipMode = () => clipMode;
 const jobs = new Map();
 let capability = { still: true, video: false, voice: false, realtime: false, checked: false };
 let availableClips = new Set();
+let clipWords = new Set();
 
-/** True when a hand-made clip for this key is on disk. */
-const hasClip = (key) => Boolean(key) && availableClips.has(normaliseKey(key));
+/**
+ * True when a hand-made clip for this key is on disk.
+ *
+ * The server resolves a filename by word set as well as by exact name, so
+ * `play-yugi-summon` finds `play summon yugi.mp4`. This has to match, or the
+ * client decides a clip is missing, asks for a generation, and is handed back
+ * the very clip it just decided did not exist.
+ */
+const hasClip = (key) => Boolean(key)
+  && (availableClips.has(normaliseKey(key)) || clipWords.has(wordSet(key)));
 
 const normaliseKey = (key) =>
   String(key).trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/-+/g, "-");
+
+const wordSet = (key) => normaliseKey(key).split("-").filter(Boolean).sort().join("-");
 
 function getCapability() {
   return { ...capability };
@@ -5949,6 +6022,7 @@ async function probeCapability(fetchImpl = fetch) {
     if (res.ok) {
       capability = { ...(await res.json()), checked: true };
       availableClips = new Set((capability.clipKeys ?? []).map(normaliseKey));
+      clipWords = new Set((capability.clipKeys ?? []).map(wordSet));
     }
   } catch {
     capability = { still: false, video: false, voice: false, realtime: false, checked: true };
@@ -5965,9 +6039,20 @@ function highestTier(requested = "video") {
   return TIERS[best];
 }
 
+// A caller that already knows which clip it wants says so. The live reel does:
+// it resolves its own key against what is actually on disk, under a naming
+// scheme the tactical archetypes know nothing about.
+const reuseKeyFor = (shot, tier) => {
+  if (shot.reuseKey) return shot.reuseKey;
+  const archetype = tier === "video" && clipMode === "library"
+    ? archetypeFor(shot, { hasClip })
+    : null;
+  return archetype?.key ?? "";
+};
+
 function shotBody(shot, tier) {
   // Stills are cheap and unique per shot; only video is worth generalising.
-  const archetype = tier === "video" && clipMode === "library"
+  const archetype = !shot.reuseKey && tier === "video" && clipMode === "library"
     ? archetypeFor(shot, { hasClip })
     : null;
   return {
@@ -5975,7 +6060,7 @@ function shotBody(shot, tier) {
     tier,
     kind: shot.kind,
     prompt: archetype?.prompt ?? shot.prompt,
-    reuseKey: archetype?.key ?? "",
+    reuseKey: reuseKeyFor(shot, tier),
     seconds: shot.seconds ?? 6,
   };
 }
@@ -5984,11 +6069,8 @@ function shotBody(shot, tier) {
 // procedural shot while the network works.
 function prefetch(shot, tier = highestTier(), fetchImpl = fetch) {
   if (tier === "procedural") return null;
-  // Shots sharing an archetype share a job, so a reused clip is fetched once.
-  const archetype = tier === "video" && clipMode === "library"
-    ? archetypeFor(shot, { hasClip })
-    : null;
-  const key = `${archetype?.key ?? shot.id}:${tier}`;
+  // Shots sharing a reuse key share a job, so a reused clip is fetched once.
+  const key = `${reuseKeyFor(shot, tier) || shot.id}:${tier}`;
   if (jobs.has(key)) return jobs.get(key);
   const job = fetchImpl("/api/shot", {
     method: "POST",
@@ -8364,13 +8446,20 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
   const director = createDirector();
   const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
   let pace = paceFor(DEFAULT_PACE);
+  let readyUids = new Set();
+  let targetUids = new Set();
+  const onBoard = (pick) => {
+    if (isInteractive(mode) && pick.inst) onAction?.({ type: "zone", ...pick });
+  };
 
   const setMyLp = createCounter(ui.lp.me);
   const setFoeLp = createCounter(ui.lp.foe);
 
   const stage = createStage({
     canvas: ui.canvas,
-    media: () => (reel?.current ? pool.get(reel.current.key) : null),
+    media: () => (reel?.current
+      ? pool.get(reel.current.key, { actor: reel.current.actor })
+      : null),
     accents,
     getState,
     onFrame: () => tick(),
@@ -8399,7 +8488,7 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     reel.setPressure(ambient.pressureAt(now));
     const shot = reel.tick(now);
     if (shot) {
-      pool.want(shot.key);
+      pool.want(shot.key, { actor: shot.actor });
       ui.shotLabel.textContent = shot.key;
     }
     telestrator.refresh();
@@ -8416,7 +8505,7 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
       reel.push({ ...sequence, shots, pushedAt: performance.now() });
       // Warm the whole sequence at once: the reel is about to want all of it,
       // and the spine must never be the shot that is still generating.
-      pool.prefetch(sequence.shots.map((shot) => shot.key));
+      pool.prefetch(shots);
     }
     // Somebody acted, so the decision window closes and pressure resets.
     ambient.reset(performance.now(), state.activeSide);
@@ -8431,10 +8520,12 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
     ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
     ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
-    // What is actually on the field, always on screen. Behind a held key it
-    // reads as an opponent with no cards at all.
-    renderFieldStrip(ui.fields.me, state, "player");
-    renderFieldStrip(ui.fields.foe, state, "opponent");
+    // What is actually on the field, always on screen -- and clickable, because
+    // it is the only always-visible way to reach the board. Behind a held key,
+    // attacking was effectively impossible.
+    const opts = { onPip: onBoard, ready: readyUids, targets: targetUids };
+    renderFieldStrip(ui.fields.me, state, "player", opts);
+    renderFieldStrip(ui.fields.foe, state, "opponent", opts);
   }
 
   function renderHand(state, actions) {
@@ -8451,7 +8542,9 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     });
   }
 
-  function renderAll(state = getState(), actions = []) {
+  function renderAll(state = getState(), actions = [], marks = {}) {
+    readyUids = marks.ready ?? new Set();
+    targetUids = marks.targets ?? new Set();
     renderHud(state);
     renderHand(state, actions);
     if (!state) return;
@@ -8486,8 +8579,8 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
       });
       reel.start(performance.now());
       // Everything the opening needs, before the first event arrives.
-      pool.prefetch([reel.current.key, `idle.${state.sides.player.duelistId}`,
-        `react.${state.sides.opponent.duelistId}.steady`, "arena.wide"]);
+      pool.prefetch([reel.current, { key: `idle.${state.sides.player.duelistId}` },
+        { key: `react.${state.sides.opponent.duelistId}.steady` }, { key: "arena.wide" }]);
       stage.start();
       telestrator.attach();
       renderAll(state);
@@ -8729,7 +8822,12 @@ function directEvent(event, state, { eventId = event.type, recentDrama = 0 } = {
   const vars = varsFor(event, state);
   const multiplier = holdMultiplier(drama);
   const shots = GRAMMAR[beat]
-    .map(([template, rank]) => shotFrom(resolveKey(template, vars), rank, { multiplier }));
+    .map(([template, rank]) => ({
+      ...shotFrom(resolveKey(template, vars), rank, { multiplier }),
+      // The key says what the shot reads as; this says who is doing it, which
+      // is what the per-duelist clips on disk are filed under.
+      actor: vars.atk,
+    }));
 
   return { eventId, drama, beat, shots: truncate(shots, shotBudget(drama)) };
 }
@@ -9449,7 +9547,7 @@ function createStage({ canvas, media, accents, getState, onFrame }) {
 Object.assign(__exports, { createStage, ASPECT });
 });
 
-__def("src/ui/live/media-pool.js", {"../../cinema/free-video.js":"src/cinema/free-video.js","../../broadcast/keys.js":"src/broadcast/keys.js","../../broadcast/prompts.js":"src/broadcast/prompts.js"}, function (__exports, __req) {
+__def("src/ui/live/media-pool.js", {"../../cinema/free-video.js":"src/cinema/free-video.js","../../broadcast/clip-aliases.js":"src/broadcast/clip-aliases.js","../../broadcast/prompts.js":"src/broadcast/prompts.js"}, function (__exports, __req) {
 // Keys in, decodable elements out.
 //
 // The pool exists so the stage can ask "is there a picture for this key yet?"
@@ -9457,8 +9555,8 @@ __def("src/ui/live/media-pool.js", {"../../cinema/free-video.js":"src/cinema/fre
 // A key that is still generating simply is not ready, and the stage draws the
 // procedural floor instead. Nothing here is allowed to make the reel wait.
 
-const { resolve } = __req("../../cinema/free-video.js");
-const { clipKeyFor } = __req("../../broadcast/keys.js");
+const { hasClip, resolve } = __req("../../cinema/free-video.js");
+const { resolveClipKey } = __req("../../broadcast/clip-aliases.js");
 const { shotRequestFor } = __req("../../broadcast/prompts.js");
 const READY = "true";
 
@@ -9486,7 +9584,7 @@ function createMediaPool({ doc = globalThis.document, tierFor, resolveImpl = res
   const inflight = new Set();
   let requests = 0;
 
-  function want(key) {
+  function want(key, { actor } = {}) {
     if (!key || nodes.has(key) || inflight.has(key)) return;
     const tier = tierFor?.(key) ?? "still";
     if (tier === "procedural") return;
@@ -9494,9 +9592,11 @@ function createMediaPool({ doc = globalThis.document, tierFor, resolveImpl = res
     if (!request) return;
     inflight.add(key);
     requests += 1;
-    // A shot-shaped object, because that is what the tier resolver takes. The
-    // reuse key is what makes one clip serve every shot that reads alike.
-    resolveImpl({ id: key, clipKey: clipKeyFor(key), kind: key.split(".")[0], ...request })
+    // The reuse key is what makes one clip serve every shot that reads alike --
+    // and what lets a key resolve to a hand-made clip shot under a different
+    // naming scheme, which is better art at no cost.
+    const reuseKey = resolveClipKey(key, { actor, hasClip });
+    resolveImpl({ id: key, clipKey: reuseKey, kind: key.split(".")[0], ...request, reuseKey })
       .then((asset) => {
         inflight.delete(key);
         if (asset?.url) nodes.set(key, makeNode(doc, asset.tier ?? tier, asset.url));
@@ -9508,11 +9608,16 @@ function createMediaPool({ doc = globalThis.document, tierFor, resolveImpl = res
     /** Start fetching, and say nothing about when it will arrive. */
     want,
     /** Warm what is about to be needed, behind whatever is on screen now. */
-    prefetch(keys) { for (const key of keys) want(key); },
+    prefetch(shots) {
+      for (const shot of shots) {
+        if (typeof shot === "string") want(shot);
+        else want(shot.key, { actor: shot.actor });
+      }
+    },
     /** The element for a key if it is decodable right now, else null. */
-    get(key) {
+    get(key, options) {
       const node = nodes.get(key);
-      if (!node) { want(key); return null; }
+      if (!node) { want(key, options); return null; }
       if (node.dataset.failed === READY) return null;
       return node.dataset.ready === READY ? node : null;
     },
@@ -9525,72 +9630,93 @@ function createMediaPool({ doc = globalThis.document, tierFor, resolveImpl = res
 Object.assign(__exports, { createMediaPool });
 });
 
-__def("src/broadcast/keys.js", {"../cinema/player.js":"src/cinema/player.js"}, function (__exports, __req) {
-// Where a grammar key gets its picture.
+__def("src/broadcast/clip-aliases.js", {}, function (__exports, __req) {
+// Which hand-made clip stands in for a grammar key.
 //
-// A key is only ever as good as the thing it resolves to. The rule that keeps
-// the library bounded is that a key must fully determine its prompt: anything
-// the key leaves out must stay out of the prompt, or two shots sharing a key
-// would need two different clips and the reuse collapses.
+// The grammar names shots by what they read as -- `summon.DARK.dragon`,
+// `react.kaiba.pressed` -- because that is what makes the library bounded. The
+// clips that actually exist were shot to a different scheme, per duelist:
+// `play kaiba summon`, `react kaiba confident`. Neither naming is wrong, and
+// nothing matched: all 64 keys fell through to the procedural canvas while 21
+// real clips sat unused on disk.
+//
+// This is the join. A key resolves to the best clip that exists for it, and
+// falls back to its own name so a clip generated later is picked up without
+// changing anything here.
 
-const { PROCEDURAL_KINDS } = __req("../cinema/player.js");
-/** Grammar keys are dotted; clips on disk are hyphenated and case-insensitive. */
-const clipKeyFor = (key) => String(key).toLowerCase().replace(/\./g, "-");
+// The acting duelist, which the key deliberately leaves out: one summon clip
+// per attribute and family is the whole point of the key scheme, but the clips
+// on disk are of a particular person doing it.
+const byActor = (pattern) => (actor) => (actor ? pattern.replace("{actor}", actor) : null);
 
-// The canvas can draw these unaided, so a key in this map always has a picture
-// even with no clips, no key and no network.
-const PROCEDURAL = {
-  summon: "summon", fusion: "fusion", clash: "clash", direct: "direct",
-  trap: "trap", spell: "spell", finish: "finish", reveal: "spell",
-  impact: "clash", tribute: "summon", react: "reaction", idle: "idle",
-  arena: "idle", phase: "chain_build",
+const ALIASES = {
+  // Somebody plays a monster.
+  summon: byActor("play-{actor}-summon"),
+  tribute: byActor("play-{actor}-summon"),
+  fusion: byActor("play-{actor}-summon"),
+
+  // Somebody plays a card face-up.
+  spell: byActor("play-{actor}-activate"),
+  trap: byActor("play-{actor}-activate"),
+
+  // Something takes damage. One impact clip covers the whole family.
+  direct: () => "lp-damage",
+  impact: () => "lp-damage",
+  clash: () => "lp-damage",
+
+  finish: () => "outro",
 };
 
-/** The procedural shot kind that backs a key, or null if nothing can draw it. */
-function proceduralKindFor(key) {
-  const kind = PROCEDURAL[String(key).split(".")[0]];
-  return kind && PROCEDURAL_KINDS.has(kind) ? kind : null;
+// A reveal is of a specific kind of card, so it splits before it aliases.
+const REVEALS = {
+  spell: byActor("play-{actor}-activate"),
+  trap: byActor("play-{actor}-activate"),
+  monster: byActor("play-{actor}-summon"),
+  facedown: byActor("play-{actor}-summon"),
+};
+
+// The duelist plates. `steady` has a real clip for three of the four; the other
+// registers reuse the same performance rather than showing nothing.
+const REACTIONS = {
+  steady: (who) => `react-${who}-confident`,
+  pressed: (who) => `react-${who}-confident`,
+  broken: (who) => `open-${who}`,
+};
+
+const ARENAS = { wide: "arena-rooftop", low: "arena-cliff", overhead: "arena-rooftop" };
+
+/**
+ * Every clip key worth trying for a grammar key, best first.
+ *
+ * The key's own name comes first: a clip generated for it exactly is always
+ * better than a stand-in, so adding one later needs no change here.
+ */
+function clipCandidates(key, { actor } = {}) {
+  const [kind, a, b] = String(key).split(".");
+  const own = String(key).toLowerCase().replace(/\./g, "-");
+  const out = [own];
+
+  const add = (value) => { if (value && !out.includes(value)) out.push(value); };
+
+  if (kind === "react") add(REACTIONS[b]?.(a));
+  else if (kind === "idle") add(`open-${a}`);
+  else if (kind === "arena") add(ARENAS[a]);
+  else if (kind === "reveal") add(REVEALS[a]?.(actor));
+  else add(ALIASES[kind]?.(actor));
+
+  // A duelist plate is a decent last resort for anything about a person.
+  if (kind === "react" || kind === "idle") add(`open-${a}`);
+  return out;
 }
 
-/** Everything a key needs to be rendered at whatever tier is available. */
-function resolveShotKey(key) {
-  return {
-    key,
-    clipKey: clipKeyFor(key),
-    procedural: proceduralKindFor(key),
-  };
+/** The first candidate that is actually on disk, or the key's own name. */
+function resolveClipKey(key, { actor, hasClip } = {}) {
+  const candidates = clipCandidates(key, { actor });
+  if (!hasClip) return candidates[0];
+  return candidates.find((candidate) => hasClip(candidate)) ?? candidates[0];
 }
 
-// The keys two real decks can actually reach. The grammar's full expansion is
-// the theoretical maximum -- six attributes times seven families -- but a deck
-// list is much narrower than that, and generating the difference would be
-// paying for clips no duel can ever play.
-function reachableKeys(decks, { duelists }) {
-  const keys = new Set([
-    "reveal.monster", "reveal.facedown", "reveal.spell", "reveal.trap",
-    "tribute.wide", "impact.light", "impact.heavy", "trap", "spell", "finish",
-    "phase.battle", "phase.end", "arena.wide", "arena.low", "arena.overhead",
-  ]);
-  for (const id of duelists) {
-    keys.add(`idle.${id}`);
-    for (const register of ["steady", "pressed", "broken"]) keys.add(`react.${id}.${register}`);
-  }
-  for (const { attribute, family } of decks) {
-    keys.add(`summon.${attribute}.${family}`);
-    keys.add(`fusion.${family}`);
-    keys.add(`clash.${family}`);
-    keys.add(`direct.${family}`);
-  }
-  return [...keys].sort();
-}
-
-/** Split a key set by the tier its subject is filmed at (§5). */
-function splitByTier(keys) {
-  const still = keys.filter((key) => /^(react|idle|arena|phase)\./.test(key));
-  return { still, video: keys.filter((key) => !still.includes(key)) };
-}
-
-Object.assign(__exports, { proceduralKindFor, resolveShotKey, reachableKeys, splitByTier, clipKeyFor });
+Object.assign(__exports, { clipCandidates, resolveClipKey });
 });
 
 __def("src/broadcast/prompts.js", {"../cinema/world.js":"src/cinema/world.js"}, function (__exports, __req) {
@@ -10197,7 +10323,7 @@ function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, now = ()
  * It never reveals more than the board does — a face-down is a face-down here
  * too.
  */
-function renderFieldStrip(container, state, side) {
+function renderFieldStrip(container, state, side, { onPip, ready, targets } = {}) {
   if (!state) return;
   container.innerHTML = "";
   const seat = state.sides[side];
@@ -10205,10 +10331,17 @@ function renderFieldStrip(container, state, side) {
   const row = (cards, kind) => {
     const group = document.createElement("span");
     group.className = `field-row field-row--${kind}`;
-    cards.forEach((inst) => {
-      const pip = document.createElement("span");
+    cards.forEach((inst, index) => {
+      // A real button: this is the only always-visible way to reach the board,
+      // so attacking has to be possible from here. Behind a held key it is not
+      // a control, it is a secret.
+      const pip = document.createElement("button");
+      pip.type = "button";
       pip.className = "field-pip";
-      if (!inst) { pip.classList.add("is-empty"); group.append(pip); return; }
+      pip.dataset.index = String(index);
+      if (inst) pip.dataset.uid = inst.uid;
+      pip.addEventListener("click", () => onPip?.({ side, row: kind, inst, index }));
+      if (!inst) { pip.classList.add("is-empty"); pip.disabled = true; group.append(pip); return; }
       const card = getCard(inst.cardId);
       pip.classList.add("is-filled");
       if (inst.faceDown) {
@@ -10225,6 +10358,10 @@ function renderFieldStrip(container, state, side) {
         pip.title = card.name;
         pip.classList.add(`is-${card.kind}`);
       }
+      // The same two highlights the board uses: what you can act with, and what
+      // you can point it at.
+      if (ready?.has(inst.uid)) pip.classList.add("is-ready");
+      if (targets?.has(inst.uid)) pip.classList.add("is-target");
       group.append(pip);
     });
     return group;
