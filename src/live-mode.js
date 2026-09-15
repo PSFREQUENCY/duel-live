@@ -54,14 +54,22 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     onFrame: () => tick(),
   });
 
+  // Each row routes to its own handler. Sending all four to one of them means a
+  // click on the opponent's monster is read as a click on your own, which makes
+  // declaring an attack impossible -- the second half of it never lands.
+  const zoneClick = (side, row) => (inst) => {
+    if (isInteractive(mode) && inst) onAction?.({ type: "zone", side, row, inst });
+  };
+
   const telestrator = createTelestrator({
     root: ui.telestrator,
     rows: [
-      ["opponent", "backrow", ui.rows.foeBackrow], ["opponent", "monsters", ui.rows.foeMonsters],
-      ["player", "monsters", ui.rows.myMonsters], ["player", "backrow", ui.rows.myBackrow],
+      ["opponent", "backrow", ui.rows.foeBackrow, zoneClick("opponent", "backrow")],
+      ["opponent", "monsters", ui.rows.foeMonsters, zoneClick("opponent", "monsters")],
+      ["player", "monsters", ui.rows.myMonsters, zoneClick("player", "monsters")],
+      ["player", "backrow", ui.rows.myBackrow, zoneClick("player", "backrow")],
     ],
     getState,
-    onZoneClick: (inst) => { if (isInteractive(mode)) onAction?.({ type: "zone", inst }); },
   });
 
   function tick(now = performance.now()) {
@@ -187,6 +195,8 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     async stopRecording() { return recorder ? recorder.stop() : null; },
     get recording() { return Boolean(recorder?.recording); },
 
+    /** Pin the board open while a declaration is half-made. */
+    holdBoard(on) { telestrator.hold(on); },
     skip() { reel?.skip(performance.now()); },
     setSticky(value) { telestrator.setSticky(value); },
     stop() {

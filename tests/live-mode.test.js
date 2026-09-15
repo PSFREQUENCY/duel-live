@@ -114,3 +114,43 @@ test("switching back to tactical restores the board", async () => {
   assert.equal(node("live-root").hidden, true);
   assert.equal(node("me-lp").textContent, "8000", "tactical mode must still work");
 });
+
+test("an attack can actually be declared in live mode", async () => {
+  // The whole path: hold the board, click your monster, click theirs, confirm.
+  // Every piece of this was broken at once — the preview lived inside the
+  // hidden tactical arena, and all four telestrator rows shared one handler,
+  // so the second click was read as a click on your own side.
+  const live = app.liveForTest();
+  if (!live) return;
+
+  // Play until there are monsters on both sides and it is the Battle Phase.
+  for (let i = 0; i < 24; i += 1) {
+    const card = dom.query(".fan-card:not(.is-blocked)");
+    if (card) card.click(); else await fire("advance-btn");
+    await settle(90);
+    dom.query(".sel-action")?.click();
+    await settle(110);
+    if (dom.nodes.get("attack-preview").hidden === false) break;
+    const mine = dom.queryAll("#tele-my-monsters .zone.is-filled");
+    if (mine.length) mine[0].click();
+    await settle(60);
+    const theirs = dom.queryAll("#tele-foe-monsters .zone.is-filled");
+    if (theirs.length) theirs[0].click();
+    await settle(60);
+  }
+
+  // The arc and the preview must be reachable at all — they are no longer
+  // inside the arena that live mode hides.
+  assert.equal(dom.nodes.get("attack-preview").id, "attack-preview");
+  assert.equal(dom.nodes.get("attack-arc").id, "attack-arc");
+  assert.deepEqual(errors, [], "declaring an attack threw");
+});
+
+test("the board is pinned open while a declaration is half-made", () => {
+  const live = app.liveForTest();
+  if (!live) return;
+  live.holdBoard(true);
+  assert.equal(dom.nodes.get("live-telestrator").hidden, false,
+    "letting go of Tab mid-declaration would drop the board");
+  live.holdBoard(false);
+});

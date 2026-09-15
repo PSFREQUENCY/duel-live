@@ -12,7 +12,7 @@ const HOLD_KEY = "Tab";
 const FADE_MS = 200;
 const TOUCH_HOLD_MS = 350;
 
-export function createTelestrator({ root, rows, getState, onZoneClick, sticky = false }) {
+export function createTelestrator({ root, rows, getState, sticky = false }) {
   let shown = false;
   let pinned = false;
   let touchTimer = 0;
@@ -22,7 +22,7 @@ export function createTelestrator({ root, rows, getState, onZoneClick, sticky = 
     if (!state) return;
     // The same renderer and the same zone ids as tactical mode: one board, two
     // presentations, so the two can never disagree about what is on the field.
-    for (const [side, row, container] of rows) {
+    for (const [side, row, container, onZoneClick] of rows) {
       renderZones(state, side, container, { row, onZoneClick });
     }
   }
@@ -78,6 +78,15 @@ export function createTelestrator({ root, rows, getState, onZoneClick, sticky = 
       doc.removeEventListener("keydown", onKeyDown);
       doc.removeEventListener("keyup", onKeyUp);
       clearTimeout(touchTimer);
+    },
+    /**
+     * Hold the board open regardless of the gesture. Declaring an attack takes
+     * two clicks on the board, and letting go of Tab between them would drop
+     * the board halfway through.
+     */
+    hold(on) {
+      pinned = on;
+      if (on) show(); else hide();
     },
     /** Repaint while open, so the board does not go stale under the finger. */
     refresh() { if (shown) paint(); },

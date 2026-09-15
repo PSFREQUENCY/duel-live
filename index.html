@@ -97,18 +97,6 @@
         <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
         <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
 
-        <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
-          <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
-        </svg>
-
-        <div class="attack-preview" id="attack-preview" hidden role="status">
-          <span class="preview-sum" id="preview-sum"></span>
-          <strong id="preview-verdict"></strong>
-          <div class="preview-actions">
-            <button class="btn btn-accent" id="preview-confirm" type="button">Attack</button>
-            <button class="btn" id="preview-cancel" type="button">Cancel</button>
-          </div>
-        </div>
 
         <div class="banter" id="banter" hidden>
           <span class="banter-who" id="banter-who"></span>
@@ -213,6 +201,23 @@
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
         <span class="live-note" id="live-note"></span>
+      </div>
+    </div>
+
+    <!-- Declaring an attack happens in every mode, so the arc and the preview
+         live above both surfaces rather than inside either one. -->
+    <div class="duel-overlay" id="duel-overlay">
+      <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
+        <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
+      </svg>
+
+      <div class="attack-preview" id="attack-preview" hidden role="status">
+        <span class="preview-sum" id="preview-sum"></span>
+        <strong id="preview-verdict"></strong>
+        <div class="preview-actions">
+          <button class="btn btn-accent" id="preview-confirm" type="button">Attack</button>
+          <button class="btn" id="preview-cancel" type="button">Cancel</button>
+        </div>
       </div>
     </div>
 

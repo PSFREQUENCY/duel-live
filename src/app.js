@@ -823,6 +823,9 @@ function showAttackPreview(action, targetUid) {
   const preview = previewAttack(state, "player", action.uid, targetUid ?? null);
   if (!preview) return;
   pendingAttack = action;
+  // Both halves of a declaration are clicks on the board, so it stays up until
+  // the attack is confirmed or cancelled.
+  live?.holdBoard(true);
   const lethal = isLethal(state, "player", preview);
 
   ui.preview.hidden = false;
@@ -842,6 +845,7 @@ function showAttackPreview(action, targetUid) {
 function clearAttackPreview() {
   pendingAttack = null;
   attackFrom = null;
+  live?.holdBoard(false);
   ui.preview.hidden = true;
   ui.arc.hidden = true;
   renderAll();
@@ -851,6 +855,7 @@ function confirmAttack() {
   const action = pendingAttack;
   ui.preview.hidden = true;
   ui.arc.hidden = true;
+  live?.holdBoard(false);
   pendingAttack = null;
   attackFrom = null;
   if (!action) return;
@@ -860,25 +865,36 @@ function confirmAttack() {
 
 // A live arc from attacker to target, so the declaration reads as a movement
 // rather than as two disconnected clicks.
-function drawArc(attackerUid, targetUid) {
-  const from = document.querySelector(`#my-monsters .zone[data-uid="${attackerUid}"]`);
-  const to = targetUid
-    ? document.querySelector(`#foe-monsters .zone[data-uid="${targetUid}"]`)
-    : el("foe-lp");
-  const arena = ui.stage.parentElement;
-  if (!from || !to || !arena) return;
+// Which board is on screen. One renderer, two presentations -- so the arc has
+// to ask where the zones currently are rather than assuming the tactical ones.
+function zoneRow(side, row = "monsters") {
+  const tactical = side === "player"
+    ? { monsters: "my-monsters", backrow: "my-backrow" }
+    : { monsters: "foe-monsters", backrow: "foe-backrow" };
+  const live = side === "player"
+    ? { monsters: "tele-my-monsters", backrow: "tele-my-backrow" }
+    : { monsters: "tele-foe-monsters", backrow: "tele-foe-backrow" };
+  return el((isBroadcast(mode) ? live : tactical)[row]);
+}
 
-  const box = arena.getBoundingClientRect();
+const zoneNode = (side, uid) => zoneRow(side)?.querySelector(`.zone[data-uid="${uid}"]`) ?? null;
+
+function drawArc(attackerUid, targetUid) {
+  const from = zoneNode("player", attackerUid);
+  const to = targetUid ? zoneNode("opponent", targetUid) : el(isBroadcast(mode) ? "live-foe-lp" : "foe-lp");
+  if (!from || !to) return;
+
+  // The overlay is viewport-fixed, so these are already the right coordinates.
   const a = from.getBoundingClientRect();
   const b = to.getBoundingClientRect();
-  const x1 = a.left + a.width / 2 - box.left;
-  const y1 = a.top + a.height / 2 - box.top;
-  const x2 = b.left + b.width / 2 - box.left;
-  const y2 = b.top + b.height / 2 - box.top;
+  const x1 = a.left + a.width / 2;
+  const y1 = a.top + a.height / 2;
+  const x2 = b.left + b.width / 2;
+  const y2 = b.top + b.height / 2;
   const lift = Math.abs(y2 - y1) * 0.35;
 
   ui.arc.hidden = false;
-  ui.arc.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  ui.arc.setAttribute("viewBox", `0 0 ${globalThis.innerWidth} ${globalThis.innerHeight}`);
   ui.arcPath.setAttribute("d", `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 - lift} ${x2} ${y2}`);
   ui.arcPath.setAttribute("stroke", "var(--accent-warm)");
 }
@@ -1154,9 +1170,16 @@ async function toggleRecording() {
 
 function onLiveAction(action) {
   if (busy || !myTurn()) return;
-  if (action.type === "zone") { onMyMonster(action.inst); return; }
+  if (action.type === "zone") { onZoneFromBoard(action); return; }
   step("action", action);
   run(() => applyAction(state, action));
+}
+
+// The board behaves the same in both modes; live mode just reaches it through
+// the telestrator instead of the arena.
+function onZoneFromBoard({ side, row, inst }) {
+  if (side === "opponent") { if (row === "monsters") onFoeMonster(inst); return; }
+  if (row === "monsters") onMyMonster(inst); else onMyBackrow(inst);
 }
 
 // Watch mode is a screening: the duel plays itself start to finish and the reel

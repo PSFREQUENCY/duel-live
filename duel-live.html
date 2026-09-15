@@ -848,6 +848,17 @@ body.is-watch #live-board-btn { display: none; }
   .fan-card { width: clamp(58px, 17vw, 84px); min-height: 74px; }
 }
 
+/* Declaring an attack is the one interaction both surfaces share, so the arc
+   and the preview sit above them rather than inside either. Viewport-fixed,
+   which is also the coordinate space the arc's own maths already works in. */
+.duel-overlay {
+  position: fixed; inset: 0; z-index: 40;
+  pointer-events: none;
+}
+.duel-overlay > * { pointer-events: auto; }
+.duel-overlay .attack-arc { position: fixed; inset: 0; pointer-events: none; }
+.duel-overlay .attack-preview { position: fixed; }
+
 </style>
   </head>
   <body>
@@ -939,18 +950,6 @@ body.is-watch #live-board-btn { display: none; }
         <ul class="effect-rail" id="effect-rail" aria-label="Effects in play"></ul>
         <ol class="chain-rail" id="chain-rail" aria-label="Chain" hidden></ol>
 
-        <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
-          <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
-        </svg>
-
-        <div class="attack-preview" id="attack-preview" hidden role="status">
-          <span class="preview-sum" id="preview-sum"></span>
-          <strong id="preview-verdict"></strong>
-          <div class="preview-actions">
-            <button class="btn btn-accent" id="preview-confirm" type="button">Attack</button>
-            <button class="btn" id="preview-cancel" type="button">Cancel</button>
-          </div>
-        </div>
 
         <div class="banter" id="banter" hidden>
           <span class="banter-who" id="banter-who"></span>
@@ -1055,6 +1054,23 @@ body.is-watch #live-board-btn { display: none; }
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
         <span class="live-note" id="live-note"></span>
+      </div>
+    </div>
+
+    <!-- Declaring an attack happens in every mode, so the arc and the preview
+         live above both surfaces rather than inside either one. -->
+    <div class="duel-overlay" id="duel-overlay">
+      <svg class="attack-arc" id="attack-arc" hidden aria-hidden="true">
+        <path id="attack-arc-path" fill="none" stroke-width="3" stroke-linecap="round" />
+      </svg>
+
+      <div class="attack-preview" id="attack-preview" hidden role="status">
+        <span class="preview-sum" id="preview-sum"></span>
+        <strong id="preview-verdict"></strong>
+        <div class="preview-actions">
+          <button class="btn btn-accent" id="preview-confirm" type="button">Attack</button>
+          <button class="btn" id="preview-cancel" type="button">Cancel</button>
+        </div>
       </div>
     </div>
 
@@ -1931,6 +1947,9 @@ function showAttackPreview(action, targetUid) {
   const preview = previewAttack(state, "player", action.uid, targetUid ?? null);
   if (!preview) return;
   pendingAttack = action;
+  // Both halves of a declaration are clicks on the board, so it stays up until
+  // the attack is confirmed or cancelled.
+  live?.holdBoard(true);
   const lethal = isLethal(state, "player", preview);
 
   ui.preview.hidden = false;
@@ -1950,6 +1969,7 @@ function showAttackPreview(action, targetUid) {
 function clearAttackPreview() {
   pendingAttack = null;
   attackFrom = null;
+  live?.holdBoard(false);
   ui.preview.hidden = true;
   ui.arc.hidden = true;
   renderAll();
@@ -1959,6 +1979,7 @@ function confirmAttack() {
   const action = pendingAttack;
   ui.preview.hidden = true;
   ui.arc.hidden = true;
+  live?.holdBoard(false);
   pendingAttack = null;
   attackFrom = null;
   if (!action) return;
@@ -1968,25 +1989,36 @@ function confirmAttack() {
 
 // A live arc from attacker to target, so the declaration reads as a movement
 // rather than as two disconnected clicks.
-function drawArc(attackerUid, targetUid) {
-  const from = document.querySelector(`#my-monsters .zone[data-uid="${attackerUid}"]`);
-  const to = targetUid
-    ? document.querySelector(`#foe-monsters .zone[data-uid="${targetUid}"]`)
-    : el("foe-lp");
-  const arena = ui.stage.parentElement;
-  if (!from || !to || !arena) return;
+// Which board is on screen. One renderer, two presentations -- so the arc has
+// to ask where the zones currently are rather than assuming the tactical ones.
+function zoneRow(side, row = "monsters") {
+  const tactical = side === "player"
+    ? { monsters: "my-monsters", backrow: "my-backrow" }
+    : { monsters: "foe-monsters", backrow: "foe-backrow" };
+  const live = side === "player"
+    ? { monsters: "tele-my-monsters", backrow: "tele-my-backrow" }
+    : { monsters: "tele-foe-monsters", backrow: "tele-foe-backrow" };
+  return el((isBroadcast(mode) ? live : tactical)[row]);
+}
 
-  const box = arena.getBoundingClientRect();
+const zoneNode = (side, uid) => zoneRow(side)?.querySelector(`.zone[data-uid="${uid}"]`) ?? null;
+
+function drawArc(attackerUid, targetUid) {
+  const from = zoneNode("player", attackerUid);
+  const to = targetUid ? zoneNode("opponent", targetUid) : el(isBroadcast(mode) ? "live-foe-lp" : "foe-lp");
+  if (!from || !to) return;
+
+  // The overlay is viewport-fixed, so these are already the right coordinates.
   const a = from.getBoundingClientRect();
   const b = to.getBoundingClientRect();
-  const x1 = a.left + a.width / 2 - box.left;
-  const y1 = a.top + a.height / 2 - box.top;
-  const x2 = b.left + b.width / 2 - box.left;
-  const y2 = b.top + b.height / 2 - box.top;
+  const x1 = a.left + a.width / 2;
+  const y1 = a.top + a.height / 2;
+  const x2 = b.left + b.width / 2;
+  const y2 = b.top + b.height / 2;
   const lift = Math.abs(y2 - y1) * 0.35;
 
   ui.arc.hidden = false;
-  ui.arc.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  ui.arc.setAttribute("viewBox", `0 0 ${globalThis.innerWidth} ${globalThis.innerHeight}`);
   ui.arcPath.setAttribute("d", `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 - lift} ${x2} ${y2}`);
   ui.arcPath.setAttribute("stroke", "var(--accent-warm)");
 }
@@ -2262,9 +2294,16 @@ async function toggleRecording() {
 
 function onLiveAction(action) {
   if (busy || !myTurn()) return;
-  if (action.type === "zone") { onMyMonster(action.inst); return; }
+  if (action.type === "zone") { onZoneFromBoard(action); return; }
   step("action", action);
   run(() => applyAction(state, action));
+}
+
+// The board behaves the same in both modes; live mode just reaches it through
+// the telestrator instead of the arena.
+function onZoneFromBoard({ side, row, inst }) {
+  if (side === "opponent") { if (row === "monsters") onFoeMonster(inst); return; }
+  if (row === "monsters") onMyMonster(inst); else onMyBackrow(inst);
 }
 
 // Watch mode is a screening: the duel plays itself start to finish and the reel
@@ -8025,14 +8064,22 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     onFrame: () => tick(),
   });
 
+  // Each row routes to its own handler. Sending all four to one of them means a
+  // click on the opponent's monster is read as a click on your own, which makes
+  // declaring an attack impossible -- the second half of it never lands.
+  const zoneClick = (side, row) => (inst) => {
+    if (isInteractive(mode) && inst) onAction?.({ type: "zone", side, row, inst });
+  };
+
   const telestrator = createTelestrator({
     root: ui.telestrator,
     rows: [
-      ["opponent", "backrow", ui.rows.foeBackrow], ["opponent", "monsters", ui.rows.foeMonsters],
-      ["player", "monsters", ui.rows.myMonsters], ["player", "backrow", ui.rows.myBackrow],
+      ["opponent", "backrow", ui.rows.foeBackrow, zoneClick("opponent", "backrow")],
+      ["opponent", "monsters", ui.rows.foeMonsters, zoneClick("opponent", "monsters")],
+      ["player", "monsters", ui.rows.myMonsters, zoneClick("player", "monsters")],
+      ["player", "backrow", ui.rows.myBackrow, zoneClick("player", "backrow")],
     ],
     getState,
-    onZoneClick: (inst) => { if (isInteractive(mode)) onAction?.({ type: "zone", inst }); },
   });
 
   function tick(now = performance.now()) {
@@ -8158,6 +8205,8 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     async stopRecording() { return recorder ? recorder.stop() : null; },
     get recording() { return Boolean(recorder?.recording); },
 
+    /** Pin the board open while a declaration is half-made. */
+    holdBoard(on) { telestrator.hold(on); },
     skip() { reel?.skip(performance.now()); },
     setSticky(value) { telestrator.setSticky(value); },
     stop() {
@@ -9435,7 +9484,7 @@ const HOLD_KEY = "Tab";
 const FADE_MS = 200;
 const TOUCH_HOLD_MS = 350;
 
-function createTelestrator({ root, rows, getState, onZoneClick, sticky = false }) {
+function createTelestrator({ root, rows, getState, sticky = false }) {
   let shown = false;
   let pinned = false;
   let touchTimer = 0;
@@ -9445,7 +9494,7 @@ function createTelestrator({ root, rows, getState, onZoneClick, sticky = false }
     if (!state) return;
     // The same renderer and the same zone ids as tactical mode: one board, two
     // presentations, so the two can never disagree about what is on the field.
-    for (const [side, row, container] of rows) {
+    for (const [side, row, container, onZoneClick] of rows) {
       renderZones(state, side, container, { row, onZoneClick });
     }
   }
@@ -9501,6 +9550,15 @@ function createTelestrator({ root, rows, getState, onZoneClick, sticky = false }
       doc.removeEventListener("keydown", onKeyDown);
       doc.removeEventListener("keyup", onKeyUp);
       clearTimeout(touchTimer);
+    },
+    /**
+     * Hold the board open regardless of the gesture. Declaring an attack takes
+     * two clicks on the board, and letting go of Tab between them would drop
+     * the board halfway through.
+     */
+    hold(on) {
+      pinned = on;
+      if (on) show(); else hide();
     },
     /** Repaint while open, so the board does not go stale under the finger. */
     refresh() { if (shown) paint(); },
