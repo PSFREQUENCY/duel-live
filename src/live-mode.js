@@ -14,6 +14,7 @@ import { createMediaPool } from "./ui/live/media-pool.js";
 import { createTelestrator } from "./ui/live/telestrator.js";
 import { canRecord, createRecorder } from "./ui/live/episode.js";
 import { createCounter, renderFan, renderFieldStrip, renderRibbon, renderSelection } from "./ui/live/disk.js";
+import { renderFeed } from "./ui/live/feed.js";
 import { isInteractive } from "./modes.js";
 import { DEFAULT_PACE, paceFor } from "./broadcast/pace.js";
 import { DUELISTS } from "./duelists.js";
@@ -32,7 +33,7 @@ function tierFor(key) {
   return highestTier();
 }
 
-export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
+export function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents }) {
   const pool = createMediaPool({ tierFor });
   const score = createScore();
   let ambient = null;
@@ -44,6 +45,7 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
   const director = createDirector();
   const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
   let pace = paceFor(DEFAULT_PACE);
+  let feedOn = true;
   let readyUids = new Set();
   let targetUids = new Set();
   const onBoard = (pick) => {
@@ -140,6 +142,12 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     });
   }
 
+  /** The running commentary. Fed the same lines the tactical log is built from. */
+  function showFeed(lines, turn) {
+    if (!feedOn) return;
+    renderFeed(ui.feed, lines, { turn });
+  }
+
   function renderAll(state = getState(), actions = [], marks = {}) {
     readyUids = marks.ready ?? new Set();
     targetUids = marks.targets ?? new Set();
@@ -173,6 +181,7 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
           cuts.total += 1;
           cuts[shot.ambient ? "ambient" : "action"] += 1;
           cuts.keys.add(shot.key);
+          onShot?.(shot);
         },
       });
       reel.start(performance.now());
@@ -216,6 +225,12 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     async stopRecording() { return recorder ? recorder.stop() : null; },
     get recording() { return Boolean(recorder?.recording); },
 
+    feed: showFeed,
+    setFeed(on) {
+      feedOn = on;
+      ui.feed.hidden = !on;
+      if (!on) ui.feed.innerHTML = "";
+    },
     setPace(name) { pace = paceFor(name); },
     get pace() { return pace; },
 

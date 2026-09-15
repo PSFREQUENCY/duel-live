@@ -706,7 +706,7 @@ body.is-live .hand-rail { display: none; }
 /* Clear of the lower third, so the HUD and the hand never fight for the
    same strip. Both must be readable at a glance, always. */
 .live-fan {
-  position: absolute; left: 0; right: 0; bottom: 46px; z-index: 6;
+  position: absolute; left: 0; right: 0; bottom: 58px; z-index: 6;
   display: flex; justify-content: center; align-items: flex-end;
   gap: clamp(2px, 0.6vw, 8px);
   padding: 0 12px;
@@ -834,7 +834,7 @@ body.is-watch #live-board-btn { display: none; }
 
 @media (max-width: 900px) {
   .live-frame { aspect-ratio: 4 / 3; }
-  .live-fan { bottom: 40px; }
+  .live-fan { bottom: 50px; }
   .live-selection { right: 50%; transform: translateX(50%); width: min(320px, 90vw); }
   .fan-card { width: clamp(58px, 17vw, 84px); min-height: 74px; }
 }
@@ -943,3 +943,80 @@ body.is-watch #live-board-btn { display: none; }
   50% { box-shadow: 0 0 0 3px rgba(79, 201, 240, 0.35); }
 }
 .field-pip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The running commentary. Over video, so it has to read at a glance and then
+   get out of the way -- older lines fade rather than scroll past. */
+.live-feed {
+  position: absolute; z-index: 5; right: 0; top: 46px;
+  width: min(300px, 34%);
+  max-height: 52%;
+  padding: 10px 14px 10px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+  overflow: hidden;
+  pointer-events: none;
+  text-align: right;
+  mask-image: linear-gradient(180deg, transparent, #000 22%, #000 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 22%, #000 100%);
+}
+.live-feed[hidden] { display: none; }
+.feed-turn {
+  margin: 0 0 2px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+  color: var(--accent); opacity: 0.9;
+}
+.feed-line {
+  margin: 0;
+  font-size: 12px; line-height: 1.35;
+  color: var(--ink);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95), 0 0 18px rgba(0, 0, 0, 0.7);
+  /* Six steps of fade: the newest line is solid, the oldest is nearly gone. */
+  opacity: calc(1 - var(--age, 0) * 0.13);
+}
+.feed-line.is-structural {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.feed-line.is-dialogue { font-style: italic; color: var(--accent-warm); }
+.feed-detail { display: block; font-family: var(--mono); font-size: 10px; color: var(--accent); }
+
+.bug-note { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+.bug-label {
+  display: block; margin-bottom: 6px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.bug-text {
+  width: 100%; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: rgba(8, 11, 22, 0.9); color: var(--ink);
+  font: inherit; font-size: 13px; line-height: 1.45;
+  resize: vertical;
+}
+.bug-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bug-summary {
+  margin: 12px 0 4px; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--line-soft);
+  background: rgba(10, 14, 26, 0.7);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.6; color: var(--ink-dim);
+  max-height: 180px; overflow: auto;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .live-feed { width: 46%; font-size: 11px; top: 40px; }
+}
+
+
+/* The topbar grew a mode, a pace and two diagnostics controls. It wraps rather
+   than overflowing, and wraps as rows of controls rather than leaving one
+   orphan button under the rest. */
+.topbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
+  column-gap: 8px;
+}
+.topbar-actions .control span { letter-spacing: 0.1em; }
+.topbar-actions select { max-width: 200px; }
+@media (max-width: 1500px) {
+  .topbar-actions .btn { padding: 7px 11px; font-size: 12px; }
+}

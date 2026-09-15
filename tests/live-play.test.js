@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { dom, installGlobals, settle } from "./dom-stub.mjs";
+import { dom, fire, installGlobals, settle } from "./dom-stub.mjs";
 
 const errors = [];
 process.on("unhandledRejection", (e) => errors.push(String(e?.message ?? e)));
@@ -168,4 +168,44 @@ test("a set monster's pip says it is set and nothing more", async () => {
   assert.ok(hidden.length >= 1, "a face-down monster should read as face-down");
   assert.equal(hidden[0].textContent, "▨");
   assert.doesNotMatch(hidden[0].textContent, /\d/, "its ATK would identify it");
+});
+
+test("the feed shows what just happened, over the picture", async () => {
+  await arrange({ mine: ["darkMagician"], theirs: ["battleOx"], phase: "battle" });
+  const feed = node("live-feed");
+  assert.ok(feed.children.length > 0, "the commentary is empty");
+  const text = feed.children.map((row) => row.textContent).join(" ");
+  assert.match(text, /TURN \d/, "the feed should say which turn this is");
+});
+
+test("the feed can be turned off, and comes back with the duel still in it", async () => {
+  await fire("feed-btn", "click", {});
+  await settle(80);
+  assert.equal(node("live-feed").hidden, true);
+  await fire("feed-btn", "click", {});
+  await settle(80);
+  assert.equal(node("live-feed").hidden, false);
+  assert.ok(node("live-feed").children.length > 0, "turning it back on must restore the log");
+});
+
+test("a bug report carries the board, the timeline and the replay link", async () => {
+  await fire("bug-btn", "click", {});
+  await settle(80);
+  assert.equal(node("bug-modal").hidden, false);
+
+  const summary = node("bug-summary").textContent;
+  for (const field of ["mode", "duel", "board", "life", "timeline", "errors"]) {
+    assert.match(summary, new RegExp(`^${field}`, "m"), `the digest is missing ${field}`);
+  }
+  assert.match(summary, /seed \d+/, "without the seed the duel cannot be re-run");
+
+  node("bug-text").value = "clicked my monster and nothing happened";
+  await fire("bug-copy", "click", {});
+  await settle(250);
+  assert.match(node("bug-hint").textContent, /copied|unavailable/);
+
+  // And the note itself reaches the timeline, which is the point of the button.
+  await fire("bug-save", "click", {});
+  await settle(150);
+  assert.match(node("bug-hint").textContent, /Saved/);
 });

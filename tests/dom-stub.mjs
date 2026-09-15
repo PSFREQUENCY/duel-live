@@ -11,6 +11,16 @@ const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
 // meant any selector naming a class on an id-bearing element matched nothing --
 // so `.live-fan .fan-card` quietly found zero, and a real freeze looked like a
 // passing test.
+// aria-pressed and friends: a control that starts "on" in the markup has to
+// start "on" here, or the first click toggles it the wrong way.
+const attrsById = new Map(
+  [...html.matchAll(/<[a-zA-Z][^>]*>/g)]
+    .map((m) => [m[0].match(/\bid="([^"]+)"/)?.[1],
+      [...m[0].matchAll(/\b(aria-[a-z]+|role|type|data-[a-z-]+)="([^"]*)"/g)]
+        .map((a) => [a[1], a[2]])])
+    .filter(([id, pairs]) => id && pairs.length),
+);
+
 const classesById = new Map(
   [...html.matchAll(/<[a-zA-Z][^>]*>/g)]
     .map((m) => [m[0].match(/\bid="([^"]+)"/)?.[1], m[0].match(/\bclass="([^"]+)"/)?.[1]])
@@ -42,6 +52,7 @@ const ctx2d = new Proxy({}, {
 });
 
 function makeNode(id = "") {
+  const attrs = new Map();
   const classes = new Set();
   const sync = () => { node.className = [...classes].join(" "); };
   const node = {
@@ -72,7 +83,12 @@ function makeNode(id = "") {
         if (i >= 0) parent.children.splice(i, 1);
       }
     },
-    setAttribute() {}, getAttribute: () => null,
+    // Real attributes. `getAttribute` returning null for everything meant any
+    // control reading its own aria-pressed to toggle could never be tested.
+    setAttribute(name, value) { attrs.set(name, String(value)); },
+    getAttribute: (name) => (attrs.has(name) ? attrs.get(name) : null),
+    removeAttribute(name) { attrs.delete(name); },
+    hasAttribute: (name) => attrs.has(name),
     getBoundingClientRect: () => ({ top: 0, left: 0, right: 100, bottom: 100, width: 100, height: 100 }),
     handlers: new Map(),
     addEventListener(type, fn) {
@@ -109,6 +125,7 @@ const nodes = new Map(ids.map((id) => {
   const node = makeNode(id);
   const cls = classesById.get(id);
   if (cls) node.className = cls;
+  for (const [name, value] of attrsById.get(id) ?? []) node.setAttribute(name, value);
   return [id, node];
 }));
 // A real <select> reports its first <option> value before any interaction.
@@ -221,7 +238,17 @@ export function installGlobals({
     origin: "http://localhost:4174", pathname: "/", search,
     href: `http://localhost:4174/${search}`,
   };
-  globalThis.navigator ??= { clipboard: { writeText: async () => {} } };
+  // Node has its own `navigator`, so `??=` leaves it without a clipboard and
+  // every copy path silently short-circuits.
+  globalThis.navigator ??= {};
+  if (!globalThis.navigator.clipboard) {
+    try {
+      Object.defineProperty(globalThis.navigator, "clipboard", {
+        value: { writeText: async () => {}, write: async () => {} },
+        configurable: true,
+      });
+    } catch { /* a frozen navigator is not worth failing a test over */ }
+  }
   globalThis.URLSearchParams ??= URLSearchParams;
   globalThis.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
   globalThis.fetch = async (url) => {
@@ -230,7 +257,14 @@ export function installGlobals({
   };
 }
 
-export const fire = async (id, type = "click", event = {}) =>
-  listeners.get(`${id}:${type}`)?.({ target: nodes.get(id), ...event });
+// A real listener always receives `currentTarget` -- it is how a handler reads
+// the state of the control it is bound to. Leaving it off meant any handler
+// that toggles its own aria-pressed threw here and nowhere else.
+export const fire = async (id, type = "click", event = {}) => {
+  const node = nodes.get(id);
+  return listeners.get(`${id}:${type}`)?.({
+    target: node, currentTarget: node, preventDefault() {}, stopPropagation() {}, ...event,
+  });
+};
 
 export const settle = (ms = 120) => new Promise((done) => setTimeout(done, ms));

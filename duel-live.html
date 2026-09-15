@@ -715,7 +715,7 @@ body.is-live .hand-rail { display: none; }
 /* Clear of the lower third, so the HUD and the hand never fight for the
    same strip. Both must be readable at a glance, always. */
 .live-fan {
-  position: absolute; left: 0; right: 0; bottom: 46px; z-index: 6;
+  position: absolute; left: 0; right: 0; bottom: 58px; z-index: 6;
   display: flex; justify-content: center; align-items: flex-end;
   gap: clamp(2px, 0.6vw, 8px);
   padding: 0 12px;
@@ -843,7 +843,7 @@ body.is-watch #live-board-btn { display: none; }
 
 @media (max-width: 900px) {
   .live-frame { aspect-ratio: 4 / 3; }
-  .live-fan { bottom: 40px; }
+  .live-fan { bottom: 50px; }
   .live-selection { right: 50%; transform: translateX(50%); width: min(320px, 90vw); }
   .fan-card { width: clamp(58px, 17vw, 84px); min-height: 74px; }
 }
@@ -953,6 +953,83 @@ body.is-watch #live-board-btn { display: none; }
 }
 .field-pip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* The running commentary. Over video, so it has to read at a glance and then
+   get out of the way -- older lines fade rather than scroll past. */
+.live-feed {
+  position: absolute; z-index: 5; right: 0; top: 46px;
+  width: min(300px, 34%);
+  max-height: 52%;
+  padding: 10px 14px 10px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+  overflow: hidden;
+  pointer-events: none;
+  text-align: right;
+  mask-image: linear-gradient(180deg, transparent, #000 22%, #000 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 22%, #000 100%);
+}
+.live-feed[hidden] { display: none; }
+.feed-turn {
+  margin: 0 0 2px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+  color: var(--accent); opacity: 0.9;
+}
+.feed-line {
+  margin: 0;
+  font-size: 12px; line-height: 1.35;
+  color: var(--ink);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95), 0 0 18px rgba(0, 0, 0, 0.7);
+  /* Six steps of fade: the newest line is solid, the oldest is nearly gone. */
+  opacity: calc(1 - var(--age, 0) * 0.13);
+}
+.feed-line.is-structural {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.feed-line.is-dialogue { font-style: italic; color: var(--accent-warm); }
+.feed-detail { display: block; font-family: var(--mono); font-size: 10px; color: var(--accent); }
+
+.bug-note { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+.bug-label {
+  display: block; margin-bottom: 6px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.bug-text {
+  width: 100%; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: rgba(8, 11, 22, 0.9); color: var(--ink);
+  font: inherit; font-size: 13px; line-height: 1.45;
+  resize: vertical;
+}
+.bug-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bug-summary {
+  margin: 12px 0 4px; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--line-soft);
+  background: rgba(10, 14, 26, 0.7);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.6; color: var(--ink-dim);
+  max-height: 180px; overflow: auto;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .live-feed { width: 46%; font-size: 11px; top: 40px; }
+}
+
+
+/* The topbar grew a mode, a pace and two diagnostics controls. It wraps rather
+   than overflowing, and wraps as rows of controls rather than leaving one
+   orphan button under the rest. */
+.topbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
+  column-gap: 8px;
+}
+.topbar-actions .control span { letter-spacing: 0.1em; }
+.topbar-actions select { max-width: 200px; }
+@media (max-width: 1500px) {
+  .topbar-actions .btn { padding: 7px 11px; font-size: 12px; }
+}
+
 </style>
   </head>
   <body>
@@ -1006,6 +1083,8 @@ body.is-watch #live-board-btn { display: none; }
           </select>
         </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
+        <button class="btn" id="bug-btn" type="button">Report a bug</button>
+        <button class="btn" id="log-btn" type="button">Save log</button>
         <button class="btn" id="rules-btn" type="button">Rules</button>
         <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
       </div>
@@ -1141,6 +1220,10 @@ body.is-watch #live-board-btn { display: none; }
           <p class="tele-hint">Hold Tab for the board</p>
         </div>
 
+        <!-- The duel log, cut down to what reads at a glance over video. -->
+        <div class="live-feed" id="live-feed" role="log" aria-live="polite"
+             aria-label="Duel commentary"></div>
+
         <div class="live-ribbon" id="live-ribbon" hidden></div>
         <div class="live-selection" id="live-selection" hidden></div>
 
@@ -1173,6 +1256,7 @@ body.is-watch #live-board-btn { display: none; }
         <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board (hold Tab)</button>
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
+        <button class="btn" id="feed-btn" type="button" aria-pressed="true">Feed</button>
         <span class="live-shot" id="live-shot"></span>
         <span class="live-note" id="live-note"></span>
       </div>
@@ -1229,6 +1313,24 @@ body.is-watch #live-board-btn { display: none; }
       </div>
     </div>
 
+    <div class="modal" id="bug-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="bug-title">
+        <h2 id="bug-title">Report a bug</h2>
+        <p class="bug-note">What went wrong? The duel's full timeline is attached
+          automatically — every event, every action, and the board as it stands.</p>
+        <label class="bug-label" for="bug-text">What happened</label>
+        <textarea id="bug-text" class="bug-text" rows="4"
+          placeholder="e.g. clicked my monster in the Battle Phase and nothing happened"></textarea>
+        <div class="bug-summary" id="bug-summary"></div>
+        <div class="share-actions">
+          <button class="btn btn-accent" id="bug-save" type="button">Save report</button>
+          <button class="btn" id="bug-copy" type="button">Copy to clipboard</button>
+          <button class="btn" id="bug-close" type="button">Close</button>
+        </div>
+        <p class="share-hint" id="bug-hint"></p>
+      </div>
+    </div>
+
     <div class="modal" id="modal" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <h2 id="modal-title">How this duel works</h2>
@@ -1252,7 +1354,7 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./live-mode.js":"src/live-mode.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./live-mode.js":"src/live-mode.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./journal.js":"src/journal.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
@@ -1279,6 +1381,7 @@ const { summariseDuel } = __req("./duel-stats.js");
 const { createLiveMode } = __req("./live-mode.js");
 const { isBroadcast, isInteractive, resolveMode, turnBudgetFor } = __req("./modes.js");
 const { INPUT_CAP_MS } = __req("./broadcast/pace.js");
+const { createJournal, summarise } = __req("./journal.js");
 const { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } = __req("./share-card.js");
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
@@ -1301,6 +1404,8 @@ let mode = resolveMode();
 let live = null;
 // Resolves the open ribbon with "no response"; set while a window is up.
 let liveRibbonPass = null;
+// Everything that happened this duel, for looking at after something goes wrong.
+const journal = createJournal();
 
 const liveUi = () => ({
   canvas: el("live-stage"), fan: el("live-fan"), selection: el("live-selection"),
@@ -1309,6 +1414,7 @@ const liveUi = () => ({
   counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
   names: { me: el("live-my-name"), foe: el("live-foe-name") },
   fields: { me: el("live-my-field"), foe: el("live-foe-field") },
+  feed: el("live-feed"),
   rows: {
     foeBackrow: el("tele-foe-backrow"), foeMonsters: el("tele-foe-monsters"),
     myMonsters: el("tele-my-monsters"), myBackrow: el("tele-my-backrow"),
@@ -1388,6 +1494,9 @@ function renderAll() {
     ready: tributeReady ?? actionable,
     targets: choosingTributes ? new Set(tributePicks) : targets,
   });
+  // Keep the commentary current even when nothing new happened -- switching
+  // mode or restarting should not leave the last duel's lines on screen.
+  live?.feed(logLines, state.turn);
 
   // Hover on a pointer, tap to pin on a touch screen.
   const onZoneHover = (inst, side, zone) => {
@@ -1561,7 +1670,9 @@ function present(events) {
   drawLog();
   // The reel reads the same event stream the board does, one beat behind
   // nothing. Tactical mode's shot queue is untouched by this.
+  journal.events(events, state);
   live?.present(events, state);
+  live?.feed(logLines, state.turn);
   if (!isBroadcast(mode)) {
     const shots = buildStoryboard(events, state);
     if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
@@ -1629,6 +1740,7 @@ function videoBudget() {
 // what turns a shared card into something someone can actually watch.
 function step(kind, payload) {
   duelSteps.push(record(kind, payload));
+  journal.action(kind, payload);
 }
 
 async function run(mutator) {
@@ -1657,6 +1769,7 @@ async function run(mutator) {
 
 function reportSnag(error) {
   console.error("duel step failed", error);
+  journal.error(error, { turn: state?.turn, phase: state?.phase, mode });
   cinema.clear();
   ui.prompt.hidden = true;
   logLines.push({
@@ -2415,6 +2528,11 @@ function startDuel(requested) {
   ui.share.hidden = true;
   duelSeed = Date.now() % 2147483647;
   state = createDuel(matchupId, { seed: duelSeed });
+  journal.duelStarted({
+    matchup: matchupId, seed: duelSeed, mode,
+    pace: el("pace-select")?.value ?? "slow",
+    duelists: [state.sides.player.duelistId, state.sides.opponent.duelistId],
+  });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
   // Intro plays once per session; the versus plate opens every duel.
@@ -2435,6 +2553,73 @@ function startDuel(requested) {
   live?.start(state);
   renderAll();
   if (mode === "watch") runWatch();
+}
+
+// ------------------------------------------------------------- diagnostics ---
+
+const stamp = () => new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+function saveJson(data, name) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return blob.size;
+}
+
+/** The digest a reader sees first, before the raw timeline underneath it. */
+function bugSummary(note) {
+  const digest = summarise(journal);
+  return {
+    note: note || "(no description given)",
+    mode,
+    pace: el("pace-select").value,
+    tier: el("tier-select").value,
+    replay: replayHref(),
+    ...digest,
+  };
+}
+
+function openBugReport() {
+  const summary = bugSummary("");
+  el("bug-summary").textContent = [
+    `mode      ${summary.mode} · pace ${summary.pace} · cinema ${summary.tier}`,
+    `duel      ${summary.duel?.matchup ?? "?"} · seed ${summary.duel?.seed ?? "?"}`,
+    `board     turn ${summary.board?.turn ?? "?"} · ${summary.board?.phase ?? "?"} · `
+      + `${summary.board?.activeSide ?? "?"} to act`,
+    `life      ${summary.board?.player?.lp ?? "?"} / ${summary.board?.opponent?.lp ?? "?"}`,
+    `timeline  ${Object.entries(summary.counts).map(([k, n]) => `${n} ${k}`).join(" \u00b7 ")}`,
+    summary.errors.length ? `errors    ${summary.errors.join("; ")}` : "errors    none",
+  ].join("\n");
+  el("bug-text").value = "";
+  el("bug-hint").textContent = "";
+  el("bug-modal").hidden = false;
+  el("bug-text").focus?.();
+}
+
+function fileBugReport({ copy = false } = {}) {
+  const note = el("bug-text").value.trim();
+  const report = journal.report(note, { mode, pace: el("pace-select").value });
+  const payload = { summary: bugSummary(note), report };
+  if (copy) {
+    // A browser with no clipboard has to say so, rather than looking like the
+    // button did nothing.
+    const write = navigator.clipboard?.writeText;
+    if (!write) {
+      el("bug-hint").textContent = "Clipboard unavailable — use Save instead.";
+      return payload;
+    }
+    write.call(navigator.clipboard, JSON.stringify(payload, null, 2))
+      .then(() => { el("bug-hint").textContent = "Report copied to the clipboard."; })
+      .catch(() => { el("bug-hint").textContent = "Clipboard unavailable — use Save instead."; });
+    return payload;
+  }
+  const size = saveJson(payload, `duel-live-bug-${stamp()}.json`);
+  el("bug-hint").textContent = `Saved — ${(size / 1024).toFixed(0)} KB, with the full timeline.`;
+  return payload;
 }
 
 // ------------------------------------------------------------------ modes ---
@@ -2464,6 +2649,7 @@ function applyMode(next) {
     getState: () => state,
     accents: accentPair,
     onAction: onLiveAction,
+    onShot: (shot) => journal.shot(shot),
     onPass: () => { live?.closeResponses(); liveRibbonPass?.(); liveRibbonPass = null; },
   });
   if (state) live.start(state);
@@ -2561,6 +2747,21 @@ function bind() {
     startDuel(el("matchup-select").value);
   });
   el("live-skip-btn").addEventListener("click", () => live?.skip());
+  el("feed-btn").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    live?.setFeed(on);
+    if (on) live?.feed(logLines, state?.turn);
+  });
+  el("bug-btn").addEventListener("click", openBugReport);
+  el("bug-save").addEventListener("click", () => fileBugReport());
+  el("bug-copy").addEventListener("click", () => fileBugReport({ copy: true }));
+  el("bug-close").addEventListener("click", () => { el("bug-modal").hidden = true; });
+  el("log-btn").addEventListener("click", () => {
+    const size = saveJson(journal.toJSON(), `duel-live-log-${stamp()}.json`);
+    flashTemporaryMessage(`Duel log saved — ${(size / 1024).toFixed(0)} KB`);
+    if (ui.liveNote) ui.liveNote.textContent = `Log saved — ${(size / 1024).toFixed(0)} KB`;
+  });
   el("live-record-btn").addEventListener("click", () => toggleRecording());
   el("live-board-btn").addEventListener("click", (e) => {
     const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
@@ -2725,15 +2926,15 @@ async function boot() {
   const option = el("tier-select").querySelector('option[value="video"]');
   if (cap.video) {
     const left = cap.videoClipsLeft;
-    option.textContent = left === null ? "Auto (best free tier)" : `Auto (video — ${left} free clips left)`;
+    option.textContent = left === null ? "Auto (best free tier)" : `Auto (video — ${left} clips)`;
   } else if (!cap.still) {
     // No backend at all — the single-file build opened straight from disk.
-    option.textContent = "Procedural (no server — runs fully offline)";
+    option.textContent = "Procedural (offline)";
     ui.hint.dataset.offline = "true";
   } else {
     option.textContent = cap.keyPresent
-      ? "Auto (stills — out of free video pollen)"
-      : "Auto (stills — add a free key for video)";
+      ? "Auto (stills — out of pollen)"
+      : "Auto (stills — add a key)";
   }
 }
 
@@ -8400,7 +8601,7 @@ function statTiles(stats) {
 Object.assign(__exports, { summariseDuel, headline, statTiles });
 });
 
-__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js"}, function (__exports, __req) {
+__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./ui/live/feed.js":"src/ui/live/feed.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js"}, function (__exports, __req) {
 // Live mode: the reel, the stage, the pool and the score, wired to one duel.
 //
 // This owns presentation only. The engine decides the duel exactly as it does
@@ -8417,6 +8618,7 @@ const { createMediaPool } = __req("./ui/live/media-pool.js");
 const { createTelestrator } = __req("./ui/live/telestrator.js");
 const { canRecord, createRecorder } = __req("./ui/live/episode.js");
 const { createCounter, renderFan, renderFieldStrip, renderRibbon, renderSelection } = __req("./ui/live/disk.js");
+const { renderFeed } = __req("./ui/live/feed.js");
 const { isInteractive } = __req("./modes.js");
 const { DEFAULT_PACE, paceFor } = __req("./broadcast/pace.js");
 const { DUELISTS } = __req("./duelists.js");
@@ -8434,7 +8636,7 @@ function tierFor(key) {
   return highestTier();
 }
 
-function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
+function createLiveMode({ mode, ui, getState, onAction, onPass, onShot, accents }) {
   const pool = createMediaPool({ tierFor });
   const score = createScore();
   let ambient = null;
@@ -8446,6 +8648,7 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
   const director = createDirector();
   const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
   let pace = paceFor(DEFAULT_PACE);
+  let feedOn = true;
   let readyUids = new Set();
   let targetUids = new Set();
   const onBoard = (pick) => {
@@ -8542,6 +8745,12 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     });
   }
 
+  /** The running commentary. Fed the same lines the tactical log is built from. */
+  function showFeed(lines, turn) {
+    if (!feedOn) return;
+    renderFeed(ui.feed, lines, { turn });
+  }
+
   function renderAll(state = getState(), actions = [], marks = {}) {
     readyUids = marks.ready ?? new Set();
     targetUids = marks.targets ?? new Set();
@@ -8575,6 +8784,7 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
           cuts.total += 1;
           cuts[shot.ambient ? "ambient" : "action"] += 1;
           cuts.keys.add(shot.key);
+          onShot?.(shot);
         },
       });
       reel.start(performance.now());
@@ -8618,6 +8828,12 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     async stopRecording() { return recorder ? recorder.stop() : null; },
     get recording() { return Boolean(recorder?.recording); },
 
+    feed: showFeed,
+    setFeed(on) {
+      feedOn = on;
+      ui.feed.hidden = !on;
+      if (!on) ui.feed.innerHTML = "";
+    },
     setPace(name) { pace = paceFor(name); },
     get pace() { return pace; },
 
@@ -10390,6 +10606,62 @@ function summariseField(state, side) {
 Object.assign(__exports, { renderFan, renderSelection, createCounter, renderRibbon, renderFieldStrip });
 });
 
+__def("src/ui/live/feed.js", {}, function (__exports, __req) {
+// The running commentary down the side of the picture.
+//
+// Live mode hid the duel log, which left the player watching an edit with no
+// idea what had just happened mechanically -- a monster is destroyed on screen
+// and nothing says which, or by how much. This is that log, cut down to what
+// reads at a glance over video: the last few lines, newest at the bottom, older
+// ones fading out rather than scrolling away.
+
+const SHOWN = 7;
+
+/**
+ * The last few lines of the duel log.
+ *
+ * Nothing is filtered by weight. An earlier version dropped structural lines
+ * that did not mention a phase, which quietly threw away the single most
+ * important line in the duel -- the one saying who won. Phase lines are made
+ * visually quieter instead, which is what "structural" is for.
+ */
+function recentLines(lines, limit = SHOWN) {
+  return lines.filter((line) => line?.text).slice(-limit);
+}
+
+function renderFeed(container, lines, { turn } = {}) {
+  if (!container) return;
+  const shown = recentLines(lines);
+  container.innerHTML = "";
+
+  if (turn) {
+    const head = document.createElement("p");
+    head.className = "feed-turn";
+    head.textContent = `TURN ${turn}`;
+    container.append(head);
+  }
+
+  shown.forEach((line, index) => {
+    const row = document.createElement("p");
+    row.className = `feed-line is-${line.weight ?? "mechanical"}`;
+    // The oldest visible line is nearly gone: the eye should land on the newest.
+    const age = shown.length - 1 - index;
+    row.style.setProperty("--age", String(age));
+    row.textContent = line.text ?? "";
+    if (line.detail) {
+      const detail = document.createElement("span");
+      detail.className = "feed-detail";
+      detail.textContent = line.detail;
+      row.append(detail);
+    }
+    container.append(row);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+Object.assign(__exports, { recentLines, renderFeed });
+});
+
 __def("src/modes.js", {}, function (__exports, __req) {
 // Three readings of the same duel.
 //
@@ -10461,6 +10733,139 @@ const isPace = (value) => Object.hasOwn(PACES, value);
 const paceFor = (name) => PACES[isPace(name) ? name : DEFAULT_PACE];
 
 Object.assign(__exports, { PACES, INPUT_CAP_MS, DEFAULT_PACE, isPace, paceFor });
+});
+
+__def("src/journal.js", {}, function (__exports, __req) {
+// A record of what actually happened, so a bug can be looked at rather than
+// remembered.
+//
+// The replay format already reproduces a duel from its seed and choices, which
+// is the right way to re-run one. It is the wrong way to diagnose one: it says
+// what was played and nothing about what the player saw, which shot was on
+// screen, or what the interface did at the moment it went wrong. This keeps
+// both -- the replay for re-running, and a timeline for reading.
+
+const LIMIT = 600;                       // entries; a long duel is ~450
+const STORE_KEY = "duel-live:journal";
+
+const now = () => (globalThis.performance?.now?.() ?? 0);
+
+/** Just enough of the board to tell what was on the table. */
+function snapshotOf(state) {
+  if (!state) return null;
+  const side = (key) => {
+    const seat = state.sides[key];
+    return {
+      duelist: seat.duelistId,
+      lp: seat.lp,
+      hand: seat.hand.length,
+      deck: seat.deck.length,
+      monsters: seat.monsters.map((inst) => (inst
+        ? { card: inst.cardId, position: inst.position, faceDown: Boolean(inst.faceDown) }
+        : null)),
+      backrow: seat.backrow.map((inst) => (inst
+        ? { card: inst.cardId, faceDown: Boolean(inst.faceDown) }
+        : null)),
+      graveyard: seat.graveyard.map((inst) => inst.cardId),
+    };
+  };
+  return {
+    turn: state.turn,
+    phase: state.phase,
+    activeSide: state.activeSide,
+    pending: state.pending ? { kind: state.pending.kind, side: state.pending.side } : null,
+    winner: state.winner ?? null,
+    player: side("player"),
+    opponent: side("opponent"),
+  };
+}
+
+function createJournal({ store = globalThis.localStorage, limit = LIMIT } = {}) {
+  let entries = [];
+  let duel = null;
+  const startedAt = Date.now();
+
+  const push = (type, data) => {
+    entries.push({ at: Math.round(now()), type, ...data });
+    // Keep the tail: the end of a duel is where the bug was noticed.
+    if (entries.length > limit) entries = entries.slice(-limit);
+    return entries.length;
+  };
+
+  function persist() {
+    // Best effort. A private window or a full quota is not an error worth
+    // interrupting a duel over.
+    try { store?.setItem(STORE_KEY, JSON.stringify(toJSON())); } catch { /* not available */ }
+  }
+
+  function toJSON() {
+    return {
+      version: 1,
+      startedAt: new Date(startedAt).toISOString(),
+      duel,
+      entries,
+      userAgent: globalThis.navigator?.userAgent ?? null,
+    };
+  }
+
+  return {
+    /** A new duel resets the timeline; the previous one is already persisted. */
+    duelStarted(info) {
+      entries = [];
+      duel = { ...info, at: new Date().toISOString() };
+      push("duel", { ...info });
+      persist();
+    },
+    setContext(patch) { duel = { ...duel, ...patch }; },
+
+    events(list, state) {
+      for (const event of list) push("event", { event });
+      if (state) push("state", { state: snapshotOf(state) });
+      persist();
+    },
+    action(kind, detail) { push("action", { kind, detail }); persist(); },
+    shot(shot) {
+      push("shot", { key: shot?.key, lane: shot?.lane, tier: shot?.tier, actor: shot?.actor });
+    },
+    error(error, context) {
+      push("error", { message: String(error?.message ?? error), stack: error?.stack ?? null, context });
+      persist();
+    },
+    /** A player saying "this is wrong", which is the entry that matters most. */
+    report(text, extra = {}) {
+      push("report", { text, ...extra });
+      persist();
+      return toJSON();
+    },
+
+    toJSON,
+    get size() { return entries.length; },
+    get entries() { return entries.slice(); },
+    /** The last duel recorded, including one that ended in a crash. */
+    recover() {
+      try { return JSON.parse(store?.getItem(STORE_KEY) ?? "null"); } catch { return null; }
+    },
+    clear() { entries = []; try { store?.removeItem(STORE_KEY); } catch { /* fine */ } },
+  };
+}
+
+/** A readable digest, for the top of a bug report. */
+function summarise(journal) {
+  const data = journal.toJSON ? journal.toJSON() : journal;
+  const counts = {};
+  for (const entry of data.entries) counts[entry.type] = (counts[entry.type] ?? 0) + 1;
+  const last = [...data.entries].reverse().find((entry) => entry.type === "state");
+  const errors = data.entries.filter((entry) => entry.type === "error");
+  return {
+    duel: data.duel,
+    at: data.startedAt,
+    counts,
+    errors: errors.map((entry) => entry.message),
+    board: last?.state ?? null,
+  };
+}
+
+Object.assign(__exports, { snapshotOf, createJournal, summarise });
 });
 
 __def("src/share-card.js", {"./cards/index.js":"src/cards/index.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duel-stats.js":"src/duel-stats.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {

@@ -99,3 +99,32 @@ test("live mode can advance the phase at all", () => {
   assert.match(app, /el\("live-advance-btn"\)\.addEventListener\("click", advancePhase\)/,
     "the live control must run the same advance as the tactical one");
 });
+
+test("diagnostics are reachable from every mode, not only from the video", () => {
+  // A bug found on the board matters as much as one found in live mode, and
+  // the live controls are hidden in tactical.
+  const topbar = html.slice(html.indexOf('class="topbar-actions"'), html.indexOf("</header>"));
+  for (const id of ["bug-btn", "log-btn", "mode-select", "pace-select"]) {
+    assert.ok(topbar.includes(`id="${id}"`), `${id} must be reachable in every mode`);
+  }
+});
+
+test("the bug reporter asks for a description and shows what it will attach", () => {
+  for (const id of ["bug-modal", "bug-text", "bug-summary", "bug-save", "bug-copy", "bug-close"]) {
+    assert.ok(htmlIds.has(id), `the reporter is missing ${id}`);
+  }
+  assert.match(app, /journal\.report\(/, "the note must reach the timeline");
+  assert.match(app, /replay: replayHref\(\)/, "a report without the replay cannot be re-run");
+});
+
+test("the commentary feed is a live region, so it is narrated too", () => {
+  assert.match(html, /id="live-feed"[^>]*aria-live="polite"/);
+  assert.match(html, /id="live-feed"[^>]*role="log"/);
+});
+
+test("the journal records the duel, the actions and anything that throws", () => {
+  assert.match(app, /journal\.duelStarted\(/, "a duel must open its own timeline");
+  assert.match(app, /journal\.events\(/);
+  assert.match(app, /journal\.action\(/);
+  assert.match(app, /journal\.error\(/, "a crash is the entry most worth having");
+});

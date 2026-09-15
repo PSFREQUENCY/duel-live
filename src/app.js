@@ -33,6 +33,7 @@ import { summariseDuel } from "./duel-stats.js";
 import { createLiveMode } from "./live-mode.js";
 import { isBroadcast, isInteractive, resolveMode, turnBudgetFor } from "./modes.js";
 import { INPUT_CAP_MS } from "./broadcast/pace.js";
+import { createJournal, summarise } from "./journal.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
 
 const ui = {
@@ -56,6 +57,8 @@ let mode = resolveMode();
 let live = null;
 // Resolves the open ribbon with "no response"; set while a window is up.
 let liveRibbonPass = null;
+// Everything that happened this duel, for looking at after something goes wrong.
+const journal = createJournal();
 
 const liveUi = () => ({
   canvas: el("live-stage"), fan: el("live-fan"), selection: el("live-selection"),
@@ -64,6 +67,7 @@ const liveUi = () => ({
   counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
   names: { me: el("live-my-name"), foe: el("live-foe-name") },
   fields: { me: el("live-my-field"), foe: el("live-foe-field") },
+  feed: el("live-feed"),
   rows: {
     foeBackrow: el("tele-foe-backrow"), foeMonsters: el("tele-foe-monsters"),
     myMonsters: el("tele-my-monsters"), myBackrow: el("tele-my-backrow"),
@@ -143,6 +147,9 @@ function renderAll() {
     ready: tributeReady ?? actionable,
     targets: choosingTributes ? new Set(tributePicks) : targets,
   });
+  // Keep the commentary current even when nothing new happened -- switching
+  // mode or restarting should not leave the last duel's lines on screen.
+  live?.feed(logLines, state.turn);
 
   // Hover on a pointer, tap to pin on a touch screen.
   const onZoneHover = (inst, side, zone) => {
@@ -316,7 +323,9 @@ function present(events) {
   drawLog();
   // The reel reads the same event stream the board does, one beat behind
   // nothing. Tactical mode's shot queue is untouched by this.
+  journal.events(events, state);
   live?.present(events, state);
+  live?.feed(logLines, state.turn);
   if (!isBroadcast(mode)) {
     const shots = buildStoryboard(events, state);
     if (shots.length) cinema.enqueue(planTiers(shots, { videoBudget: videoBudget() }));
@@ -384,6 +393,7 @@ function videoBudget() {
 // what turns a shared card into something someone can actually watch.
 function step(kind, payload) {
   duelSteps.push(record(kind, payload));
+  journal.action(kind, payload);
 }
 
 async function run(mutator) {
@@ -412,6 +422,7 @@ async function run(mutator) {
 
 function reportSnag(error) {
   console.error("duel step failed", error);
+  journal.error(error, { turn: state?.turn, phase: state?.phase, mode });
   cinema.clear();
   ui.prompt.hidden = true;
   logLines.push({
@@ -1170,6 +1181,11 @@ function startDuel(requested) {
   ui.share.hidden = true;
   duelSeed = Date.now() % 2147483647;
   state = createDuel(matchupId, { seed: duelSeed });
+  journal.duelStarted({
+    matchup: matchupId, seed: duelSeed, mode,
+    pace: el("pace-select")?.value ?? "slow",
+    duelists: [state.sides.player.duelistId, state.sides.opponent.duelistId],
+  });
   cinema.setIdle(idleShot(state));
   ui.banter.hidden = true;
   // Intro plays once per session; the versus plate opens every duel.
@@ -1190,6 +1206,73 @@ function startDuel(requested) {
   live?.start(state);
   renderAll();
   if (mode === "watch") runWatch();
+}
+
+// ------------------------------------------------------------- diagnostics ---
+
+const stamp = () => new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+function saveJson(data, name) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return blob.size;
+}
+
+/** The digest a reader sees first, before the raw timeline underneath it. */
+function bugSummary(note) {
+  const digest = summarise(journal);
+  return {
+    note: note || "(no description given)",
+    mode,
+    pace: el("pace-select").value,
+    tier: el("tier-select").value,
+    replay: replayHref(),
+    ...digest,
+  };
+}
+
+function openBugReport() {
+  const summary = bugSummary("");
+  el("bug-summary").textContent = [
+    `mode      ${summary.mode} · pace ${summary.pace} · cinema ${summary.tier}`,
+    `duel      ${summary.duel?.matchup ?? "?"} · seed ${summary.duel?.seed ?? "?"}`,
+    `board     turn ${summary.board?.turn ?? "?"} · ${summary.board?.phase ?? "?"} · `
+      + `${summary.board?.activeSide ?? "?"} to act`,
+    `life      ${summary.board?.player?.lp ?? "?"} / ${summary.board?.opponent?.lp ?? "?"}`,
+    `timeline  ${Object.entries(summary.counts).map(([k, n]) => `${n} ${k}`).join(" \u00b7 ")}`,
+    summary.errors.length ? `errors    ${summary.errors.join("; ")}` : "errors    none",
+  ].join("\n");
+  el("bug-text").value = "";
+  el("bug-hint").textContent = "";
+  el("bug-modal").hidden = false;
+  el("bug-text").focus?.();
+}
+
+function fileBugReport({ copy = false } = {}) {
+  const note = el("bug-text").value.trim();
+  const report = journal.report(note, { mode, pace: el("pace-select").value });
+  const payload = { summary: bugSummary(note), report };
+  if (copy) {
+    // A browser with no clipboard has to say so, rather than looking like the
+    // button did nothing.
+    const write = navigator.clipboard?.writeText;
+    if (!write) {
+      el("bug-hint").textContent = "Clipboard unavailable — use Save instead.";
+      return payload;
+    }
+    write.call(navigator.clipboard, JSON.stringify(payload, null, 2))
+      .then(() => { el("bug-hint").textContent = "Report copied to the clipboard."; })
+      .catch(() => { el("bug-hint").textContent = "Clipboard unavailable — use Save instead."; });
+    return payload;
+  }
+  const size = saveJson(payload, `duel-live-bug-${stamp()}.json`);
+  el("bug-hint").textContent = `Saved — ${(size / 1024).toFixed(0)} KB, with the full timeline.`;
+  return payload;
 }
 
 // ------------------------------------------------------------------ modes ---
@@ -1219,6 +1302,7 @@ function applyMode(next) {
     getState: () => state,
     accents: accentPair,
     onAction: onLiveAction,
+    onShot: (shot) => journal.shot(shot),
     onPass: () => { live?.closeResponses(); liveRibbonPass?.(); liveRibbonPass = null; },
   });
   if (state) live.start(state);
@@ -1316,6 +1400,21 @@ function bind() {
     startDuel(el("matchup-select").value);
   });
   el("live-skip-btn").addEventListener("click", () => live?.skip());
+  el("feed-btn").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    live?.setFeed(on);
+    if (on) live?.feed(logLines, state?.turn);
+  });
+  el("bug-btn").addEventListener("click", openBugReport);
+  el("bug-save").addEventListener("click", () => fileBugReport());
+  el("bug-copy").addEventListener("click", () => fileBugReport({ copy: true }));
+  el("bug-close").addEventListener("click", () => { el("bug-modal").hidden = true; });
+  el("log-btn").addEventListener("click", () => {
+    const size = saveJson(journal.toJSON(), `duel-live-log-${stamp()}.json`);
+    flashTemporaryMessage(`Duel log saved — ${(size / 1024).toFixed(0)} KB`);
+    if (ui.liveNote) ui.liveNote.textContent = `Log saved — ${(size / 1024).toFixed(0)} KB`;
+  });
   el("live-record-btn").addEventListener("click", () => toggleRecording());
   el("live-board-btn").addEventListener("click", (e) => {
     const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
@@ -1480,15 +1579,15 @@ async function boot() {
   const option = el("tier-select").querySelector('option[value="video"]');
   if (cap.video) {
     const left = cap.videoClipsLeft;
-    option.textContent = left === null ? "Auto (best free tier)" : `Auto (video — ${left} free clips left)`;
+    option.textContent = left === null ? "Auto (best free tier)" : `Auto (video — ${left} clips)`;
   } else if (!cap.still) {
     // No backend at all — the single-file build opened straight from disk.
-    option.textContent = "Procedural (no server — runs fully offline)";
+    option.textContent = "Procedural (offline)";
     ui.hint.dataset.offline = "true";
   } else {
     option.textContent = cap.keyPresent
-      ? "Auto (stills — out of free video pollen)"
-      : "Auto (stills — add a free key for video)";
+      ? "Auto (stills — out of pollen)"
+      : "Auto (stills — add a key)";
   }
 }
 

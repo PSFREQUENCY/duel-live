@@ -59,6 +59,8 @@
           </select>
         </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
+        <button class="btn" id="bug-btn" type="button">Report a bug</button>
+        <button class="btn" id="log-btn" type="button">Save log</button>
         <button class="btn" id="rules-btn" type="button">Rules</button>
         <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
       </div>
@@ -194,6 +196,10 @@
           <p class="tele-hint">Hold Tab for the board</p>
         </div>
 
+        <!-- The duel log, cut down to what reads at a glance over video. -->
+        <div class="live-feed" id="live-feed" role="log" aria-live="polite"
+             aria-label="Duel commentary"></div>
+
         <div class="live-ribbon" id="live-ribbon" hidden></div>
         <div class="live-selection" id="live-selection" hidden></div>
 
@@ -226,6 +232,7 @@
         <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board (hold Tab)</button>
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
+        <button class="btn" id="feed-btn" type="button" aria-pressed="true">Feed</button>
         <span class="live-shot" id="live-shot"></span>
         <span class="live-note" id="live-note"></span>
       </div>
@@ -279,6 +286,24 @@
           <button class="btn" id="share-close" type="button">Close</button>
         </div>
         <p class="share-hint" id="share-hint"></p>
+      </div>
+    </div>
+
+    <div class="modal" id="bug-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="bug-title">
+        <h2 id="bug-title">Report a bug</h2>
+        <p class="bug-note">What went wrong? The duel's full timeline is attached
+          automatically — every event, every action, and the board as it stands.</p>
+        <label class="bug-label" for="bug-text">What happened</label>
+        <textarea id="bug-text" class="bug-text" rows="4"
+          placeholder="e.g. clicked my monster in the Battle Phase and nothing happened"></textarea>
+        <div class="bug-summary" id="bug-summary"></div>
+        <div class="share-actions">
+          <button class="btn btn-accent" id="bug-save" type="button">Save report</button>
+          <button class="btn" id="bug-copy" type="button">Copy to clipboard</button>
+          <button class="btn" id="bug-close" type="button">Close</button>
+        </div>
+        <p class="share-hint" id="bug-hint"></p>
       </div>
     </div>
 
