@@ -4,6 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { readFileSync } from "node:fs";
+
 import { dom, fire, installGlobals, settle } from "./dom-stub.mjs";
 
 const errors = [];
@@ -153,4 +155,120 @@ test("the board is pinned open while a declaration is half-made", () => {
   assert.equal(dom.nodes.get("live-telestrator").hidden, false,
     "letting go of Tab mid-declaration would drop the board");
   live.holdBoard(false);
+});
+
+test("live mode can advance its own phases", async () => {
+  // Without this the duel stops dead once Main 1 is played out: no way to reach
+  // Battle, no way to end the turn. It reads as a freeze, and it was one.
+  // Re-enter live mode explicitly: an earlier test leaves us in tactical, and a
+  // test that only passes in file order is not testing anything.
+  dom.nodes.get("mode-select").value = "live";
+  await fire("mode-select", "change", { target: dom.nodes.get("mode-select") });
+  await settle(300);
+  dom.nodes.get("pace-select").value = "fast";
+  await fire("pace-select", "change", { target: dom.nodes.get("pace-select") });
+
+  const button = dom.nodes.get("live-advance-btn");
+  assert.ok(button, "live mode has no phase control");
+
+  const before = Number(dom.nodes.get("live-turn").textContent);
+  let moved = false;
+  let deadRun = 0;
+  let longestDead = 0;
+  for (let i = 0; i < 60 && !moved; i += 1) {
+    if (button.disabled) { deadRun += 1; longestDead = Math.max(longestDead, deadRun); }
+    else { deadRun = 0; button.click(); }
+    await settle(150);
+    moved = Number(dom.nodes.get("live-turn").textContent) > before;
+  }
+  assert.ok(moved, `the turn never advanced past ${before}`);
+  // Dead controls are fine while the opponent is acting, and a freeze if they
+  // outlast that. An early slow pace held them for most of a turn.
+  assert.ok(longestDead * 150 < 9000,
+    `controls were dead for ~${longestDead * 150}ms in a row`);
+});
+
+test("live mode says why its controls are dead", () => {
+  // Without this the wait is indistinguishable from a crash.
+  assert.match(readFileSync(new URL("../src/app.js", import.meta.url), "utf8"),
+    /Opponent is thinking/);
+});
+
+test("the live phase rail is driven by the same renderer as the tactical one", () => {
+  // renderPhase updates every .phase node in the document at once, so the two
+  // rails cannot disagree about where in the turn we are. (The rail's own
+  // markup is asserted in wiring.test.js, which reads index.html directly --
+  // the stub only registers elements that carry an id.)
+  const render = readFileSync(new URL("../src/render.js", import.meta.url), "utf8");
+  assert.match(render, /querySelectorAll\("\.phase"\)/,
+    "one renderer, every rail");
+});
+
+test("both fields are visible without holding anything", () => {
+  // The telestrator is behind a held key. A player who does not know the
+  // gesture was seeing an opponent with apparently no cards at all.
+  for (const id of ["live-my-field", "live-foe-field"]) {
+    const pips = dom.nodes.get(id).children.flatMap((group) => group.children ?? []);
+    assert.equal(pips.length, 10, `${id} should show five monster and five backrow slots`);
+  }
+});
+
+test("the field strip shows that a card is set without saying what it is", () => {
+  const state = app.stateForTest?.();
+  if (!state) return;
+  const pips = dom.nodes.get("live-foe-field").children.flatMap((g) => g.children ?? []);
+  for (const pip of pips.filter((p) => p.classList.contains("is-facedown"))) {
+    assert.equal(pip.textContent, "▨", "a face-down pip must not carry a name or a number");
+  }
+});
+
+test("a duel in live mode can be played all the way to a result", async () => {
+  // The freeze this guards was specific and total: the engine asks discard,
+  // target and tribute questions through one prompt, and that prompt lived in
+  // the tactical sidebar, which live mode hides. The duel then waited forever
+  // on a question nobody could see, with every control dead.
+  dom.nodes.get("mode-select").value = "live";
+  await fire("mode-select", "change", { target: dom.nodes.get("mode-select") });
+  await settle(300);
+  dom.nodes.get("pace-select").value = "fast";
+  await fire("pace-select", "change", { target: dom.nodes.get("pace-select") });
+
+  const advance = dom.nodes.get("live-advance-btn");
+  const prompt = dom.nodes.get("prompt");
+  const options = () => dom.nodes.get("prompt-actions").children;
+  let answered = 0;
+
+  for (let i = 0; i < 90; i += 1) {
+    if (!prompt.hidden) {
+      const buttons = options();
+      if (buttons.length > 1) {
+        buttons[0].click();                       // pick something
+        await settle(50);
+        const now = options();
+        now[now.length - 1].click();              // then confirm
+        answered += 1;
+      }
+    } else if (!advance.disabled) {
+      advance.click();
+    }
+    await settle(120);
+    if (app.stateForTest()?.winner) break;
+  }
+
+  const state = app.stateForTest();
+  assert.ok(state.turn > 5 || state.winner, `the duel stopped at turn ${state.turn}`);
+  assert.ok(answered > 0, "no prompt was ever answerable, which is the freeze itself");
+  assert.deepEqual(errors, [], "live mode threw while the duel ran");
+});
+
+test("the prompt follows the mode onto the surface in use", async () => {
+  const overlay = dom.nodes.get("duel-overlay");
+  assert.ok(overlay.children.some((child) => child.id === "prompt"),
+    "in live mode the prompt must be over the picture, not in the hidden sidebar");
+
+  dom.nodes.get("mode-select").value = "tactical";
+  await fire("mode-select", "change", { target: dom.nodes.get("mode-select") });
+  await settle(200);
+  assert.ok(dom.nodes.get("prompt-home").children.some((child) => child.id === "prompt"),
+    "and back in the sidebar when the board is the surface");
 });

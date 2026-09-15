@@ -41,13 +41,20 @@ const SHOT_BUILDERS = {
     const how = event.how === "fusion" ? "erupts out of a fusion vortex"
       : event.how === "reborn" ? "claws its way up out of a glowing grave"
       : event.faceDown ? "materialises as a sealed face-down card" : "slams down onto the field";
+    // The caption is on screen for both players, so it cannot name a card the
+    // opponent has not turned face-up -- and its ATK identifies it just as well.
+    const hidden = event.how === "set" || Boolean(event.faceDown);
     return {
       kind: event.how === "fusion" ? "fusion" : "summon",
-      title: event.card,
-      subtitle: `${duelist.name} · ${event.atk ?? "?"} ATK`,
+      title: hidden ? "Set" : event.card,
+      subtitle: hidden ? `${duelist.name} · face-down` : `${duelist.name} · ${event.atk ?? "?"} ATK`,
       seconds: event.how === "fusion" ? 3.4 : 2.4,
-      prompt: `${monsterArt(event.card)}; the monster ${how} in ${baseScene(state)}; ${STYLE}`,
-      voice: duelist.lines[event.how === "fusion" ? "ace" : "summon"].replace("{card}", event.card),
+      prompt: hidden
+        ? `a single large face-down holographic card locking into place above a forearm duel `
+          + `disk in ${baseScene(state)}; ${STYLE}`
+        : `${monsterArt(event.card)}; the monster ${how} in ${baseScene(state)}; ${STYLE}`,
+      voice: hidden ? null
+        : duelist.lines[event.how === "fusion" ? "ace" : "summon"].replace("{card}", event.card),
     };
   },
 

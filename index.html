@@ -50,6 +50,14 @@
             <option value="watch">Watch — no input</option>
           </select>
         </label>
+        <label class="control" for="pace-select">
+          <span>Pace</span>
+          <select id="pace-select">
+            <option value="slow">Slow</option>
+            <option value="steady">Steady</option>
+            <option value="fast">Fast</option>
+          </select>
+        </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
         <button class="btn" id="rules-btn" type="button">Rules</button>
         <button class="btn btn-accent" id="restart-btn" type="button">New duel</button>
@@ -139,9 +147,13 @@
           <button class="btn btn-warn" id="resume-btn" type="button" hidden>Resume duel</button>
           <button class="btn btn-accent" id="share-btn" type="button" hidden>Share result</button>
         </div>
-        <div class="prompt" id="prompt" hidden>
-          <p id="prompt-text"></p>
-          <div class="prompt-actions" id="prompt-actions"></div>
+        <!-- The prompt moves between surfaces with the mode: every question the
+             engine asks has to be answerable wherever the player is looking. -->
+        <div id="prompt-home">
+          <div class="prompt" id="prompt" hidden>
+            <p id="prompt-text"></p>
+            <div class="prompt-actions" id="prompt-actions"></div>
+          </div>
         </div>
         <h2 class="side-heading">Duel log</h2>
         <div class="log" id="log" role="log" aria-live="polite" aria-label="Duel log"></div>
@@ -168,6 +180,7 @@
             <span class="live-name" id="live-foe-name"></span>
             <span class="live-counts" id="live-foe-counts"></span>
           </div>
+          <div class="field-strip" id="live-foe-field" role="img"></div>
           <span class="live-lp" id="live-foe-lp">8000</span>
         </div>
 
@@ -190,16 +203,30 @@
             <span class="live-name" id="live-my-name"></span>
             <span class="live-counts" id="live-my-counts"></span>
           </div>
-          <span class="live-shot" id="live-shot"></span>
+          <div class="field-strip" id="live-my-field" role="img"></div>
+
+          <!-- The same phase machine as tactical, rendered by the same
+               function: every .phase node in the document updates together. -->
+          <div class="live-phase-rail" id="live-phase-rail" role="group" aria-label="Phase">
+            <span class="phase" data-phase="draw">Draw</span>
+            <span class="phase" data-phase="standby">Standby</span>
+            <span class="phase" data-phase="main1">Main 1</span>
+            <span class="phase" data-phase="battle">Battle</span>
+            <span class="phase" data-phase="main2">Main 2</span>
+            <span class="phase" data-phase="end">End</span>
+          </div>
+          <span class="live-turn">TURN <b id="live-turn">1</b></span>
+          <button class="btn btn-accent live-advance" id="live-advance-btn" type="button">To Battle</button>
         </div>
 
         <div class="live-fan" id="live-fan" aria-label="Your hand"></div>
       </div>
 
       <div class="live-controls">
-        <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board</button>
+        <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board (hold Tab)</button>
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
+        <span class="live-shot" id="live-shot"></span>
         <span class="live-note" id="live-note"></span>
       </div>
     </div>

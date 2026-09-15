@@ -849,3 +849,78 @@ body.is-watch #live-board-btn { display: none; }
 .duel-overlay > * { pointer-events: auto; }
 .duel-overlay .attack-arc { position: fixed; inset: 0; pointer-events: none; }
 .duel-overlay .attack-preview { position: fixed; }
+
+/* The field, always on screen. The telestrator is for detail; this is for
+   knowing at a glance that your opponent has three cards set. */
+.field-strip { display: flex; align-items: center; gap: 10px; }
+.field-row { display: flex; gap: 3px; }
+.field-pip {
+  min-width: 26px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  font-family: var(--mono); font-size: 9px; font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  background: rgba(10, 14, 26, 0.6);
+}
+.field-pip.is-empty { opacity: 0.25; }
+.field-pip.is-filled { color: var(--ink); border-color: var(--line); background: rgba(24, 32, 56, 0.9); }
+.field-pip.is-defense { color: var(--accent); }
+.field-pip.is-facedown { color: var(--ink-dim); background: repeating-linear-gradient(
+  -45deg, rgba(90, 70, 140, 0.5) 0 3px, rgba(30, 24, 48, 0.9) 3px 6px); }
+.field-pip.is-spell { color: #6ee7a8; }
+.field-pip.is-trap { color: #ff9ec4; }
+.field-row--backrow .field-pip { min-width: 16px; }
+
+.live-phase-rail { display: flex; gap: 2px; margin-left: auto; }
+.live-phase-rail .phase {
+  padding: 3px 7px; border-radius: 4px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-dim); border: 1px solid transparent;
+}
+.live-phase-rail .phase.is-now { color: #07101f; background: var(--accent); font-weight: 700; }
+.live-phase-rail .phase.is-past { opacity: 0.4; }
+.live-phase-rail .phase.is-locked { opacity: 0.25; text-decoration: line-through; }
+.live-turn {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+  color: var(--ink-dim); text-transform: uppercase;
+}
+/* The one control that must always be pressable: without it a turn cannot end. */
+.live-advance { pointer-events: auto; padding: 7px 14px; font-size: 12px; }
+.live-bar--bottom { gap: 12px; }
+
+/* The fusion recipes. Ready ones first, because that is the order the question
+   gets asked in: can I fuse right now, and if not, what am I missing? */
+.fusion-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.fusion-row {
+  display: grid; gap: 1px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  background: rgba(12, 16, 30, 0.7);
+  font-size: 11px; line-height: 1.35;
+}
+.fusion-row strong { font-size: 11.5px; color: var(--ink-dim); }
+.fusion-row span { color: var(--ink-dim); opacity: 0.85; font-size: 10.5px; }
+.fusion-row.is-ready { border-color: var(--accent); background: rgba(26, 58, 74, 0.55); }
+.fusion-row.is-ready strong { color: var(--accent); }
+.fusion-row.is-ready span { color: var(--ink); opacity: 1; }
+
+/* The same prompt, floated over the picture instead of sitting in a sidebar.
+   Every question the engine asks has to be answerable wherever the player is
+   looking, or the duel waits on an answer that cannot be given. */
+.prompt--overlay {
+  position: fixed; left: 50%; bottom: 152px; transform: translateX(-50%);
+  z-index: 12;
+  width: min(560px, 88vw);
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: rgba(7, 10, 20, 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 22px 52px -20px rgba(0, 0, 0, 0.95);
+}
+.prompt--overlay #prompt-text { margin: 0 0 10px; font-size: 13px; line-height: 1.4; }
+.prompt--overlay .prompt-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.prompt--overlay .prompt-actions .btn { font-size: 12px; padding: 6px 12px; }

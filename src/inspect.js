@@ -15,6 +15,27 @@ function accentFor(cardId) {
 
 // ------------------------------------------------------------ hover panel ---
 
+/**
+ * Every fusion in the Extra Deck, ready ones first. A recipe the player cannot
+ * see anywhere else is the difference between Polymerization being a card and
+ * being a guess.
+ */
+export function fusionList(fusions) {
+  const list = document.createElement("ul");
+  list.className = "fusion-list";
+  for (const row of fusions) {
+    const item = document.createElement("li");
+    item.className = row.ready ? "fusion-row is-ready" : "fusion-row";
+    const name = document.createElement("strong");
+    name.textContent = row.name;
+    const recipe = document.createElement("span");
+    recipe.textContent = row.line;
+    item.append(name, recipe);
+    list.append(item);
+  }
+  return list;
+}
+
 export function createHoverPanel() {
   const panel = el("hover-card");
   let showing = null;
@@ -61,6 +82,7 @@ export function createHoverPanel() {
       note.textContent = detail.note;
       panel.append(note);
     }
+    if (detail.fusions?.length) panel.append(fusionList(detail.fusions));
     // The single most useful line on the panel: why a click will do nothing.
     if (whyNot) {
       const blocked = document.createElement("p");

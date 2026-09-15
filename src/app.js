@@ -32,6 +32,7 @@ import { activeEffects } from "./duel-effects-active.js";
 import { summariseDuel } from "./duel-stats.js";
 import { createLiveMode } from "./live-mode.js";
 import { isBroadcast, isInteractive, resolveMode, turnBudgetFor } from "./modes.js";
+import { INPUT_CAP_MS } from "./broadcast/pace.js";
 import { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } from "./share-card.js";
 
 const ui = {
@@ -43,6 +44,8 @@ const ui = {
   arc: el("attack-arc"), arcPath: el("attack-arc-path"),
   preview: el("attack-preview"), previewSum: el("preview-sum"), previewVerdict: el("preview-verdict"),
   effects: el("effect-rail"), chain: el("chain-rail"),
+  liveAdvance: el("live-advance-btn"), liveTurn: el("live-turn"),
+  liveNote: el("live-note"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -60,6 +63,7 @@ const liveUi = () => ({
   lp: { me: el("live-my-lp"), foe: el("live-foe-lp") },
   counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
   names: { me: el("live-my-name"), foe: el("live-foe-name") },
+  fields: { me: el("live-my-field"), foe: el("live-foe-field") },
   rows: {
     foeBackrow: el("tele-foe-backrow"), foeMonsters: el("tele-foe-monsters"),
     myMonsters: el("tele-my-monsters"), myBackrow: el("tele-my-backrow"),
@@ -115,6 +119,7 @@ function renderAll() {
   // The live surface reads the same state, so the two presentations cannot
   // disagree about what is on the field.
   live?.render(state, myTurn() ? legalActions(state, "player") : []);
+  if (ui.liveTurn) ui.liveTurn.textContent = String(state.turn);
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
@@ -209,8 +214,21 @@ const repositionable = (actions) =>
 function updateControls(mine) {
   const over = Boolean(state.winner);
   const step = nextStep();
-  ui.advance.disabled = busy || over || !myTurn() || !step;
-  ui.advance.textContent = over ? "Duel over" : (step?.label ?? "End turn");
+  const stuck = busy || over || !myTurn() || !step;
+  const label = over ? "Duel over" : (step?.label ?? "End turn");
+  for (const button of [ui.advance, ui.liveAdvance]) {
+    if (!button) continue;
+    button.disabled = stuck;
+    button.textContent = label;
+  }
+  // Watch mode has no controls at all; it is a screening.
+  if (ui.liveAdvance) ui.liveAdvance.hidden = !isInteractive(mode);
+  // Dead controls with no explanation read as a freeze. Say whose turn it is.
+  if (ui.liveNote && isBroadcast(mode)) {
+    ui.liveNote.textContent = over ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
+      : !myTurn() ? "Opponent is thinking…"
+        : busy ? "Resolving…" : "";
+  }
   ui.skip.hidden = !cinema.busy;
   ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
@@ -370,7 +388,10 @@ async function run(mutator) {
     const result = mutator();
     state = result.state;
     present(result.events);
-    await settle();
+    // Your own move never waits on the edit. Pacing exists so an opponent's
+    // turn is watchable; applying it here just makes your own controls go dead
+    // for a few seconds, which is indistinguishable from a freeze.
+    if (!isBroadcast(mode)) await settle();
     await maybePending();
     await maybeOpponentTurn();
   } catch (error) {
@@ -404,13 +425,17 @@ const SETTLE_CAP_MS = 3500;
 const TURN_BUDGET_MS = 4000;
 // Live mode earns more time, because watching it is the point. It is still a
 // hard cap: a stalled generation yields to the ambient lane rather than waiting.
-const turnBudget = () => turnBudgetFor(mode);
+const turnBudget = () => (isBroadcast(mode) && live ? live.pace.turnBudget : turnBudgetFor(mode));
 
 function settle(capMs = SETTLE_CAP_MS) {
-  // In broadcast modes the reel owns pacing and is never a reason to wait: it
-  // shows the ambient lane while the action lane catches up, so blocking the
-  // engine here would only make the edit fall further behind.
-  if (isBroadcast(mode)) return Promise.resolve();
+  // In a broadcast mode the wait is on the reel's backlog rather than on the
+  // tactical shot queue. Not waiting at all was wrong: with nothing to wait
+  // for, a whole opponent turn resolved between two frames and watch mode
+  // finished before the edit had started.
+  // A short cap, whatever the pace: the reel narrates from behind and has the
+  // ambient lane underneath it, so there is nothing to gain from holding the
+  // engine — and the player's controls are dead for every millisecond of it.
+  if (isBroadcast(mode)) return live ? live.settle(INPUT_CAP_MS) : Promise.resolve();
   return new Promise((done) => {
     const deadline = Date.now() + capMs;
     const tick = () => {
@@ -899,6 +924,19 @@ function drawArc(attackerUid, targetUid) {
   ui.arcPath.setAttribute("stroke", "var(--accent-warm)");
 }
 
+// Every question the engine asks resolves through one of these. A new duel
+// abandons the old one's questions -- without that, restarting while a prompt
+// is open leaves `busy` stuck true and every control dead for good.
+let cancelPrompt = null;
+
+function abandonPrompt() {
+  const cancel = cancelPrompt;
+  cancelPrompt = null;
+  ui.prompt.hidden = true;
+  live?.closeResponses();
+  cancel?.();
+}
+
 function askChoice(question, choices) {
   // In a broadcast mode the choice rises from the bottom bar as a ribbon rather
   // than a side panel. This is the one place play is allowed to hold up the
@@ -906,12 +944,14 @@ function askChoice(question, choices) {
   if (live && isInteractive(mode)) {
     return new Promise((done) => {
       live.openResponses(choices, {
-        onRespond: (choice) => done(choice.value),
+        onRespond: (choice) => { cancelPrompt = null; done(choice.value); },
       });
-      liveRibbonPass = () => done(null);
+      liveRibbonPass = () => { cancelPrompt = null; done(null); };
+      cancelPrompt = () => done(null);
     });
   }
   return new Promise((done) => {
+    cancelPrompt = () => done(null);
     ui.prompt.hidden = false;
     ui.promptText.textContent = question;
     ui.promptActions.innerHTML = "";
@@ -920,7 +960,11 @@ function askChoice(question, choices) {
       button.className = "btn";
       button.type = "button";
       button.textContent = choice.label;
-      button.addEventListener("click", () => { ui.prompt.hidden = true; done(choice.value); });
+      button.addEventListener("click", () => {
+        cancelPrompt = null;
+        ui.prompt.hidden = true;
+        done(choice.value);
+      });
       ui.promptActions.append(button);
     }
   });
@@ -931,9 +975,10 @@ function askChoice(question, choices) {
 // come from the engine, so the list can never offer an illegal target.
 function askTargets(pending) {
   return new Promise((done) => {
+    cancelPrompt = () => done({ uids: [], position: "attack" });
     const picks = [];
     const finish = (uids, position = "attack") => {
-      ui.prompt.hidden = true; renderAll(); done({ uids, position });
+      cancelPrompt = null; ui.prompt.hidden = true; renderAll(); done({ uids, position });
     };
     const paint = () => {
       ui.prompt.hidden = false;
@@ -989,8 +1034,11 @@ function askTargets(pending) {
 
 function askTributes(pending) {
   return new Promise((done) => {
+    cancelPrompt = () => done([]);
     tributePicks = [];
-    const finish = (uids) => { tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids); };
+    const finish = (uids) => {
+      cancelPrompt = null; tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids);
+    };
     const paint = () => {
       const enough = tributesCover(state, "player", tributePicks, pending.need);
       ui.prompt.hidden = false;
@@ -1029,6 +1077,7 @@ function toggleTribute(inst) {
 
 function askDiscard(pending) {
   return new Promise((done) => {
+    cancelPrompt = () => done([]);
     const picks = [];
     const paint = () => {
       ui.prompt.hidden = false;
@@ -1056,7 +1105,9 @@ function askDiscard(pending) {
       confirm.type = "button";
       confirm.textContent = "Discard";
       confirm.disabled = picks.length !== pending.need;
-      confirm.addEventListener("click", () => { ui.prompt.hidden = true; done(picks.slice()); });
+      confirm.addEventListener("click", () => {
+        cancelPrompt = null; ui.prompt.hidden = true; done(picks.slice());
+      });
       ui.promptActions.append(confirm);
     };
     paint();
@@ -1085,6 +1136,10 @@ function summonedName(pending) {
 function startDuel(requested) {
   const matchupId = getMatchup(requested) ? requested : Object.keys(MATCHUPS)[0];
   el("matchup-select").value = matchupId;
+  // A duel in progress may be sitting on an unanswered question. Its promise
+  // will never resolve now, so release it and drop the busy flag with it.
+  abandonPrompt();
+  busy = false;
   cinema.clear();
   clearJobs();
   resetLifePointTracking();
@@ -1127,6 +1182,13 @@ function applyMode(next) {
   document.body.classList.toggle("is-live", isBroadcast(next));
   document.body.classList.toggle("is-watch", next === "watch");
   el("live-root").hidden = !isBroadcast(next);
+  // The engine asks discard, target and tribute questions through one prompt,
+  // and that prompt lived in the tactical sidebar -- which live mode hides. The
+  // duel then waited forever on a question nobody could see, which is what "the
+  // live action stalls" turned out to be. One prompt, moved to whichever
+  // surface is on screen.
+  el(isBroadcast(next) ? "duel-overlay" : "prompt-home").append(ui.prompt);
+  ui.prompt.classList.toggle("prompt--overlay", isBroadcast(next));
   live?.stop();
   live = null;
   if (!isBroadcast(next)) { cinema.start(); return; }
@@ -1197,23 +1259,37 @@ async function runWatch() {
     await run(() => (action ? applyAction(state, action)
       : step?.endsTurn ? endTurn(state)
         : setPhase(state, step.to)));
-    await new Promise((r) => setTimeout(r, 260));
+    // One beat between actions, at the viewer's chosen tempo. Without this the
+    // duel resolves as fast as the engine can run it, which is far faster than
+    // anyone can watch.
+    // Nobody is holding a control here, so this is the one place the engine
+    // should genuinely wait for the edit to catch up before moving on.
+    await live?.settle(live.pace.settleCap);
+    await new Promise((r) => setTimeout(r, live?.pace.beat ?? 260));
   }
 }
 
+// Advancing the phase is the same action wherever it is pressed from. Live
+// mode had no control for it at all, which meant that once a player had played
+// what they could in Main 1 there was no way to reach Battle or end the turn --
+// the duel simply stopped, and read as a freeze.
+function advancePhase() {
+  if (busy || !myTurn()) return;
+  const step = nextStep();
+  if (!step) return;
+  attackFrom = null;
+  if (step.endsTurn) { recordTurn(); run(() => endTurn(state)); return; }
+  // Moving through phases is not a turn action, so it does not run the
+  // opponent -- except entering the End Phase, which hands the turn over.
+  if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
+  advance(step.to);
+  renderAll();
+}
+
 function bind() {
-  ui.advance.addEventListener("click", () => {
-    if (busy || !myTurn()) return;
-    const step = nextStep();
-    if (!step) return;
-    attackFrom = null;
-    if (step.endsTurn) { recordTurn(); run(() => endTurn(state)); return; }
-    // Moving through phases is not a turn action, so it does not run the
-    // opponent -- except entering the End Phase, which hands the turn over.
-    if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
-    advance(step.to);
-    renderAll();
-  });
+  ui.advance.addEventListener("click", advancePhase);
+  el("live-advance-btn").addEventListener("click", advancePhase);
+  el("pace-select").addEventListener("change", (e) => live?.setPace(e.target.value));
   el("mode-select").addEventListener("change", (e) => {
     applyMode(e.target.value);
     startDuel(el("matchup-select").value);
@@ -1398,5 +1474,6 @@ async function boot() {
 // The live controller is built by the mode branch, so a test that wants to
 // assert on the reel has to be handed it rather than reaching into the module.
 export const liveForTest = () => live;
+export const stateForTest = () => state;
 
 boot();

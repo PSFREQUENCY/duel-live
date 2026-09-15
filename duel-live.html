@@ -859,6 +859,81 @@ body.is-watch #live-board-btn { display: none; }
 .duel-overlay .attack-arc { position: fixed; inset: 0; pointer-events: none; }
 .duel-overlay .attack-preview { position: fixed; }
 
+/* The field, always on screen. The telestrator is for detail; this is for
+   knowing at a glance that your opponent has three cards set. */
+.field-strip { display: flex; align-items: center; gap: 10px; }
+.field-row { display: flex; gap: 3px; }
+.field-pip {
+  min-width: 26px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+  border-radius: 3px;
+  border: 1px solid var(--line-soft);
+  font-family: var(--mono); font-size: 9px; font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  background: rgba(10, 14, 26, 0.6);
+}
+.field-pip.is-empty { opacity: 0.25; }
+.field-pip.is-filled { color: var(--ink); border-color: var(--line); background: rgba(24, 32, 56, 0.9); }
+.field-pip.is-defense { color: var(--accent); }
+.field-pip.is-facedown { color: var(--ink-dim); background: repeating-linear-gradient(
+  -45deg, rgba(90, 70, 140, 0.5) 0 3px, rgba(30, 24, 48, 0.9) 3px 6px); }
+.field-pip.is-spell { color: #6ee7a8; }
+.field-pip.is-trap { color: #ff9ec4; }
+.field-row--backrow .field-pip { min-width: 16px; }
+
+.live-phase-rail { display: flex; gap: 2px; margin-left: auto; }
+.live-phase-rail .phase {
+  padding: 3px 7px; border-radius: 4px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-dim); border: 1px solid transparent;
+}
+.live-phase-rail .phase.is-now { color: #07101f; background: var(--accent); font-weight: 700; }
+.live-phase-rail .phase.is-past { opacity: 0.4; }
+.live-phase-rail .phase.is-locked { opacity: 0.25; text-decoration: line-through; }
+.live-turn {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+  color: var(--ink-dim); text-transform: uppercase;
+}
+/* The one control that must always be pressable: without it a turn cannot end. */
+.live-advance { pointer-events: auto; padding: 7px 14px; font-size: 12px; }
+.live-bar--bottom { gap: 12px; }
+
+/* The fusion recipes. Ready ones first, because that is the order the question
+   gets asked in: can I fuse right now, and if not, what am I missing? */
+.fusion-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.fusion-row {
+  display: grid; gap: 1px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  background: rgba(12, 16, 30, 0.7);
+  font-size: 11px; line-height: 1.35;
+}
+.fusion-row strong { font-size: 11.5px; color: var(--ink-dim); }
+.fusion-row span { color: var(--ink-dim); opacity: 0.85; font-size: 10.5px; }
+.fusion-row.is-ready { border-color: var(--accent); background: rgba(26, 58, 74, 0.55); }
+.fusion-row.is-ready strong { color: var(--accent); }
+.fusion-row.is-ready span { color: var(--ink); opacity: 1; }
+
+/* The same prompt, floated over the picture instead of sitting in a sidebar.
+   Every question the engine asks has to be answerable wherever the player is
+   looking, or the duel waits on an answer that cannot be given. */
+.prompt--overlay {
+  position: fixed; left: 50%; bottom: 152px; transform: translateX(-50%);
+  z-index: 12;
+  width: min(560px, 88vw);
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: rgba(7, 10, 20, 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 22px 52px -20px rgba(0, 0, 0, 0.95);
+}
+.prompt--overlay #prompt-text { margin: 0 0 10px; font-size: 13px; line-height: 1.4; }
+.prompt--overlay .prompt-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.prompt--overlay .prompt-actions .btn { font-size: 12px; padding: 6px 12px; }
+
 </style>
   </head>
   <body>
@@ -901,6 +976,14 @@ body.is-watch #live-board-btn { display: none; }
             <option value="tactical">Tactical — board</option>
             <option value="live">Live action — video</option>
             <option value="watch">Watch — no input</option>
+          </select>
+        </label>
+        <label class="control" for="pace-select">
+          <span>Pace</span>
+          <select id="pace-select">
+            <option value="slow">Slow</option>
+            <option value="steady">Steady</option>
+            <option value="fast">Fast</option>
           </select>
         </label>
         <button class="btn" id="sound-btn" type="button" aria-pressed="true">Voice on</button>
@@ -992,9 +1075,13 @@ body.is-watch #live-board-btn { display: none; }
           <button class="btn btn-warn" id="resume-btn" type="button" hidden>Resume duel</button>
           <button class="btn btn-accent" id="share-btn" type="button" hidden>Share result</button>
         </div>
-        <div class="prompt" id="prompt" hidden>
-          <p id="prompt-text"></p>
-          <div class="prompt-actions" id="prompt-actions"></div>
+        <!-- The prompt moves between surfaces with the mode: every question the
+             engine asks has to be answerable wherever the player is looking. -->
+        <div id="prompt-home">
+          <div class="prompt" id="prompt" hidden>
+            <p id="prompt-text"></p>
+            <div class="prompt-actions" id="prompt-actions"></div>
+          </div>
         </div>
         <h2 class="side-heading">Duel log</h2>
         <div class="log" id="log" role="log" aria-live="polite" aria-label="Duel log"></div>
@@ -1021,6 +1108,7 @@ body.is-watch #live-board-btn { display: none; }
             <span class="live-name" id="live-foe-name"></span>
             <span class="live-counts" id="live-foe-counts"></span>
           </div>
+          <div class="field-strip" id="live-foe-field" role="img"></div>
           <span class="live-lp" id="live-foe-lp">8000</span>
         </div>
 
@@ -1043,16 +1131,30 @@ body.is-watch #live-board-btn { display: none; }
             <span class="live-name" id="live-my-name"></span>
             <span class="live-counts" id="live-my-counts"></span>
           </div>
-          <span class="live-shot" id="live-shot"></span>
+          <div class="field-strip" id="live-my-field" role="img"></div>
+
+          <!-- The same phase machine as tactical, rendered by the same
+               function: every .phase node in the document updates together. -->
+          <div class="live-phase-rail" id="live-phase-rail" role="group" aria-label="Phase">
+            <span class="phase" data-phase="draw">Draw</span>
+            <span class="phase" data-phase="standby">Standby</span>
+            <span class="phase" data-phase="main1">Main 1</span>
+            <span class="phase" data-phase="battle">Battle</span>
+            <span class="phase" data-phase="main2">Main 2</span>
+            <span class="phase" data-phase="end">End</span>
+          </div>
+          <span class="live-turn">TURN <b id="live-turn">1</b></span>
+          <button class="btn btn-accent live-advance" id="live-advance-btn" type="button">To Battle</button>
         </div>
 
         <div class="live-fan" id="live-fan" aria-label="Your hand"></div>
       </div>
 
       <div class="live-controls">
-        <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board</button>
+        <button class="btn" id="live-board-btn" type="button" aria-pressed="false">Board (hold Tab)</button>
         <button class="btn" id="live-skip-btn" type="button">Skip shot</button>
         <button class="btn" id="live-record-btn" type="button" hidden>Record episode</button>
+        <span class="live-shot" id="live-shot"></span>
         <span class="live-note" id="live-note"></span>
       </div>
     </div>
@@ -1131,7 +1233,7 @@ function __make(id) {
   return exports;
 }
 
-__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./live-mode.js":"src/live-mode.js","./modes.js":"src/modes.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
+__def("src/app.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./duel-chain.js":"src/duel-chain.js","./duel-phases.js":"src/duel-phases.js","./duel-ai.js":"src/duel-ai.js","./duelists.js":"src/duelists.js","./cinema/player.js":"src/cinema/player.js","./cinema/free-video.js":"src/cinema/free-video.js","./cinema/realtime-voice.js":"src/cinema/realtime-voice.js","./render.js":"src/render.js","./duel-log.js":"src/duel-log.js","./cinema/archetypes.js":"src/cinema/archetypes.js","./cinema/storyboard.js":"src/cinema/storyboard.js","./banter.js":"src/banter.js","./inspect.js":"src/inspect.js","./duel-replay.js":"src/duel-replay.js","./why-not.js":"src/why-not.js","./attack-preview.js":"src/attack-preview.js","./duel-effects-active.js":"src/duel-effects-active.js","./duel-stats.js":"src/duel-stats.js","./live-mode.js":"src/live-mode.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./share-card.js":"src/share-card.js"}, function (__exports, __req) {
 // Orchestration: drives the duel, feeds the cinema, and handles player input.
 // The engine decides outcomes; this file only sequences and presents them.
 
@@ -1157,6 +1259,7 @@ const { activeEffects } = __req("./duel-effects-active.js");
 const { summariseDuel } = __req("./duel-stats.js");
 const { createLiveMode } = __req("./live-mode.js");
 const { isBroadcast, isInteractive, resolveMode, turnBudgetFor } = __req("./modes.js");
+const { INPUT_CAP_MS } = __req("./broadcast/pace.js");
 const { DEFAULT_FORMAT, drawShareCard, getFormat, shareFilename, shareText } = __req("./share-card.js");
 const ui = {
   hand: el("hand"), log: el("log"), advance: el("advance-btn"),
@@ -1167,6 +1270,8 @@ const ui = {
   arc: el("attack-arc"), arcPath: el("attack-arc-path"),
   preview: el("attack-preview"), previewSum: el("preview-sum"), previewVerdict: el("preview-verdict"),
   effects: el("effect-rail"), chain: el("chain-rail"),
+  liveAdvance: el("live-advance-btn"), liveTurn: el("live-turn"),
+  liveNote: el("live-note"),
   share: el("share-btn"), shareModal: el("share-modal"), shareCanvas: el("share-canvas"),
   shareCaption: el("share-caption"), shareHint: el("share-hint"),
 };
@@ -1184,6 +1289,7 @@ const liveUi = () => ({
   lp: { me: el("live-my-lp"), foe: el("live-foe-lp") },
   counts: { me: el("live-my-counts"), foe: el("live-foe-counts") },
   names: { me: el("live-my-name"), foe: el("live-foe-name") },
+  fields: { me: el("live-my-field"), foe: el("live-foe-field") },
   rows: {
     foeBackrow: el("tele-foe-backrow"), foeMonsters: el("tele-foe-monsters"),
     myMonsters: el("tele-my-monsters"), myBackrow: el("tele-my-backrow"),
@@ -1239,6 +1345,7 @@ function renderAll() {
   // The live surface reads the same state, so the two presentations cannot
   // disagree about what is on the field.
   live?.render(state, myTurn() ? legalActions(state, "player") : []);
+  if (ui.liveTurn) ui.liveTurn.textContent = String(state.turn);
   const max = getMatchup(state.matchupId).lifePoints;
   renderDuelists(state);
   renderLifePoints(state, max);
@@ -1333,8 +1440,21 @@ const repositionable = (actions) =>
 function updateControls(mine) {
   const over = Boolean(state.winner);
   const step = nextStep();
-  ui.advance.disabled = busy || over || !myTurn() || !step;
-  ui.advance.textContent = over ? "Duel over" : (step?.label ?? "End turn");
+  const stuck = busy || over || !myTurn() || !step;
+  const label = over ? "Duel over" : (step?.label ?? "End turn");
+  for (const button of [ui.advance, ui.liveAdvance]) {
+    if (!button) continue;
+    button.disabled = stuck;
+    button.textContent = label;
+  }
+  // Watch mode has no controls at all; it is a screening.
+  if (ui.liveAdvance) ui.liveAdvance.hidden = !isInteractive(mode);
+  // Dead controls with no explanation read as a freeze. Say whose turn it is.
+  if (ui.liveNote && isBroadcast(mode)) {
+    ui.liveNote.textContent = over ? `${DUELISTS[state.sides[state.winner].duelistId].name} wins.`
+      : !myTurn() ? "Opponent is thinking…"
+        : busy ? "Resolving…" : "";
+  }
   ui.skip.hidden = !cinema.busy;
   ui.share.hidden = !over;
   ui.resume.hidden = !(busy || state.activeSide === "opponent") || over;
@@ -1494,7 +1614,10 @@ async function run(mutator) {
     const result = mutator();
     state = result.state;
     present(result.events);
-    await settle();
+    // Your own move never waits on the edit. Pacing exists so an opponent's
+    // turn is watchable; applying it here just makes your own controls go dead
+    // for a few seconds, which is indistinguishable from a freeze.
+    if (!isBroadcast(mode)) await settle();
     await maybePending();
     await maybeOpponentTurn();
   } catch (error) {
@@ -1528,13 +1651,17 @@ const SETTLE_CAP_MS = 3500;
 const TURN_BUDGET_MS = 4000;
 // Live mode earns more time, because watching it is the point. It is still a
 // hard cap: a stalled generation yields to the ambient lane rather than waiting.
-const turnBudget = () => turnBudgetFor(mode);
+const turnBudget = () => (isBroadcast(mode) && live ? live.pace.turnBudget : turnBudgetFor(mode));
 
 function settle(capMs = SETTLE_CAP_MS) {
-  // In broadcast modes the reel owns pacing and is never a reason to wait: it
-  // shows the ambient lane while the action lane catches up, so blocking the
-  // engine here would only make the edit fall further behind.
-  if (isBroadcast(mode)) return Promise.resolve();
+  // In a broadcast mode the wait is on the reel's backlog rather than on the
+  // tactical shot queue. Not waiting at all was wrong: with nothing to wait
+  // for, a whole opponent turn resolved between two frames and watch mode
+  // finished before the edit had started.
+  // A short cap, whatever the pace: the reel narrates from behind and has the
+  // ambient lane underneath it, so there is nothing to gain from holding the
+  // engine — and the player's controls are dead for every millisecond of it.
+  if (isBroadcast(mode)) return live ? live.settle(INPUT_CAP_MS) : Promise.resolve();
   return new Promise((done) => {
     const deadline = Date.now() + capMs;
     const tick = () => {
@@ -2023,6 +2150,19 @@ function drawArc(attackerUid, targetUid) {
   ui.arcPath.setAttribute("stroke", "var(--accent-warm)");
 }
 
+// Every question the engine asks resolves through one of these. A new duel
+// abandons the old one's questions -- without that, restarting while a prompt
+// is open leaves `busy` stuck true and every control dead for good.
+let cancelPrompt = null;
+
+function abandonPrompt() {
+  const cancel = cancelPrompt;
+  cancelPrompt = null;
+  ui.prompt.hidden = true;
+  live?.closeResponses();
+  cancel?.();
+}
+
 function askChoice(question, choices) {
   // In a broadcast mode the choice rises from the bottom bar as a ribbon rather
   // than a side panel. This is the one place play is allowed to hold up the
@@ -2030,12 +2170,14 @@ function askChoice(question, choices) {
   if (live && isInteractive(mode)) {
     return new Promise((done) => {
       live.openResponses(choices, {
-        onRespond: (choice) => done(choice.value),
+        onRespond: (choice) => { cancelPrompt = null; done(choice.value); },
       });
-      liveRibbonPass = () => done(null);
+      liveRibbonPass = () => { cancelPrompt = null; done(null); };
+      cancelPrompt = () => done(null);
     });
   }
   return new Promise((done) => {
+    cancelPrompt = () => done(null);
     ui.prompt.hidden = false;
     ui.promptText.textContent = question;
     ui.promptActions.innerHTML = "";
@@ -2044,7 +2186,11 @@ function askChoice(question, choices) {
       button.className = "btn";
       button.type = "button";
       button.textContent = choice.label;
-      button.addEventListener("click", () => { ui.prompt.hidden = true; done(choice.value); });
+      button.addEventListener("click", () => {
+        cancelPrompt = null;
+        ui.prompt.hidden = true;
+        done(choice.value);
+      });
       ui.promptActions.append(button);
     }
   });
@@ -2055,9 +2201,10 @@ function askChoice(question, choices) {
 // come from the engine, so the list can never offer an illegal target.
 function askTargets(pending) {
   return new Promise((done) => {
+    cancelPrompt = () => done({ uids: [], position: "attack" });
     const picks = [];
     const finish = (uids, position = "attack") => {
-      ui.prompt.hidden = true; renderAll(); done({ uids, position });
+      cancelPrompt = null; ui.prompt.hidden = true; renderAll(); done({ uids, position });
     };
     const paint = () => {
       ui.prompt.hidden = false;
@@ -2113,8 +2260,11 @@ function askTargets(pending) {
 
 function askTributes(pending) {
   return new Promise((done) => {
+    cancelPrompt = () => done([]);
     tributePicks = [];
-    const finish = (uids) => { tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids); };
+    const finish = (uids) => {
+      cancelPrompt = null; tributePicks = []; ui.prompt.hidden = true; renderAll(); done(uids);
+    };
     const paint = () => {
       const enough = tributesCover(state, "player", tributePicks, pending.need);
       ui.prompt.hidden = false;
@@ -2153,6 +2303,7 @@ function toggleTribute(inst) {
 
 function askDiscard(pending) {
   return new Promise((done) => {
+    cancelPrompt = () => done([]);
     const picks = [];
     const paint = () => {
       ui.prompt.hidden = false;
@@ -2180,7 +2331,9 @@ function askDiscard(pending) {
       confirm.type = "button";
       confirm.textContent = "Discard";
       confirm.disabled = picks.length !== pending.need;
-      confirm.addEventListener("click", () => { ui.prompt.hidden = true; done(picks.slice()); });
+      confirm.addEventListener("click", () => {
+        cancelPrompt = null; ui.prompt.hidden = true; done(picks.slice());
+      });
       ui.promptActions.append(confirm);
     };
     paint();
@@ -2209,6 +2362,10 @@ function summonedName(pending) {
 function startDuel(requested) {
   const matchupId = getMatchup(requested) ? requested : Object.keys(MATCHUPS)[0];
   el("matchup-select").value = matchupId;
+  // A duel in progress may be sitting on an unanswered question. Its promise
+  // will never resolve now, so release it and drop the busy flag with it.
+  abandonPrompt();
+  busy = false;
   cinema.clear();
   clearJobs();
   resetLifePointTracking();
@@ -2251,6 +2408,13 @@ function applyMode(next) {
   document.body.classList.toggle("is-live", isBroadcast(next));
   document.body.classList.toggle("is-watch", next === "watch");
   el("live-root").hidden = !isBroadcast(next);
+  // The engine asks discard, target and tribute questions through one prompt,
+  // and that prompt lived in the tactical sidebar -- which live mode hides. The
+  // duel then waited forever on a question nobody could see, which is what "the
+  // live action stalls" turned out to be. One prompt, moved to whichever
+  // surface is on screen.
+  el(isBroadcast(next) ? "duel-overlay" : "prompt-home").append(ui.prompt);
+  ui.prompt.classList.toggle("prompt--overlay", isBroadcast(next));
   live?.stop();
   live = null;
   if (!isBroadcast(next)) { cinema.start(); return; }
@@ -2321,23 +2485,37 @@ async function runWatch() {
     await run(() => (action ? applyAction(state, action)
       : step?.endsTurn ? endTurn(state)
         : setPhase(state, step.to)));
-    await new Promise((r) => setTimeout(r, 260));
+    // One beat between actions, at the viewer's chosen tempo. Without this the
+    // duel resolves as fast as the engine can run it, which is far faster than
+    // anyone can watch.
+    // Nobody is holding a control here, so this is the one place the engine
+    // should genuinely wait for the edit to catch up before moving on.
+    await live?.settle(live.pace.settleCap);
+    await new Promise((r) => setTimeout(r, live?.pace.beat ?? 260));
   }
 }
 
+// Advancing the phase is the same action wherever it is pressed from. Live
+// mode had no control for it at all, which meant that once a player had played
+// what they could in Main 1 there was no way to reach Battle or end the turn --
+// the duel simply stopped, and read as a freeze.
+function advancePhase() {
+  if (busy || !myTurn()) return;
+  const step = nextStep();
+  if (!step) return;
+  attackFrom = null;
+  if (step.endsTurn) { recordTurn(); run(() => endTurn(state)); return; }
+  // Moving through phases is not a turn action, so it does not run the
+  // opponent -- except entering the End Phase, which hands the turn over.
+  if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
+  advance(step.to);
+  renderAll();
+}
+
 function bind() {
-  ui.advance.addEventListener("click", () => {
-    if (busy || !myTurn()) return;
-    const step = nextStep();
-    if (!step) return;
-    attackFrom = null;
-    if (step.endsTurn) { recordTurn(); run(() => endTurn(state)); return; }
-    // Moving through phases is not a turn action, so it does not run the
-    // opponent -- except entering the End Phase, which hands the turn over.
-    if (step.to === "end") { advance("end"); recordTurn(); run(() => endTurn(state)); return; }
-    advance(step.to);
-    renderAll();
-  });
+  ui.advance.addEventListener("click", advancePhase);
+  el("live-advance-btn").addEventListener("click", advancePhase);
+  el("pace-select").addEventListener("change", (e) => live?.setPace(e.target.value));
   el("mode-select").addEventListener("change", (e) => {
     applyMode(e.target.value);
     startDuel(el("matchup-select").value);
@@ -2522,10 +2700,11 @@ async function boot() {
 // The live controller is built by the mode branch, so a test that wants to
 // assert on the reel has to be handed it rather than reaching into the module.
 const liveForTest = () => live;
+const stateForTest = () => state;
 
 boot();
 
-Object.assign(__exports, { liveForTest });
+Object.assign(__exports, { liveForTest, stateForTest });
 });
 
 __def("src/cards/index.js", {"./monsters.js":"src/cards/monsters.js","./spells.js":"src/cards/spells.js","./traps.js":"src/cards/traps.js"}, function (__exports, __req) {
@@ -6652,9 +6831,12 @@ function lineFor(event, state) {
       const how = event.how === "fusion" ? "Fusion Summons"
         : event.how === "set" ? "sets a monster"
           : event.how === "reborn" ? "revives" : "summons";
-      const name = event.how === "set" ? "" : ` ${event.card}`;
+      // A set monster is hidden information. Printing its ATK in the log
+      // identifies it as surely as printing its name would.
+      const hidden = event.how === "set" || event.faceDown;
+      const name = hidden ? "" : ` ${event.card}`;
       return { ...base, text: `${who(state, event.side)} ${how}${name}`,
-        detail: event.atk ? `${event.atk} ATK` : null };
+        detail: !hidden && event.atk ? `${event.atk} ATK` : null };
     }
 
     case "set": return { ...base, text: `${who(state, event.side)} sets a ${event.kind}` };
@@ -6775,13 +6957,20 @@ const SHOT_BUILDERS = {
     const how = event.how === "fusion" ? "erupts out of a fusion vortex"
       : event.how === "reborn" ? "claws its way up out of a glowing grave"
       : event.faceDown ? "materialises as a sealed face-down card" : "slams down onto the field";
+    // The caption is on screen for both players, so it cannot name a card the
+    // opponent has not turned face-up -- and its ATK identifies it just as well.
+    const hidden = event.how === "set" || Boolean(event.faceDown);
     return {
       kind: event.how === "fusion" ? "fusion" : "summon",
-      title: event.card,
-      subtitle: `${duelist.name} · ${event.atk ?? "?"} ATK`,
+      title: hidden ? "Set" : event.card,
+      subtitle: hidden ? `${duelist.name} · face-down` : `${duelist.name} · ${event.atk ?? "?"} ATK`,
       seconds: event.how === "fusion" ? 3.4 : 2.4,
-      prompt: `${monsterArt(event.card)}; the monster ${how} in ${baseScene(state)}; ${STYLE}`,
-      voice: duelist.lines[event.how === "fusion" ? "ace" : "summon"].replace("{card}", event.card),
+      prompt: hidden
+        ? `a single large face-down holographic card locking into place above a forearm duel `
+          + `disk in ${baseScene(state)}; ${STYLE}`
+        : `${monsterArt(event.card)}; the monster ${how} in ${baseScene(state)}; ${STYLE}`,
+      voice: hidden ? null
+        : duelist.lines[event.how === "fusion" ? "ace" : "summon"].replace("{card}", event.card),
     };
   },
 
@@ -7270,6 +7459,27 @@ function accentFor(cardId) {
 
 // ------------------------------------------------------------ hover panel ---
 
+/**
+ * Every fusion in the Extra Deck, ready ones first. A recipe the player cannot
+ * see anywhere else is the difference between Polymerization being a card and
+ * being a guess.
+ */
+function fusionList(fusions) {
+  const list = document.createElement("ul");
+  list.className = "fusion-list";
+  for (const row of fusions) {
+    const item = document.createElement("li");
+    item.className = row.ready ? "fusion-row is-ready" : "fusion-row";
+    const name = document.createElement("strong");
+    name.textContent = row.name;
+    const recipe = document.createElement("span");
+    recipe.textContent = row.line;
+    item.append(name, recipe);
+    list.append(item);
+  }
+  return list;
+}
+
 function createHoverPanel() {
   const panel = el("hover-card");
   let showing = null;
@@ -7316,6 +7526,7 @@ function createHoverPanel() {
       note.textContent = detail.note;
       panel.append(note);
     }
+    if (detail.fusions?.length) panel.append(fusionList(detail.fusions));
     // The single most useful line on the panel: why a click will do nothing.
     if (whyNot) {
       const blocked = document.createElement("p");
@@ -7411,15 +7622,16 @@ function showGraveyard(state) {
   el("graveyard-modal").hidden = false;
 }
 
-Object.assign(__exports, { createHoverPanel, showGraveyard });
+Object.assign(__exports, { fusionList, createHoverPanel, showGraveyard });
 });
 
-__def("src/card-detail.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js"}, function (__exports, __req) {
+__def("src/card-detail.js", {"./cards/index.js":"src/cards/index.js","./duel-engine.js":"src/duel-engine.js","./fusion-guide.js":"src/fusion-guide.js"}, function (__exports, __req) {
 // One description of a card, shared by the hover panel and the graveyard view,
 // so a card never reads two different ways in the same duel.
 
 const { getCard } = __req("./cards/index.js");
 const { effectiveStats } = __req("./duel-engine.js");
+const { describeFusion, fusionOptions } = __req("./fusion-guide.js");
 const SUB_LABEL = {
   normal: "Normal", continuous: "Continuous", quick: "Quick-Play", equip: "Equip", counter: "Counter",
 };
@@ -7454,6 +7666,18 @@ function describeCard(cardId, { state, side, inst } = {}) {
 
   if (inst?.faceDown) detail.note = "Face-down";
   else if (inst?.position === "defense") detail.note = "Defence Position";
+
+  // Polymerization is the one card whose legality depends on a recipe that is
+  // written nowhere the player can see. "Nothing to fuse" is accurate and
+  // useless; the question is always which two cards, and where the missing one
+  // went.
+  if (card.effect?.op === "fusionSummon" && state && side) {
+    detail.fusions = fusionOptions(state, side).map((row) => ({
+      name: row.name,
+      ready: row.ready,
+      line: describeFusion(row),
+    }));
+  }
   return detail;
 }
 
@@ -7490,6 +7714,92 @@ function rebornTarget(state) {
 }
 
 Object.assign(__exports, { describeCard, rebornTarget });
+});
+
+__def("src/fusion-guide.js", {"./cards/index.js":"src/cards/index.js"}, function (__exports, __req) {
+// What you can actually fuse, and what you are missing.
+//
+// Polymerization is the one card in the deck whose legality depends on a
+// recipe the player cannot see anywhere. Holding it and being told "there is
+// nothing to fuse" is accurate and useless -- the question is always which
+// two cards, and whether the missing one is in the deck or already gone.
+
+const { getCard } = __req("./cards/index.js");
+const nameOf = (id) => getCard(id)?.name ?? id;
+
+/** Where each copy of a card currently is, from the player's own point of view. */
+function locate(state, side) {
+  const seat = state.sides[side];
+  const where = new Map();
+  const note = (inst, place) => {
+    if (!inst) return;
+    const list = where.get(inst.cardId) ?? [];
+    list.push({ place, uid: inst.uid });
+    where.set(inst.cardId, list);
+  };
+  for (const inst of seat.hand) note(inst, "hand");
+  // A face-down monster of your own is still yours to know about.
+  for (const inst of seat.monsters) note(inst, "field");
+  for (const inst of seat.graveyard) note(inst, "graveyard");
+  return where;
+}
+
+const AVAILABLE = new Set(["hand", "field"]);
+
+/**
+ * Every fusion in the Extra Deck, with each material marked by where it is.
+ *
+ * Sorted so the ones you can do right now come first, then the ones you are one
+ * card away from -- which is the order the question is actually asked in.
+ */
+function fusionOptions(state, side) {
+  const seat = state.sides[side];
+  const where = locate(state, side);
+
+  const rows = seat.extra.map((inst) => {
+    const card = getCard(inst.cardId);
+    const used = new Map();
+    const materials = (card.fusion ?? []).map((id) => {
+      const copies = where.get(id) ?? [];
+      const taken = used.get(id) ?? 0;
+      const at = copies[taken];
+      used.set(id, taken + 1);
+      return {
+        id,
+        name: nameOf(id),
+        place: at?.place ?? "missing",
+        have: Boolean(at) && AVAILABLE.has(at.place),
+      };
+    });
+    const missing = materials.filter((m) => !m.have);
+    return {
+      uid: inst.uid,
+      name: card.name,
+      atk: card.atk,
+      def: card.def,
+      materials,
+      ready: missing.length === 0,
+      missing: missing.map((m) => m.name),
+    };
+  });
+
+  return rows.sort((a, b) => (b.ready - a.ready) || (a.missing.length - b.missing.length)
+    || b.atk - a.atk);
+}
+
+/** One line per fusion, for the card panel. */
+function describeFusion(row) {
+  const recipe = row.materials.map((m) => m.name).join(" + ");
+  if (row.ready) return `${recipe} — ready`;
+  if (row.missing.length === row.materials.length) return `${recipe} — you have none of these`;
+  return `${recipe} — missing ${row.missing.join(" and ")}`;
+}
+
+/** Whether a fusion is possible at all right now. */
+const anyFusionReady = (state, side) =>
+  fusionOptions(state, side).some((row) => row.ready);
+
+Object.assign(__exports, { fusionOptions, describeFusion, anyFusionReady });
 });
 
 __def("src/duel-replay.js", {"./duel-engine.js":"src/duel-engine.js"}, function (__exports, __req) {
@@ -8008,7 +8318,7 @@ function statTiles(stats) {
 Object.assign(__exports, { summariseDuel, headline, statTiles });
 });
 
-__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./modes.js":"src/modes.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js"}, function (__exports, __req) {
+__def("src/live-mode.js", {"./broadcast/ambient.js":"src/broadcast/ambient.js","./broadcast/director.js":"src/broadcast/director.js","./broadcast/reel.js":"src/broadcast/reel.js","./audio/score.js":"src/audio/score.js","./ui/live/stage.js":"src/ui/live/stage.js","./ui/live/media-pool.js":"src/ui/live/media-pool.js","./ui/live/telestrator.js":"src/ui/live/telestrator.js","./ui/live/episode.js":"src/ui/live/episode.js","./ui/live/disk.js":"src/ui/live/disk.js","./modes.js":"src/modes.js","./broadcast/pace.js":"src/broadcast/pace.js","./duelists.js":"src/duelists.js","./cinema/free-video.js":"src/cinema/free-video.js"}, function (__exports, __req) {
 // Live mode: the reel, the stage, the pool and the score, wired to one duel.
 //
 // This owns presentation only. The engine decides the duel exactly as it does
@@ -8024,8 +8334,9 @@ const { createStage } = __req("./ui/live/stage.js");
 const { createMediaPool } = __req("./ui/live/media-pool.js");
 const { createTelestrator } = __req("./ui/live/telestrator.js");
 const { canRecord, createRecorder } = __req("./ui/live/episode.js");
-const { createCounter, renderFan, renderRibbon, renderSelection } = __req("./ui/live/disk.js");
+const { createCounter, renderFan, renderFieldStrip, renderRibbon, renderSelection } = __req("./ui/live/disk.js");
 const { isInteractive } = __req("./modes.js");
+const { DEFAULT_PACE, paceFor } = __req("./broadcast/pace.js");
 const { DUELISTS } = __req("./duelists.js");
 const { highestTier } = __req("./cinema/free-video.js");
 const STARTING_LP = 8000;
@@ -8052,6 +8363,7 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
   let recorder = null;
   const director = createDirector();
   const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
+  let pace = paceFor(DEFAULT_PACE);
 
   const setMyLp = createCounter(ui.lp.me);
   const setFoeLp = createCounter(ui.lp.foe);
@@ -8097,7 +8409,11 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     if (!reel || !state) return 0;
     const sequences = director.direct(events, state);
     for (const sequence of sequences) {
-      reel.push({ ...sequence, pushedAt: performance.now() });
+      // The grammar sets the rhythm; pace sets the tempo it is played at.
+      const shots = sequence.shots.map((shot) => ({
+        ...shot, hold: Math.round(shot.hold * pace.hold),
+      }));
+      reel.push({ ...sequence, shots, pushedAt: performance.now() });
       // Warm the whole sequence at once: the reel is about to want all of it,
       // and the spine must never be the shot that is still generating.
       pool.prefetch(sequence.shots.map((shot) => shot.key));
@@ -8115,6 +8431,10 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
     ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
     ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
+    // What is actually on the field, always on screen. Behind a held key it
+    // reads as an opponent with no cards at all.
+    renderFieldStrip(ui.fields.me, state, "player");
+    renderFieldStrip(ui.fields.foe, state, "opponent");
   }
 
   function renderHand(state, actions) {
@@ -8204,6 +8524,29 @@ function createLiveMode({ mode, ui, getState, onAction, onPass, accents }) {
     },
     async stopRecording() { return recorder ? recorder.stop() : null; },
     get recording() { return Boolean(recorder?.recording); },
+
+    setPace(name) { pace = paceFor(name); },
+    get pace() { return pace; },
+
+    /**
+     * Wait until the edit has caught up, or the cap runs out.
+     *
+     * This is the knob that separates the modes. Tactical waits on its own shot
+     * queue; live waits on the reel's backlog. Either way there is a hard cap,
+     * so a slow generator delays a beat and never freezes the duel -- the reel
+     * still has the ambient lane underneath it the whole time.
+     */
+    settle(capMs = pace.settleCap) {
+      return new Promise((done) => {
+        const deadline = Date.now() + capMs;
+        const check = () => {
+          if (!reel || reel.pending <= pace.backlog) return done();
+          if (Date.now() > deadline) return done();
+          setTimeout(check, 80);
+        };
+        check();
+      });
+    },
 
     /** Pin the board open while a declaration is half-made. */
     holdBoard(on) { telestrator.hold(on); },
@@ -9657,7 +10000,7 @@ function turnMarkersFrom(events) {
 Object.assign(__exports, { pickMime, createRecorder, turnMarkersFrom, canRecord });
 });
 
-__def("src/ui/live/disk.js", {"../../cards/index.js":"src/cards/index.js","../../duel-state.js":"src/duel-state.js","../../why-not.js":"src/why-not.js"}, function (__exports, __req) {
+__def("src/ui/live/disk.js", {"../../cards/index.js":"src/cards/index.js","../../duel-state.js":"src/duel-state.js","../../why-not.js":"src/why-not.js","../../card-detail.js":"src/card-detail.js","../../inspect.js":"src/inspect.js"}, function (__exports, __req) {
 // The control surface, for when the video is the screen.
 //
 // The player still plays. What changes is that the board stops being the
@@ -9668,6 +10011,8 @@ __def("src/ui/live/disk.js", {"../../cards/index.js":"src/cards/index.js","../..
 const { getCard } = __req("../../cards/index.js");
 const { effectiveStats } = __req("../../duel-state.js");
 const { whyNotPlayable } = __req("../../why-not.js");
+const { describeCard } = __req("../../card-detail.js");
+const { fusionList } = __req("../../inspect.js");
 const KIND_LABEL = { monster: "MON", spell: "SPELL", trap: "TRAP" };
 
 // The fan is a strip, not a panel: a monster's numbers fit, a spell's rules text
@@ -9738,6 +10083,10 @@ function renderSelection(panel, state, inst, { actions, onAction, onClose }) {
   head.querySelector(".sel-stat").textContent = describe(state, "player", inst, card);
   head.querySelector(".sel-text").textContent = card.text ?? "";
   panel.append(head);
+
+  // The recipe list, wherever the card is looked at.
+  const detail = describeCard(inst.cardId, { state, side: "player", inst });
+  if (detail.fusions?.length) panel.append(fusionList(detail.fusions));
 
   const mine = actions.filter((action) => action.uid === inst.uid);
   if (mine.length) {
@@ -9836,7 +10185,72 @@ function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, now = ()
   return () => { cancelAnimationFrame(raf); ribbon.hidden = true; ribbon.innerHTML = ""; };
 }
 
-Object.assign(__exports, { renderFan, renderSelection, createCounter, renderRibbon });
+/**
+ * A compact always-visible picture of one side's field.
+ *
+ * The telestrator was meant to be the answer to "what is actually on the
+ * board", but it is behind a held key, so a player who does not know the
+ * gesture sees an opponent who apparently has no cards at all. The spec's own
+ * rule applies: if you find yourself holding the board open constantly, the HUD
+ * is under-informing. This is the HUD informing.
+ *
+ * It never reveals more than the board does — a face-down is a face-down here
+ * too.
+ */
+function renderFieldStrip(container, state, side) {
+  if (!state) return;
+  container.innerHTML = "";
+  const seat = state.sides[side];
+
+  const row = (cards, kind) => {
+    const group = document.createElement("span");
+    group.className = `field-row field-row--${kind}`;
+    cards.forEach((inst) => {
+      const pip = document.createElement("span");
+      pip.className = "field-pip";
+      if (!inst) { pip.classList.add("is-empty"); group.append(pip); return; }
+      const card = getCard(inst.cardId);
+      pip.classList.add("is-filled");
+      if (inst.faceDown) {
+        pip.classList.add("is-facedown");
+        pip.textContent = "▨";
+        pip.title = kind === "monsters" ? "Face-down monster" : "Set spell or trap";
+      } else if (kind === "monsters") {
+        const s = effectiveStats(state, side, inst);
+        pip.textContent = inst.position === "attack" ? String(s.atk) : `${s.def}D`;
+        if (inst.position === "defense") pip.classList.add("is-defense");
+        pip.title = `${card.name} — ${s.atk}/${s.def}`;
+      } else {
+        pip.textContent = "◆";
+        pip.title = card.name;
+        pip.classList.add(`is-${card.kind}`);
+      }
+      group.append(pip);
+    });
+    return group;
+  };
+
+  container.append(row(seat.monsters, "monsters"), row(seat.backrow, "backrow"));
+  container.setAttribute("aria-label", summariseField(state, side));
+}
+
+/** The same thing in words, for a screen reader. */
+function summariseField(state, side) {
+  const seat = state.sides[side];
+  const monsters = seat.monsters.filter(Boolean);
+  const backrow = seat.backrow.filter(Boolean);
+  const named = monsters.filter((inst) => !inst.faceDown)
+    .map((inst) => `${getCard(inst.cardId).name} ${effectiveStats(state, side, inst).atk}`);
+  const hidden = monsters.length - named.length;
+  const parts = [
+    named.length ? named.join(", ") : null,
+    hidden ? `${hidden} face-down monster${hidden > 1 ? "s" : ""}` : null,
+    backrow.length ? `${backrow.length} spell or trap card${backrow.length > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join("; ") : "empty field";
+}
+
+Object.assign(__exports, { renderFan, renderSelection, createCounter, renderRibbon, renderFieldStrip });
 });
 
 __def("src/modes.js", {}, function (__exports, __req) {
@@ -9872,6 +10286,44 @@ const isBroadcast = (mode) => mode === "live" || mode === "watch";
 const turnBudgetFor = (mode) => (isBroadcast(mode) ? 6000 : 4000);
 
 Object.assign(__exports, { resolveMode, MODES, DEFAULT_MODE, isMode, isInteractive, isBroadcast, turnBudgetFor });
+});
+
+__def("src/broadcast/pace.js", {}, function (__exports, __req) {
+// How fast the show runs.
+//
+// The first live build ran the engine at full speed and let the reel narrate
+// from behind, on the theory that play must never wait on the cinema. That is
+// right for a stall and wrong for a duel: with nothing to wait for, a whole
+// opponent turn resolved between two frames and watch mode finished before the
+// edit had started. The engine may run ahead of the picture, but not without
+// limit, and how far is a viewer's choice rather than a constant.
+
+// `hold` is what a viewer actually feels: the tempo the edit is cut at.
+//
+// `beat` and `settleCap` only gate the engine, and only where nobody is waiting
+// on a control — watch mode, and the tail of an opponent's turn. They are
+// deliberately small. An early version let a slow pace hold the engine for nine
+// seconds an action, which meant the player's own controls were dead for most
+// of the opponent's turn; that is indistinguishable from a freeze, and it is
+// what "the live action stalls" turned out to be.
+const PACES = {
+  slow: { label: "Slow", hold: 1.5, backlog: 1, settleCap: 4000, beat: 1100, turnBudget: 6000 },
+  steady: { label: "Steady", hold: 1.1, backlog: 2, settleCap: 2200, beat: 600, turnBudget: 6000 },
+  // Closest to tactical: the engine leads and the edit keeps up as it can.
+  fast: { label: "Fast", hold: 0.85, backlog: 4, settleCap: 900, beat: 200, turnBudget: 5000 },
+};
+
+// However slow the viewer wants the show, their own controls come back within
+// this. Pacing is a property of the edit, never a reason to stop taking input.
+const INPUT_CAP_MS = 1200;
+
+const DEFAULT_PACE = "slow";
+
+const isPace = (value) => Object.hasOwn(PACES, value);
+
+const paceFor = (name) => PACES[isPace(name) ? name : DEFAULT_PACE];
+
+Object.assign(__exports, { PACES, INPUT_CAP_MS, DEFAULT_PACE, isPace, paceFor });
 });
 
 __def("src/share-card.js", {"./cards/index.js":"src/cards/index.js","./cinema/procedural-stage.js":"src/cinema/procedural-stage.js","./duel-stats.js":"src/duel-stats.js","./duelists.js":"src/duelists.js"}, function (__exports, __req) {

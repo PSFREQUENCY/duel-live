@@ -14,6 +14,7 @@ const html = read("index.html");
 const sources = ["src/app.js", "src/render.js"].map((rel) => ({ rel, code: read(rel) }));
 
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+const app = read("src/app.js");
 
 test("every element id the app looks up exists in index.html", () => {
   const missing = [];
@@ -76,10 +77,25 @@ test("a shot caption reports the tier, not internal bookkeeping", () => {
   assert.doesNotMatch(player, /· generating/, "the caption should not narrate the pipeline");
 });
 
-test("phase rail markup covers every phase the engine can report, in order", async () => {
+test("every phase rail covers every phase the engine can report, in order", async () => {
   const { PHASES } = await import("../src/duel-phases.js");
-  const rail = [...html.matchAll(/data-phase="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(rail, PHASES,
-    "the rail must show every phase the machine can be in, in turn order");
+  // Both surfaces carry a rail, and renderPhase updates every .phase node in
+  // the document at once -- so each rail has to be complete on its own, or one
+  // of them silently renders a partial turn.
+  const rails = [...html.matchAll(/<div class="[^"]*phase-rail"[\s\S]*?<\/div>/g)]
+    .map((block) => [...block[0].matchAll(/data-phase="([^"]+)"/g)].map((m) => m[1]));
+  assert.ok(rails.length >= 2, `found ${rails.length} phase rails; live mode needs one too`);
+  for (const rail of rails) {
+    assert.deepEqual(rail, PHASES,
+      "the rail must show every phase the machine can be in, in turn order");
+  }
   assert.ok(htmlIds.has("phase-note"), "the rail needs a line saying what is legal now");
+});
+
+test("live mode can advance the phase at all", () => {
+  // Without this the duel simply stops once Main 1 is played out: there is no
+  // way to reach Battle and no way to end the turn, and it reads as a freeze.
+  assert.ok(htmlIds.has("live-advance-btn"), "live mode has no phase control");
+  assert.match(app, /el\("live-advance-btn"\)\.addEventListener\("click", advancePhase\)/,
+    "the live control must run the same advance as the tactical one");
 });

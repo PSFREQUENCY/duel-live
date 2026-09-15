@@ -17,6 +17,11 @@ await settle(400);
 const node = (id) => dom.nodes.get(id);
 const live = app.liveForTest();
 
+// The default is Slow, which is right for a viewer and far too slow for a test
+// that has to reach a conclusion. Pace is the thing under test elsewhere; here
+// it just needs to get out of the way.
+live.setPace("fast");
+
 const beats = {};
 let shots = 0;
 let blanks = 0;
@@ -29,7 +34,7 @@ live.reel.push = (sequence) => {
   return push(sequence);
 };
 
-for (let i = 0; i < 400; i += 1) {
+for (let i = 0; i < 700; i += 1) {
   const shot = live.reel.tick(performance.now());
   if (!shot?.key) blanks += 1;
   else seen.add(shot.key);
@@ -71,6 +76,6 @@ test("watch mode offers no input surface", () => {
 });
 
 test("the stage painted every frame it was asked for", () => {
-  assert.ok(live.stage.stats.frames >= 400);
+  assert.ok(live.stage.stats.frames >= 700);
   assert.equal(live.stage.stats.failures, 0);
 });

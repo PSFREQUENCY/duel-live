@@ -8,6 +8,8 @@
 import { getCard } from "../../cards/index.js";
 import { effectiveStats } from "../../duel-state.js";
 import { whyNotPlayable } from "../../why-not.js";
+import { describeCard } from "../../card-detail.js";
+import { fusionList } from "../../inspect.js";
 
 const KIND_LABEL = { monster: "MON", spell: "SPELL", trap: "TRAP" };
 
@@ -79,6 +81,10 @@ export function renderSelection(panel, state, inst, { actions, onAction, onClose
   head.querySelector(".sel-stat").textContent = describe(state, "player", inst, card);
   head.querySelector(".sel-text").textContent = card.text ?? "";
   panel.append(head);
+
+  // The recipe list, wherever the card is looked at.
+  const detail = describeCard(inst.cardId, { state, side: "player", inst });
+  if (detail.fusions?.length) panel.append(fusionList(detail.fusions));
 
   const mine = actions.filter((action) => action.uid === inst.uid);
   if (mine.length) {
@@ -175,4 +181,69 @@ export function renderRibbon(ribbon, responses, { onRespond, onPass, deadline, n
   };
   tick();
   return () => { cancelAnimationFrame(raf); ribbon.hidden = true; ribbon.innerHTML = ""; };
+}
+
+/**
+ * A compact always-visible picture of one side's field.
+ *
+ * The telestrator was meant to be the answer to "what is actually on the
+ * board", but it is behind a held key, so a player who does not know the
+ * gesture sees an opponent who apparently has no cards at all. The spec's own
+ * rule applies: if you find yourself holding the board open constantly, the HUD
+ * is under-informing. This is the HUD informing.
+ *
+ * It never reveals more than the board does — a face-down is a face-down here
+ * too.
+ */
+export function renderFieldStrip(container, state, side) {
+  if (!state) return;
+  container.innerHTML = "";
+  const seat = state.sides[side];
+
+  const row = (cards, kind) => {
+    const group = document.createElement("span");
+    group.className = `field-row field-row--${kind}`;
+    cards.forEach((inst) => {
+      const pip = document.createElement("span");
+      pip.className = "field-pip";
+      if (!inst) { pip.classList.add("is-empty"); group.append(pip); return; }
+      const card = getCard(inst.cardId);
+      pip.classList.add("is-filled");
+      if (inst.faceDown) {
+        pip.classList.add("is-facedown");
+        pip.textContent = "▨";
+        pip.title = kind === "monsters" ? "Face-down monster" : "Set spell or trap";
+      } else if (kind === "monsters") {
+        const s = effectiveStats(state, side, inst);
+        pip.textContent = inst.position === "attack" ? String(s.atk) : `${s.def}D`;
+        if (inst.position === "defense") pip.classList.add("is-defense");
+        pip.title = `${card.name} — ${s.atk}/${s.def}`;
+      } else {
+        pip.textContent = "◆";
+        pip.title = card.name;
+        pip.classList.add(`is-${card.kind}`);
+      }
+      group.append(pip);
+    });
+    return group;
+  };
+
+  container.append(row(seat.monsters, "monsters"), row(seat.backrow, "backrow"));
+  container.setAttribute("aria-label", summariseField(state, side));
+}
+
+/** The same thing in words, for a screen reader. */
+function summariseField(state, side) {
+  const seat = state.sides[side];
+  const monsters = seat.monsters.filter(Boolean);
+  const backrow = seat.backrow.filter(Boolean);
+  const named = monsters.filter((inst) => !inst.faceDown)
+    .map((inst) => `${getCard(inst.cardId).name} ${effectiveStats(state, side, inst).atk}`);
+  const hidden = monsters.length - named.length;
+  const parts = [
+    named.length ? named.join(", ") : null,
+    hidden ? `${hidden} face-down monster${hidden > 1 ? "s" : ""}` : null,
+    backrow.length ? `${backrow.length} spell or trap card${backrow.length > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join("; ") : "empty field";
 }

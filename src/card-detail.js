@@ -3,6 +3,7 @@
 
 import { getCard } from "./cards/index.js";
 import { effectiveStats } from "./duel-engine.js";
+import { describeFusion, fusionOptions } from "./fusion-guide.js";
 
 const SUB_LABEL = {
   normal: "Normal", continuous: "Continuous", quick: "Quick-Play", equip: "Equip", counter: "Counter",
@@ -38,6 +39,18 @@ export function describeCard(cardId, { state, side, inst } = {}) {
 
   if (inst?.faceDown) detail.note = "Face-down";
   else if (inst?.position === "defense") detail.note = "Defence Position";
+
+  // Polymerization is the one card whose legality depends on a recipe that is
+  // written nowhere the player can see. "Nothing to fuse" is accurate and
+  // useless; the question is always which two cards, and where the missing one
+  // went.
+  if (card.effect?.op === "fusionSummon" && state && side) {
+    detail.fusions = fusionOptions(state, side).map((row) => ({
+      name: row.name,
+      ready: row.ready,
+      line: describeFusion(row),
+    }));
+  }
   return detail;
 }
 

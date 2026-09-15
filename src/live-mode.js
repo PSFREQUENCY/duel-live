@@ -13,8 +13,9 @@ import { createStage } from "./ui/live/stage.js";
 import { createMediaPool } from "./ui/live/media-pool.js";
 import { createTelestrator } from "./ui/live/telestrator.js";
 import { canRecord, createRecorder } from "./ui/live/episode.js";
-import { createCounter, renderFan, renderRibbon, renderSelection } from "./ui/live/disk.js";
+import { createCounter, renderFan, renderFieldStrip, renderRibbon, renderSelection } from "./ui/live/disk.js";
 import { isInteractive } from "./modes.js";
+import { DEFAULT_PACE, paceFor } from "./broadcast/pace.js";
 import { DUELISTS } from "./duelists.js";
 import { highestTier } from "./cinema/free-video.js";
 
@@ -42,6 +43,7 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
   let recorder = null;
   const director = createDirector();
   const cuts = { total: 0, action: 0, ambient: 0, keys: new Set() };
+  let pace = paceFor(DEFAULT_PACE);
 
   const setMyLp = createCounter(ui.lp.me);
   const setFoeLp = createCounter(ui.lp.foe);
@@ -87,7 +89,11 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     if (!reel || !state) return 0;
     const sequences = director.direct(events, state);
     for (const sequence of sequences) {
-      reel.push({ ...sequence, pushedAt: performance.now() });
+      // The grammar sets the rhythm; pace sets the tempo it is played at.
+      const shots = sequence.shots.map((shot) => ({
+        ...shot, hold: Math.round(shot.hold * pace.hold),
+      }));
+      reel.push({ ...sequence, shots, pushedAt: performance.now() });
       // Warm the whole sequence at once: the reel is about to want all of it,
       // and the spine must never be the shot that is still generating.
       pool.prefetch(sequence.shots.map((shot) => shot.key));
@@ -105,6 +111,10 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     ui.counts.foe.textContent = `H ${state.sides.opponent.hand.length}  D ${state.sides.opponent.deck.length}`;
     ui.names.me.textContent = DUELISTS[state.sides.player.duelistId]?.name ?? "";
     ui.names.foe.textContent = DUELISTS[state.sides.opponent.duelistId]?.name ?? "";
+    // What is actually on the field, always on screen. Behind a held key it
+    // reads as an opponent with no cards at all.
+    renderFieldStrip(ui.fields.me, state, "player");
+    renderFieldStrip(ui.fields.foe, state, "opponent");
   }
 
   function renderHand(state, actions) {
@@ -194,6 +204,29 @@ export function createLiveMode({ mode, ui, getState, onAction, onPass, accents }
     },
     async stopRecording() { return recorder ? recorder.stop() : null; },
     get recording() { return Boolean(recorder?.recording); },
+
+    setPace(name) { pace = paceFor(name); },
+    get pace() { return pace; },
+
+    /**
+     * Wait until the edit has caught up, or the cap runs out.
+     *
+     * This is the knob that separates the modes. Tactical waits on its own shot
+     * queue; live waits on the reel's backlog. Either way there is a hard cap,
+     * so a slow generator delays a beat and never freezes the duel -- the reel
+     * still has the ambient lane underneath it the whole time.
+     */
+    settle(capMs = pace.settleCap) {
+      return new Promise((done) => {
+        const deadline = Date.now() + capMs;
+        const check = () => {
+          if (!reel || reel.pending <= pace.backlog) return done();
+          if (Date.now() > deadline) return done();
+          setTimeout(check, 80);
+        };
+        check();
+      });
+    },
 
     /** Pin the board open while a declaration is half-made. */
     holdBoard(on) { telestrator.hold(on); },

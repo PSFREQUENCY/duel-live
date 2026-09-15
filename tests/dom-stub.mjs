@@ -6,6 +6,16 @@ import { fileURLToPath } from "node:url";
 
 const html = readFileSync(fileURLToPath(new URL("../index.html", import.meta.url)), "utf8");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+
+// An element's classes are part of what it is. Building id-nodes without them
+// meant any selector naming a class on an id-bearing element matched nothing --
+// so `.live-fan .fan-card` quietly found zero, and a real freeze looked like a
+// passing test.
+const classesById = new Map(
+  [...html.matchAll(/<[a-zA-Z][^>]*>/g)]
+    .map((m) => [m[0].match(/\bid="([^"]+)"/)?.[1], m[0].match(/\bclass="([^"]+)"/)?.[1]])
+    .filter(([id, cls]) => id && cls),
+);
 const phases = [...html.matchAll(/data-phase="([^"]+)"/g)].map((m) => m[1]);
 
 const listeners = new Map();
@@ -95,7 +105,12 @@ function makeNode(id = "") {
   return node;
 }
 
-const nodes = new Map(ids.map((id) => [id, makeNode(id)]));
+const nodes = new Map(ids.map((id) => {
+  const node = makeNode(id);
+  const cls = classesById.get(id);
+  if (cls) node.className = cls;
+  return [id, node];
+}));
 // A real <select> reports its first <option> value before any interaction.
 for (const [, id, inner] of html.matchAll(/<select id="([^"]+)"[^>]*>([\s\S]*?)<\/select>/g)) {
   const first = inner.match(/value="([^"]+)"/);
@@ -117,30 +132,41 @@ const hasAll = (node, names) => names.every((name) => node.classList?.contains(n
  * A harness that can only reach nodes carrying an id is not using the page the
  * way a player does.
  */
-function query(selector) {
-  const [wanted, excluded = ""] = selector.split(":not");
-  const want = wanted.split(".").filter(Boolean);
+function matcher(part) {
+  const [wanted, excluded = ""] = part.split(":not");
+  const id = wanted.startsWith("#") ? wanted.slice(1).split(".")[0] : null;
+  const want = (id ? wanted.slice(id.length + 1) : wanted).split(".").filter(Boolean);
   const avoid = excluded.replace(/[()]/g, "").split(".").filter(Boolean);
-  for (const root of nodes.values()) {
-    for (const node of walk(root)) {
-      if (hasAll(node, want) && !avoid.some((name) => node.classList?.contains(name))) return node;
-    }
-  }
-  return null;
+  return (node) => (!id || node.id === id) && hasAll(node, want)
+    && !avoid.some((name) => node.classList?.contains(name));
 }
 
-function queryAll(selector) {
-  const [wanted, excluded = ""] = selector.split(":not");
-  const want = wanted.split(".").filter(Boolean);
-  const avoid = excluded.replace(/[()]/g, "").split(".").filter(Boolean);
+/**
+ * `.class`, `#id`, `.a.b`, `.a:not(.b)`, and descendant chains of those.
+ * Anything a harness needs to click what a render actually produced -- without
+ * descendants, `.prompt-actions .btn` silently matched nothing and a real
+ * freeze looked like a passing test.
+ */
+function search(selector, all) {
+  const parts = selector.trim().split(/\s+/).filter(Boolean).map(matcher);
   const out = [];
-  for (const root of nodes.values()) {
+  const roots = [...nodes.values()];
+  const descend = (node, depth) => {
+    if (!parts[depth](node)) return false;
+    if (depth === parts.length - 1) { out.push(node); return true; }
+    for (const child of walk(node).slice(1)) if (descend(child, depth + 1) && !all) return true;
+    return false;
+  };
+  for (const root of roots) {
     for (const node of walk(root)) {
-      if (hasAll(node, want) && !avoid.some((name) => node.classList?.contains(name))) out.push(node);
+      if (descend(node, 0) && !all) return out[0] ?? null;
     }
   }
-  return out;
+  return all ? [...new Set(out)] : (out[0] ?? null);
 }
+
+const query = (selector) => search(selector, false);
+const queryAll = (selector) => search(selector, true);
 
 export const dom = { nodes, listeners, phaseNodes, query, queryAll };
 

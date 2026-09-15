@@ -123,3 +123,35 @@ test("a title card with nothing to show is not queued at all", async () => {
   assert.match(app, /\.filter\(playable\)/, "the opening sequence must be filtered");
   assert.match(app, /if \(playable\(outro\)\)/, "the outro must be filtered too");
 });
+
+test("a new duel abandons an unanswered question instead of freezing", async () => {
+  // The engine asks through a promise. If a duel is restarted while one is
+  // open, that promise can never resolve -- so `busy` stays true and every
+  // control is dead for good, with no way back short of a page reload.
+  const { dom, fire, installGlobals, settle } = await import("./dom-stub.mjs");
+  installGlobals();
+  const app = await import("../src/app.js");
+  await settle(300);
+
+  // Drive until the engine asks something.
+  const prompt = dom.nodes.get("prompt");
+  for (let i = 0; i < 40 && prompt.hidden; i += 1) {
+    await fire("advance-btn");
+    await settle(120);
+  }
+
+  // Restart regardless of whether a question happened to be open: the
+  // assertion below is that controls come back either way.
+  await fire("restart-btn");
+  await settle(300);
+
+  assert.equal(prompt.hidden, true, "a restart must clear the old duel's question");
+  const advance = dom.nodes.get("advance-btn");
+  let recovered = false;
+  for (let i = 0; i < 20 && !recovered; i += 1) {
+    if (!advance.disabled) recovered = true;
+    await settle(120);
+  }
+  assert.ok(recovered, "the controls never came back after restarting");
+  assert.equal(app.stateForTest().turn, 1, "a restart starts a new duel");
+});

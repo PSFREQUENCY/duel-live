@@ -43,9 +43,12 @@ export function lineFor(event, state) {
       const how = event.how === "fusion" ? "Fusion Summons"
         : event.how === "set" ? "sets a monster"
           : event.how === "reborn" ? "revives" : "summons";
-      const name = event.how === "set" ? "" : ` ${event.card}`;
+      // A set monster is hidden information. Printing its ATK in the log
+      // identifies it as surely as printing its name would.
+      const hidden = event.how === "set" || event.faceDown;
+      const name = hidden ? "" : ` ${event.card}`;
       return { ...base, text: `${who(state, event.side)} ${how}${name}`,
-        detail: event.atk ? `${event.atk} ATK` : null };
+        detail: !hidden && event.atk ? `${event.atk} ATK` : null };
     }
 
     case "set": return { ...base, text: `${who(state, event.side)} sets a ${event.kind}` };
